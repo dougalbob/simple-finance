@@ -1,0 +1,56 @@
+# ==============================================================================
+# Simple Finance — .gitignore
+# This repository is PUBLIC. No real personal financial data may ever be
+# committed: no databases, backups, receipts, exports, or credentials.
+# Fictional demo/seed data lives in tracked source paths (e.g. src/lib/demo,
+# prisma/seed) and must never be stored under the ignored runtime paths below.
+# ==============================================================================
+
+# --- Node / Next.js build artefacts ---
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# --- Environment & secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# --- Runtime / real household data (NEVER commit) ---
+# Mirrors the production data root /mnt/user/appdata/simple-finance (container /data):
+# database files, .env, documents/ (receipt & invoice attachments), logging/.
+data/
+backups/
+receipts/
+uploads/
+exports/
+documents/
+logging/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.dump
+*.bak
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
