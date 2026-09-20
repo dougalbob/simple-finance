@@ -125,3 +125,37 @@ export function endOfLocalDate(dateString: string, timeZone: string = BUSINESS_T
   }
   return new Date(utcMs);
 }
+
+/**
+ * The instant a local date begins: 00:00 of that date in the business
+ * timezone (the inverse of endOfLocalDate). Schedule instances convert at
+ * local midnight on their due date (SPEC §11.2); Europe/London transitions
+ * its clocks at 01:00/02:00, so local midnight exists on every day, but the
+ * offset lookup is still iterated to converge for the same reason endOfLocalDate is.
+ */
+export function startOfLocalDate(dateString: string, timeZone: string = BUSINESS_TIMEZONE): Date {
+  if (!isValidLocalDate(dateString)) {
+    throw new Error(
+      `Expected a local date like 2026-09-24, received ${JSON.stringify(dateString)}`,
+    );
+  }
+  const [year, month, day] = dateString.split('-').map(Number) as [number, number, number];
+  const wallUtcMs = Date.UTC(year, (month as number) - 1, day, 0, 0, 0, 0);
+  let utcMs = wallUtcMs;
+  for (let i = 0; i < 3; i += 1) {
+    utcMs = wallUtcMs - timeZoneOffsetMs(new Date(utcMs), timeZone);
+  }
+  return new Date(utcMs);
+}
+
+/**
+ * True when an instant is exactly the end-of-local-date marker for its own
+ * local date — i.e. it was produced by endOfLocalDate from a date-only
+ * entry. Used by the estimate engine's comparison-precision rule (SPEC
+ * §7.1): a real timed entry at 23:59:59.999 cannot occur (mobile entry
+ * stamps whole seconds on a tap), so the marker identifies date-only facts
+ * unambiguously.
+ */
+export function isDateOnlyInstant(instant: Date, dateString: string): boolean {
+  return instant.getTime() === endOfLocalDate(dateString).getTime();
+}

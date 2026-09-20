@@ -6,6 +6,7 @@ import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
 import { purchases } from '@/lib/db/schema';
 import { formatPence, parsePence } from '@/lib/money';
+import { toLocalDateString } from '@/lib/time';
 import {
   initialActionState,
   type ActionState,
@@ -25,13 +26,34 @@ import { findChildCategory } from '@/lib/records/categories';
 import { createVehicle } from '@/lib/records/vehicles';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from '@/lib/records/errors';
 import {
+  cancelScheduleEntrySchema,
   checkpointEntrySchema,
   fuelEntrySchema,
   potIdSchema,
   potKindSchema,
   potLabelSchema,
+  projectionSettingsEntrySchema,
   purchaseEntrySchema,
+  renewalEntrySchema,
+  scheduleEntrySchema,
 } from '@/lib/validation';
+import {
+  cancelSchedule,
+  createSchedule,
+  ScheduleCancelledError,
+  ScheduleNotFoundError,
+  InvalidScheduleInputError,
+} from '@/lib/records/schedules';
+import {
+  createRenewal,
+  InvalidRenewalInputError,
+  RenewalNotFoundError,
+} from '@/lib/records/renewals';
+import {
+  InvalidSettingValueError,
+  setMonthlyFuelPence,
+  setWeeklyGroceriesPence,
+} from '@/lib/records/settings';
 
 /**
  * Phase 1 server actions: one validated write path (pot + checkpoint) behind
@@ -386,4 +408,211 @@ export async function addVehicleAction(
   } catch (err) {
     return { status: 'error', message: domainMessage(err, 'The vehicle could not be saved.') };
   }
+}
+
+/**
+ * Phase 3 server actions: schedules, renewals and projection figures
+ * (docs/SPEC.md §11, §22, §7.3). Same conventions as Phase 1–2b:
+ * authenticated, Zod at the boundary, domain authority, audit in-transaction.
+ */
+
+export async function addScheduleAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  const today = new Date();
+  const raw = parseScheduleForm(formData, today);
+  if (!raw.success) return { status: 'error', message: raw.message };
+  const parsed = scheduleEntrySchema.safeParse(raw.data);
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the schedule fields.') };
+  }
+  try {
+    const { schedule } = createSchedule(getDbHandle().db, {
+      ...parsed.data,
+      categoryId: parsed.data.kind === 'receipt' ? null : parsed.data.categoryId,
+      activeFrom: parsed.data.activeFrom,
+      actor: user.email,
+    });
+    revalidatePath('/');
+    return {
+      status: 'ok',
+      message: `Schedule “${schedule.name}” added — it will convert automatically on its due date.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidScheduleInputError ||
+      err instanceof ScheduleNotFoundError ||
+      err instanceof ScheduleCancelledError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The schedule could not be saved. Please try again.' };
+  }
+}
+
+export async function cancelScheduleAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = cancelScheduleEntrySchema.safeParse({
+    scheduleId: numberOrNull(formData.get('scheduleId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    effectiveOn: textOrNull(formData.get('effectiveOn')) ?? undefined,
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The cancellation needs an effective date (local date).'),
+    };
+  }
+  try {
+    const result = cancelSchedule(getDbHandle().db, {
+      id: parsed.data.scheduleId,
+      expectedVersion: parsed.data.expectedVersion,
+      effectiveOn: parsed.data.effectiveOn ?? '',
+      actor: user.email,
+    });
+    revalidatePath('/');
+    return {
+      status: 'ok',
+      message: `“${result.name}” cancelled from ${parsed.data.effectiveOn} — converted history is kept.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidScheduleInputError ||
+      err instanceof ScheduleNotFoundError ||
+      err instanceof ScheduleCancelledError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The schedule could not be cancelled. Please try again.' };
+  }
+}
+
+export async function addRenewalAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = renewalEntrySchema.safeParse({
+    label: textOrNull(formData.get('label')) ?? '',
+    nextRenewalDate: textOrNull(formData.get('nextRenewalDate')) ?? '',
+    warnDaysBefore: numberOrNull(formData.get('warnDaysBefore')) ?? 21,
+    repeatsAnnually:
+      formData.get('repeatsAnnually') === 'on' || formData.get('repeatsAnnually') === 'true',
+    supplierId: numberOrNull(formData.get('supplierId')),
+    ...parseCompositeTarget(formData.get('target')),
+    notes: textOrNull(formData.get('notes')),
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the renewal fields.') };
+  }
+  try {
+    const renewal = createRenewal(getDbHandle().db, {
+      ...parsed.data,
+      actor: user.email,
+    });
+    revalidatePath('/');
+    return {
+      status: 'ok',
+      message: `Renewal “${renewal.label}” added for ${renewal.nextRenewalDate}.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidRenewalInputError || err instanceof RenewalNotFoundError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The renewal could not be saved. Please try again.' };
+  }
+}
+
+export async function saveProjectionSettingsAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  const groceriesRaw = formData.get('weeklyGroceries');
+  const groceries =
+    groceriesRaw === null || String(groceriesRaw).trim() === ''
+      ? null
+      : parsePence(String(groceriesRaw));
+  const fuel: Record<string, number | null> = {};
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('fuel_')) continue;
+    const vehicleId = Number(key.slice('fuel_'.length));
+    const text = typeof value === 'string' ? value.trim() : '';
+    fuel[String(vehicleId)] = text === '' ? null : parsePence(text);
+  }
+
+  const parsed = projectionSettingsEntrySchema.safeParse({
+    weeklyGroceriesPence: groceries,
+    monthlyFuelPence: fuel,
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(
+        parsed.error,
+        'Figures must be whole amounts like 90.00 (blank to clear).',
+      ),
+    };
+  }
+  try {
+    const db = getDbHandle().db;
+    setWeeklyGroceriesPence(db, parsed.data.weeklyGroceriesPence, user.email);
+    for (const [vehicleId, pence] of Object.entries(parsed.data.monthlyFuelPence)) {
+      setMonthlyFuelPence(db, Number(vehicleId), pence, user.email);
+    }
+    revalidatePath('/');
+    return { status: 'ok', message: 'Projection figures saved. The forecast updates immediately.' };
+  } catch (err) {
+    if (err instanceof InvalidSettingValueError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The figures could not be saved. Please try again.' };
+  }
+}
+
+function parseScheduleForm(
+  formData: FormData,
+  now: Date,
+): { success: true; data: Record<string, unknown> } | { success: false; message: string } {
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const data: Record<string, unknown> = {
+    name: textOrNull(formData.get('name')) ?? '',
+    kind: textOrNull(formData.get('kind')) ?? 'dd',
+    frequency: textOrNull(formData.get('frequency')) ?? 'monthly',
+    dueDayOfMonth: numberOrNull(formData.get('dueDayOfMonth')) ?? 0,
+    dueMonth: numberOrNull(formData.get('dueMonth')),
+    amountPence: amount,
+    potId: numberOrNull(formData.get('potId')),
+    categoryId: numberOrNull(formData.get('categoryId')),
+    ...parseCompositeTarget(formData.get('target')),
+    contractEndsOn: textOrNull(formData.get('contractEndsOn')),
+    activeFrom: textOrNull(formData.get('activeFrom')) ?? toLocalDateString(now),
+    activeUntil: textOrNull(formData.get('activeUntil')),
+  };
+  return { success: true, data };
+}
+
+/** The "For" select submits one composite value (household | person-N | vehicle-N). */
+function parseCompositeTarget(raw: FormDataEntryValue | null): {
+  targetKind: string;
+  targetId: number | null;
+} {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  const dash = value.indexOf('-');
+  if (dash === -1) return { targetKind: 'household', targetId: null };
+  return { targetKind: value.slice(0, dash), targetId: Number(value.slice(dash + 1)) || null };
 }

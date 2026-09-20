@@ -127,3 +127,106 @@ export const checkpointEntrySchema = z.object({
   effectiveDate: localDateSchema.nullable().default(null),
   note: nullableText(280, 'Note'),
 });
+
+/** Parsed, server-authoritative shape for adding a schedule (Phase 3, SPEC §11). */
+export const scheduleEntrySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Give the schedule a name')
+      .max(60, 'Keep the name to 60 characters or fewer'),
+    kind: z.enum(['dd', 'so', 'receipt']),
+    frequency: z.enum(['monthly', 'annual']),
+    dueDayOfMonth: z.number().int('Whole day').min(1, 'Day 1–31').max(31, 'Day 1–31'),
+    dueMonth: positiveIdSchema
+      .refine((v) => v >= 1 && v <= 12, 'Month 1–12')
+      .nullable()
+      .default(null),
+    amountPence: positivePenceSchema,
+    potId: positiveIdSchema,
+    categoryId: positiveIdSchema.nullable().default(null),
+    targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
+    targetId: positiveIdSchema.nullable().default(null),
+    contractEndsOn: localDateSchema.nullable().default(null),
+    activeFrom: localDateSchema,
+    activeUntil: localDateSchema.nullable().default(null),
+  })
+  .superRefine((value, context) => {
+    if (value.frequency === 'annual' && value.dueMonth === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['dueMonth'],
+        message: 'Annual schedules need a due month.',
+      });
+    }
+    if (value.kind === 'receipt' && value.categoryId !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['categoryId'],
+        message: 'Expected receipts have no category — income is not spending.',
+      });
+    }
+    if (value.kind !== 'receipt' && value.categoryId === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['categoryId'],
+        message: 'Choose a category for the direct debit or standing order.',
+      });
+    }
+    if (value.targetKind === 'household' && value.targetId !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetId'],
+        message: 'A household schedule has no person or vehicle target.',
+      });
+    }
+    if (value.targetKind !== 'household' && value.targetId === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetId'],
+        message: 'Choose the person or vehicle this schedule is for.',
+      });
+    }
+  });
+
+/** Parsed shape for cancelling a schedule with an effective date (SPEC §11.2). */
+export const cancelScheduleEntrySchema = z.object({
+  scheduleId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  effectiveOn: localDateSchema,
+});
+
+/** Parsed shape for adding a renewal (SPEC §22.2). */
+export const renewalEntrySchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Give the renewal a label')
+    .max(60, 'Keep the label to 60 characters or fewer'),
+  nextRenewalDate: localDateSchema,
+  warnDaysBefore: z
+    .number()
+    .int('Whole days')
+    .min(0, '0 days or more')
+    .max(365, '365 days or fewer')
+    .default(21),
+  repeatsAnnually: z.boolean().default(true),
+  supplierId: positiveIdSchema.nullable().default(null),
+  targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
+  targetId: positiveIdSchema.nullable().default(null),
+  notes: nullableText(280, 'Notes'),
+});
+
+const nonNegativePenceSchema = penceAmountSchema.refine((value) => value >= 0, {
+  message: 'Enter zero or a positive amount.',
+});
+
+/**
+ * Parsed shape for the projection figures (SPEC §7.3). Fuel figures arrive
+ * per vehicle as a record of vehicle id → pence (empty string = cleared).
+ */
+export const projectionSettingsEntrySchema = z.object({
+  weeklyGroceriesPence: nonNegativePenceSchema.nullable(),
+  monthlyFuelPence: z.record(z.string(), nonNegativePenceSchema.nullable()).default({}),
+});

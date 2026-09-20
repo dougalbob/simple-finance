@@ -112,6 +112,11 @@ export interface CreatePurchaseInput {
   note?: string | null;
   lines: AllocationLineInput[];
   refundOfPurchaseId?: number | null;
+  /**
+   * Phase 3: set when this purchase is the converted form of a schedule
+   * instance (SPEC §11.2 "from schedule" tag). null for manual entry.
+   */
+  scheduleInstanceId?: number | null;
   actor: string;
   now?: Date;
 }
@@ -173,6 +178,7 @@ export function createPurchase(db: Db, input: CreatePurchaseInput): CreatePurcha
         enteredBy: actor,
         note,
         refundOfPurchaseId: input.refundOfPurchaseId ?? null,
+        scheduleInstanceId: input.scheduleInstanceId ?? null,
         createdAt: now,
         updatedAt: now,
       })

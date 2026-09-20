@@ -172,6 +172,11 @@ export const purchases = sqliteTable(
     refundOfPurchaseId: integer('refund_of_purchase_id').references(
       (): AnySQLiteColumn => purchases.id,
     ),
+    /**
+     * Phase 3: set when the purchase was auto-converted from a schedule
+     * instance (SPEC §11.2 "from schedule" tag). null for manual entry.
+     */
+    scheduleInstanceId: integer('schedule_instance_id'),
     voidedAt: integer('voided_at', { mode: 'timestamp_ms' }),
     voidedBy: text('voided_by'),
     voidReason: text('void_reason'),
@@ -189,6 +194,7 @@ export const purchases = sqliteTable(
     index('purchases_supplier_idx').on(table.supplierId),
     index('purchases_occurred_date_idx').on(table.occurredDate),
     index('purchases_refund_of_idx').on(table.refundOfPurchaseId),
+    index('purchases_schedule_instance_idx').on(table.scheduleInstanceId),
   ],
 );
 
@@ -252,3 +258,196 @@ export const transfers = sqliteTable(
     index('transfers_to_occurred_idx').on(table.toPotId, table.occurredAt),
   ],
 );
+
+/**
+ * Phase 3: schedules, instances, receipts, renewals and settings
+ * (docs/SPEC.md §11, §22, §7.3; plan data-model sketch).
+ *
+ * Money-record shape decision (plan OQ5, resolved in Phase 3): expected
+ * receipts get their own `receipts` table rather than reusing `purchases`.
+ * Income is not spending (SPEC §6): it carries no category or target, so
+ * forcing it through the exact-total allocation constraint would be wrong.
+ * The two tables stay one money-record abstraction at the engine level —
+ * both share occurred_at/occurred_date, voided_* and version conventions,
+ * and the estimate engine treats them as signed movements (receipts add).
+ * A converted instance links forward (converted_record_kind/_id) and the
+ * converted record links back (schedule_instance_id on purchases/receipts).
+ */
+
+export const schedules = sqliteTable(
+  'schedules',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    kind: text('kind', { enum: ['dd', 'so', 'receipt'] }).notNull(),
+    frequency: text('frequency', { enum: ['monthly', 'annual'] }).notNull(),
+    /** 1–31; shorter months clamp to their last day (plan OQ1). */
+    dueDayOfMonth: integer('due_day_of_month').notNull(),
+    /**
+     * 1–12; required for annual schedules (an annual premium renews on a
+     * specific month and day), null for monthly (every month).
+     */
+    dueMonth: integer('due_month'),
+    amountPence: integer('amount_pence').notNull(),
+    potId: integer('pot_id')
+      .notNull()
+      .references(() => pots.id),
+    /** Leaf category for dd/so; null for receipts (income has no category). */
+    categoryId: integer('category_id').references(() => categories.id),
+    targetKind: text('target_kind', { enum: ['household', 'person', 'vehicle'] })
+      .notNull()
+      .default('household'),
+    targetId: integer('target_id'),
+    /**
+     * Fixed-term contract end (SPEC §22.1): informational + alert only.
+     * Instances never auto-stop because of it.
+     */
+    contractEndsOn: text('contract_ends_on'),
+    /** Local dates ('YYYY-MM-DD'). */
+    activeFrom: text('active_from').notNull(),
+    activeUntil: text('active_until'),
+    cancelledAt: integer('cancelled_at', { mode: 'timestamp_ms' }),
+    /** Cancellation is effective from this local date (SPEC §11.2). */
+    cancelledEffectiveOn: text('cancelled_effective_on'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    check('schedules_due_day_range', sql`${table.dueDayOfMonth} BETWEEN 1 AND 31`),
+    check(
+      'schedules_due_month_rule',
+      sql`(
+        (${table.frequency} = 'monthly' AND ${table.dueMonth} IS NULL)
+        OR
+        (${table.frequency} = 'annual' AND ${table.dueMonth} BETWEEN 1 AND 12)
+      )`,
+    ),
+    check('schedules_amount_positive', sql`${table.amountPence} > 0`),
+    index('schedules_kind_idx').on(table.kind),
+    index('schedules_pot_idx').on(table.potId),
+  ],
+);
+
+/**
+ * One row per scheduled due date, in exactly one state at any moment
+ * (SPEC §11.2): UPCOMING while expected, CONVERTED once the due date
+ * arrives (local midnight). UNIQUE(schedule_id, due_date) enforces the
+ * one-instance-per-date rule at the database level.
+ */
+export const scheduleInstances = sqliteTable(
+  'schedule_instances',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    scheduleId: integer('schedule_id')
+      .notNull()
+      .references(() => schedules.id),
+    dueDate: text('due_date').notNull(),
+    state: text('state', { enum: ['upcoming', 'converted'] })
+      .notNull()
+      .default('upcoming'),
+    convertedRecordKind: text('converted_record_kind', { enum: ['purchase', 'receipt'] }),
+    convertedRecordId: integer('converted_record_id'),
+    convertedAt: integer('converted_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    check(
+      'schedule_instances_state',
+      sql`(
+        (${table.state} = 'upcoming'
+          AND ${table.convertedRecordKind} IS NULL
+          AND ${table.convertedRecordId} IS NULL
+          AND ${table.convertedAt} IS NULL)
+        OR
+        (${table.state} = 'converted'
+          AND ${table.convertedRecordKind} IS NOT NULL
+          AND ${table.convertedRecordId} IS NOT NULL
+          AND ${table.convertedAt} IS NOT NULL)
+      )`,
+    ),
+    uniqueIndex('schedule_instances_schedule_date_uidx').on(table.scheduleId, table.dueDate),
+  ],
+);
+
+/**
+ * Income records (SPEC §6, §11.3): the money counterpart of purchases with
+ * the sign flipped. No category, no target, no supplier — income is not
+ * spending and never enters a spending insight. Optional schedule_instance_id
+ * links a converted expected receipt back to its instance.
+ */
+export const receipts = sqliteTable(
+  'receipts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    scheduleInstanceId: integer('schedule_instance_id'),
+    potId: integer('pot_id')
+      .notNull()
+      .references(() => pots.id),
+    amountPence: integer('amount_pence').notNull(),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+    occurredDate: text('occurred_date').notNull(),
+    enteredBy: text('entered_by').notNull(),
+    note: text('note'),
+    voidedAt: integer('voided_at', { mode: 'timestamp_ms' }),
+    voidedBy: text('voided_by'),
+    voidReason: text('void_reason'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    check('receipts_amount_positive', sql`${table.amountPence} > 0`),
+    index('receipts_pot_occurred_idx').on(table.potId, table.occurredAt),
+    index('receipts_occurred_date_idx').on(table.occurredDate),
+    index('receipts_schedule_instance_idx').on(table.scheduleInstanceId),
+  ],
+);
+
+/**
+ * Renewals (SPEC §22.2): insurance and anything else that auto-renews.
+ * A renewal is an alert plus context — where the money also moves (an
+ * annual premium), that is a separate annual schedule (plan decision 24);
+ * the two never double-count.
+ */
+export const renewals = sqliteTable(
+  'renewals',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    label: text('label').notNull(),
+    supplierId: integer('supplier_id').references(() => suppliers.id),
+    targetKind: text('target_kind', { enum: ['household', 'person', 'vehicle'] })
+      .notNull()
+      .default('household'),
+    targetId: integer('target_id'),
+    nextRenewalDate: text('next_renewal_date').notNull(),
+    /** Per-item warning lead in days; default 21 (SPEC §22.2). */
+    warnDaysBefore: integer('warn_days_before').notNull().default(21),
+    repeatsAnnually: integer('repeats_annually', { mode: 'boolean' }).notNull().default(true),
+    notes: text('notes'),
+    /** The date displaced by the last annual auto-advance (history). */
+    advancedFrom: text('advanced_from'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    check('renewals_lead_non_negative', sql`${table.warnDaysBefore} >= 0`),
+    index('renewals_date_idx').on(table.nextRenewalDate),
+  ],
+);
+
+/**
+ * Private runtime settings (plan data-model sketch): projection figures,
+ * key-date lead, household labels. Values are stored as TEXT and typed by
+ * the domain accessor (src/lib/records/settings.ts). Real figures live
+ * only in the private installation (SPEC §19).
+ */
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedBy: text('updated_by').notNull(),
+  version: integer('version').notNull().default(1),
+});
