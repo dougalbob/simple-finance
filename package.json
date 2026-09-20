@@ -1,0 +1,42 @@
+{
+  "name": "simple-finance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private household spending app for two people watching money carefully. See docs/SPEC.md.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.cjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.12",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tar": "^7.5.22",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "^0.31.10",
+    "prettier": "^3.9.8",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+build
+dist
+data
+coverage
+package-lock.json
+drizzle
+next-env.d.ts
+
+# Documentation is hand-authored (including the product owner's spec documents);
+# reformatting markdown adds diff noise without adding value. Code stays formatted.
+*.md
