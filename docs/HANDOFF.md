@@ -34,9 +34,10 @@ per release. The *next session's* platform branch/remote restrictions still gove
   containing:
   - the four documents: `README.md` (updated), `docs/SPEC.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/HANDOFF.md`;
   - `.gitignore` (protects real data/secrets/backups — committed **before** any code, deliberately).
-- A PR from that branch to `main` carries these docs for the user's review (link in the session chat).
-  **If the PR is not yet merged when the next session starts:** do not assume its content is on `main`;
-  check `git log origin/main`, and either base work on the merged state or ask the user to merge first.
+- **PR #1 (docs only) was merged into `main` on 2026-09-20 at the product owner's request.** Verify with
+  `git log origin/main` — these documents should be present at the tip of `main`. The next session starts
+  from `main` on its own assigned branch; the discovery branch `arena/01a0c00b-simple-finance` is history.
+  If for any reason the merge did not land, do not assume the docs are on `main` — ask the user first.
 - **No application code, no package.json, no CI, no image, no deployment.** Nothing has been published.
   Last user-confirmed deployed version: none (nothing exists to deploy).
 
