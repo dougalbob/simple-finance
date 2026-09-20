@@ -1,6 +1,7 @@
 # Simple Finance — Implementation Plan
 
-**Status:** specification agreed; **no application code exists yet**. Discovery completed 2026-09-20.
+**Status:** Phase 0 + Phase 1 complete (Session 1, merged 2026-09-20 — PR #2). Phase 2a (core money
+records) is next per the session map below. Discovery completed 2026-09-20.
 This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.md` (the product spec).
 
 > All names, amounts and dates in this document are fictional placeholders. Real values live only in the
@@ -215,6 +216,17 @@ covering attachments).*
     encryption + filename + blob-download lessons, restore staging/rollback rules, and the clean-installation
     rehearsal gate before real data is trusted.
 
+*Session 1 (2026-09-20) — build decisions, recorded for future sessions:*
+
+29. **Session map adopted** (table above): seven sessions; Phases 2 and 4 split into a/b. Recorded in this document at the product owner's instruction so no future session re-opens the phasing question. End-of-session documentation updates ride in the same PR as the code (user instruction 2026-09-20).
+30. **Stack versions** (current, supported, mutually compatible; lockfile committed): Next.js 16.3.5, React 19.3.0, TypeScript **5.9.3** (deliberately not 7.x — the native-compiler line is newest but 5.9 is the known-Next-compatible choice; revisit later with a dedicated upgrade gate), Tailwind 4.3.3, drizzle-orm 0.45.2 + drizzle-kit 0.31.10, better-sqlite3 13.0.3, zod 4.6.5, jose 6.2.12, tar 7.5.22, Node 22 LTS.
+31. **Drizzle sync-mode conventions** (discovered the hard way in Session 1; future sessions must follow): every query needs a terminal method — inserts use `.returning().get()` (single row) or `.run()` (no return); a bare `.values()`/`.returning()` is a no-op builder, not a query. Counts via `select({ value: count() }).from(t).all()`, not `$count()`. Recorded so Phase 2+ doesn't re-trip.
+32. **Container strategy:** regular `next build` + `next start` (not standalone output) with the pruned production `node_modules` copied from the builder stage — robustness (native modules) over image size; optimisation candidate for Phase 5. Container runs as root for now (documented trade-off matching the reference app); Phase 5 security review to decide least-privilege execution.
+33. **Auth configuration** (names in `.env.example`): `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_ALLOWED_EMAILS` (exactly two), optional `AUTH_CERTS_URL` (default `${issuer}/cdn-cgi/access/certs`), `AUTH_DEV_BYPASS` + `AUTH_DEV_IDENTITY_EMAIL`. The bypass is computed false whenever `NODE_ENV=production` — impossible to enable by flags alone. Verification restricts to RS256 and enforces issuer/audience/expiry/allowlist.
+34. **Backup skeleton scope (Phase 1):** archive = tar.gz{db snapshot via `better-sqlite3 .backup()`, manifest.json} → AES-256-GCM (scrypt N=16384/r=8/p=1, fresh salt+nonce) with frame magic `SFBA` v1. Restore targets isolated directories only; live in-place restore (connection close, WAL/SHM, rollback, UI refresh) is Phase 5. Filename contract implemented and DST/midnight-tested; client blob-download tests land with the Phase 5 UI.
+35. **Prettier excludes `*.md`** (`.prettierignore`): documentation is hand-authored, including the product owner's spec documents; markdown reformatting adds diff noise without value. (A `prettier --write .` reformatted the spec docs once in Session 1; reverted before commit — no spec content was lost.)
+36. **Sandbox constraint (environmental, not a repo decision):** this sandbox blocks `nodejs.org`, so plain `npm ci` fails when npm's gypfile auto-build tries to compile `better-sqlite3` from source. `npm ci --ignore-scripts` works (the package bundles prebuilt binaries incl. linux-x64/node-22) and the suite verifies the native module — the blueprint §9 caveat is satisfied and recorded. Plain `npm ci` is proven in the CI `gates` job on GitHub Actions. Do not "fix" the repo for this; do not assume the constraint still holds in a future session — re-verify.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -235,17 +247,44 @@ covering attachments).*
 
 ## Release history
 
-- None yet. No application code, no image, no deployment. First planned release: **v0.1.0** at end of Phase 5.
+- No versioned releases yet (no tag, no image, no deployment). **Phase 0 + Phase 1 merged to `main` on
+  2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
+  container smoke test on every PR and push. First planned release: **v0.1.0** at end of Phase 5.
 
 ## File map (current)
 
 ```
-README.md                     — operating truth (currently: spec-stage status)
+README.md                     — operating truth (Phase 0+1 status, local run, gates, sandbox note)
 AGENT_APP_BLUEPRINT.md        — engineering/delivery contract (from Estate Organiser lessons; user-provided)
-docs/SPEC.md                  — agreed product specification + worked fictional examples
-docs/IMPLEMENTATION_PLAN.md   — this file
-docs/HANDOFF.md               — next-session continuation point
+docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E9
+docs/IMPLEMENTATION_PLAN.md   — this file (now includes the session map)
+docs/HANDOFF.md               — next-session continuation point (rewritten at each session end)
 .gitignore                    — protects real data/secrets/backups from the public repo
+package.json / package-lock.json — dependencies, scripts (gates), engines (node >=22)
+tsconfig.json / next.config.ts / postcss.config.mjs / .prettierrc / .prettierignore
+drizzle.config.ts             — drizzle-kit config (schema → ./drizzle)
+drizzle/                      — checked-in SQL migrations (never edit an applied migration)
+src/lib/version.ts            — single source of app version (kept aligned with package.json by test)
+src/lib/config.ts             — env parsing; fail-closed auth completeness; dev-bypass computation
+src/lib/money.ts              — integer-pence parsing/formatting (no float money, ever)
+src/lib/time.ts               — Europe/London rendering + checkpoint age labels
+src/lib/db/{client,migrate,schema}.ts — better-sqlite3 + Drizzle (WAL, FKs), migration runner, schema
+src/lib/audit.ts              — in-transaction audit writer
+src/lib/auth/{verify,current-user,next}.ts — jose JWT verification, fail-closed resolution, Next adapter
+src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint, reads (one path for actions + tests)
+src/lib/validation.ts         — Zod schemas at the server boundary
+src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
+src/app/                      — layout, home page (slice), unauthorized page, server actions
+src/app/api/health/route.ts   — public health endpoint (no diagnostics)
+src/app/api/backup/route.ts   — authenticated encrypted backup download (POST)
+src/components/pot-forms.tsx  — client forms (Add pot / checkpoint)
+scripts/migrate.cjs           — production migration runner (entrypoint path)
+docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
+Dockerfile                    — multi-stage production image
+.env.example                  — placeholder configuration (real values only in the private install)
+tests/*.test.ts               — 60 tests: money, time, filename (DST/midnight), config, auth verify,
+                                current-user fail-closed, db slice, backup/restore round-trip, route, migrate script, version
+.github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```
 
 ## Known risks
