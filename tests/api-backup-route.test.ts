@@ -70,6 +70,7 @@ describe('POST /api/backup (route handler)', () => {
       amountPence: 41235,
       effectiveAt: new Date('2026-09-26T18:05:00Z'),
       actor: 'dev@example.com',
+      now: new Date('2026-09-26T18:06:00Z'),
     });
 
     const response = await POST(request({ password: 'backup-passphrase-1' }));

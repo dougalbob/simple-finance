@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_ABS_PENCE } from './money';
 
 /**
  * Zod schemas at the server boundary (blueprint §3). Browser validation is
@@ -17,11 +18,11 @@ export const potKindSchema = z.enum(['bank', 'cash'], {
   error: 'Choose either bank or cash',
 });
 
-/** ±£9,999,999,999.99 — matches parsePence bounds; bank balances may be negative (overdraft). */
+/** ±MAX_ABS_PENCE — matches parsePence bounds; bank balances may be negative (overdraft). */
 export const penceAmountSchema = z
   .number()
   .int('Amount must be whole pence')
-  .refine((v) => Math.abs(v) <= 999_999_999_999, 'Amount is out of range');
+  .refine((v) => Math.abs(v) <= MAX_ABS_PENCE, 'Amount is out of range');
 
 export const checkpointNoteSchema = z
   .string()

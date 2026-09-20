@@ -6,9 +6,10 @@ by payday?\"* Built for a single household behind Cloudflare Access, deployed to
 
 ## Current status
 
-**Stage: Phase 0 + Phase 1 complete (Session 1, merged 2026-09-20) — first vertical slice running; no
-release published yet.** Phases 2–5 (money records, engines, desktop pages, hardening/v0.1.0) are planned
-and sequenced — see the **session map** in `docs/IMPLEMENTATION_PLAN.md`.
+**Stage: Phase 0 + Phase 1 + Phase 2a complete (Sessions 1–2, merged 2026-09-20) — vertical slice plus
+the core money-record domain running; no release published yet.** Phases 2b–5 (mobile entry UI, engines,
+desktop pages, hardening/v0.1.0) are planned and sequenced — see the **session map** in
+`docs/IMPLEMENTATION_PLAN.md`.
 
 | Implemented & merged | Status |
 |---|---|
@@ -18,11 +19,12 @@ and sequenced — see the **session map** in `docs/IMPLEMENTATION_PLAN.md`.
 | Encrypted backup skeleton (WAL-safe snapshot, versioned manifest + sha256, AES-256-GCM + scrypt, filename contract) + restore into isolated targets | ✅ round-trip, wrong-password, tamper & truncation tested |
 | Container: multi-stage Dockerfile, entrypoint (dirs → `.env` → migrations → exec), public `/api/health`, healthcheck | ✅ entrypoint simulate passed locally; image build + container smoke tested in CI |
 | Unauthorised / wrong-audience requests rejected on pages and API routes | ✅ tested at unit and live-server level |
+| Core money records (Phase 2a): people, vehicles, category tree seeded per SPEC §12, suppliers + contact cards, purchases with exact-total splits, refunds as linked negatives, transfers, void/edit with audit + optimistic concurrency, checkpoint effective-date rule | ✅ integration tested incl. E1, E2, E4, E6, E7 on isolated databases (107 tests total) |
 
-**Not yet built (per plan):** purchases/splits/suppliers/transfers, schedules & auto-conversion, estimate
-and payday-projection engines, warnings, desktop pages, Insights, attachments, live in-place restore,
+**Not yet built (per plan):** mobile entry UI (Phase 2b), schedules & auto-conversion, estimate and
+payday-projection engines, warnings, desktop pages, Insights, attachments, live in-place restore,
 GHCR publication, Unraid template. Nothing has been deployed; the first release will be **v0.1.0** at the
-end of Phase 5.
+end of Phase 5. The Phase 2a domain has no UI yet — the home page still shows pots and checkpoints only.
 
 | Document | Purpose |
 |---|---|
@@ -73,7 +75,7 @@ Gates (same commands CI runs):
 ```sh
 npm run format:check
 npm run typecheck
-npm test                              # 60 tests
+npm test                              # 107 tests
 NEXT_TELEMETRY_DISABLED=1 npm run build
 npm audit --omit=dev                  # 0 vulnerabilities at time of writing
 npm run db:migrate                    # apply migrations explicitly (dev does it automatically)

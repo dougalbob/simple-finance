@@ -1,11 +1,26 @@
 # Simple Finance — Implementation Plan
 
-**Status:** Phase 0 + Phase 1 complete (Session 1, merged 2026-09-20 — PR #2). Phase 2a (core money
-records) is next per the session map below. Discovery completed 2026-09-20.
+**Status:** Phase 0 + Phase 1 + Phase 2a complete (Sessions 1–2, merged 2026-09-20 — PRs #2, #3).
+Phase 2b (mobile entry UI) is next per the session map below. Discovery completed 2026-09-20.
 This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.md` (the product spec).
 
 > All names, amounts and dates in this document are fictional placeholders. Real values live only in the
 > private installation's configuration and database. See the privacy notice in `docs/SPEC.md`.
+
+## Session map (adopted by the product owner 2026-09-20 — decision 29; do not re-open phasing)
+
+| Session | Scope | Status |
+|---|---|---|
+| 1 | Phase 0 + Phase 1 — bootstrap + thin vertical slice | Complete (PR #2) |
+| 2 | Phase 2a — core money records: schema + pure domain modules, E1/E2/E4/E6/E7 | Complete (PR #3) |
+| 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Next |
+| 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Planned |
+| 5 | Phase 4a — desktop pages + Insights v1 (first part) | Planned |
+| 6 | Phase 4b — desktop pages + attachments (remainder) | Planned |
+| 7 | Phase 5 — hardening & first release (v0.1.0) | Planned |
+
+> The Phase 4a/4b boundary above is the working split; confirm the exact page allocation with the product
+> owner when Session 5 starts rather than re-opening the seven-session shape.
 
 ## Project profile (blueprint §2)
 
@@ -227,6 +242,21 @@ covering attachments).*
 35. **Prettier excludes `*.md`** (`.prettierignore`): documentation is hand-authored, including the product owner's spec documents; markdown reformatting adds diff noise without value. (A `prettier --write .` reformatted the spec docs once in Session 1; reverted before commit — no spec content was lost.)
 36. **Sandbox constraint (environmental, not a repo decision):** this sandbox blocks `nodejs.org`, so plain `npm ci` fails when npm's gypfile auto-build tries to compile `better-sqlite3` from source. `npm ci --ignore-scripts` works (the package bundles prebuilt binaries incl. linux-x64/node-22) and the suite verifies the native module — the blueprint §9 caveat is satisfied and recorded. Plain `npm ci` is proven in the CI `gates` job on GitHub Actions. Do not "fix" the repo for this; do not assume the constraint still holds in a future session — re-verify.
 
+*Session 2 (2026-09-20) — Phase 2a build decisions:*
+
+37. **Refund linkage on the purchase, not the line:** `purchases.refund_of_purchase_id` points at the original purchase (the plan's sketch placed it on allocations; the whole negative record links, so the column lives with the record). Every refund line must (category, target)-match an original line; cumulative active refunds are capped at the original total; a refund of a refund is rejected (that is just a purchase).
+38. **Supplier category memory is derived, never cached:** count of non-void purchases per category; ties break towards most recent use, then lowest category id (stable, never arbitrary per query). The preselected chip can never go stale.
+39. **Date-only money facts take effect at the end of the local date:** backdated purchases/transfers and date-only checkpoints share one rule (`endOfLocalDate`, Europe/London, DST-tested). `occurred_at` + `occurred_date` are stored together and consistency-checked when both are given.
+40. **No mixed-sign splits:** purchase lines are all positive, refund lines all negative; a till discount reduces a line. Rejected with a message pointing at refunds (keeps SPEC §9.4 fraction-free).
+41. **Void discipline:** voiding an original with active linked refunds is blocked — void the refunds first, explicitly, no cascades. Voided records are frozen: no edit, no second void.
+42. **Optimistic concurrency via synchronous transactions:** a single-writer Node process running fully synchronous transaction bodies cannot interleave two transactions, so read-check-update inside one transaction is race-safe without a row-count assertion. Each domain module documents this assumption; it must be revisited if writers ever multiply.
+43. **Uniqueness:** sibling category names and person/vehicle labels unique case-insensitively (domain-enforced); supplier `normalized_name` unique at the DB level with domain error mapping (race-safe).
+44. **Retire is for child categories only** (parents stay while history points at them); edits that do not touch lines skip category re-validation, so fixing a typo never breaks on a category retired after the purchase.
+45. **Duplicate-notice rule — OQ3 default shipped:** same pot + same total + (same non-null supplier OR a shared category) + created within [now−2h, now] + non-void; the newest match is returned, non-blocking.
+46. **`paid_by` nullable in schema:** till entry always sets it; schedule conversions (Phase 3) may leave it null. The UI default (signed-in user) lands in Phase 2b/4 with the user→person mapping.
+47. **Refunds default to the original's pot/supplier/payer** but may override each (a cash refund can differ from a card purchase); no same-pot enforcement.
+48. **Phase-1 test maintenance:** fixed-date checkpoint tests now pass explicit `now` (future-dated records are rejected by the new validation); the `__drizzle_migrations` count assertion moved to 2 with migration 0001. People/vehicles/suppliers are never seeded (household data); categories are seeded (product content).
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -249,7 +279,9 @@ covering attachments).*
 
 - No versioned releases yet (no tag, no image, no deployment). **Phase 0 + Phase 1 merged to `main` on
   2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
-  container smoke test on every PR and push. First planned release: **v0.1.0** at end of Phase 5.
+  container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,
+  Session 2)** — core money-record domain with E1/E2/E4/E6/E7 integration coverage, no UI yet. First
+  planned release: **v0.1.0** at end of Phase 5.
 
 ## File map (current)
 
@@ -266,12 +298,14 @@ drizzle.config.ts             — drizzle-kit config (schema → ./drizzle)
 drizzle/                      — checked-in SQL migrations (never edit an applied migration)
 src/lib/version.ts            — single source of app version (kept aligned with package.json by test)
 src/lib/config.ts             — env parsing; fail-closed auth completeness; dev-bypass computation
-src/lib/money.ts              — integer-pence parsing/formatting (no float money, ever)
-src/lib/time.ts               — Europe/London rendering + checkpoint age labels
+src/lib/money.ts              — integer-pence parsing/formatting (no float money, ever) + shared bounds
+src/lib/time.ts               — Europe/London rendering + checkpoint age labels + local-date helpers (backdating)
 src/lib/db/{client,migrate,schema}.ts — better-sqlite3 + Drizzle (WAL, FKs), migration runner, schema
 src/lib/audit.ts              — in-transaction audit writer
 src/lib/auth/{verify,current-user,next}.ts — jose JWT verification, fail-closed resolution, Next adapter
-src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint, reads (one path for actions + tests)
+src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint (effective-date rule), reads
+src/lib/records/{splits,categories,people,vehicles,suppliers,purchases,transfers,occurred,errors}.ts — Phase 2a
+                              domain: exact-total splits, category tree, parties, money records, backdating, concurrency
 src/lib/validation.ts         — Zod schemas at the server boundary
 src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
 src/app/                      — layout, home page (slice), unauthorized page, server actions
@@ -282,8 +316,11 @@ scripts/migrate.cjs           — production migration runner (entrypoint path)
 docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
 Dockerfile                    — multi-stage production image
 .env.example                  — placeholder configuration (real values only in the private install)
-tests/*.test.ts               — 60 tests: money, time, filename (DST/midnight), config, auth verify,
-                                current-user fail-closed, db slice, backup/restore round-trip, route, migrate script, version
+tests/*.test.ts               — 107 tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
+                                current-user fail-closed, db slice, backup/restore round-trip, route, migrate script, version,
+                                splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
+                                purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void)
+tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a tests
 .github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```
 
@@ -295,8 +332,9 @@ tests/*.test.ts               — 60 tests: money, time, filename (DST/midnight)
   honesty loop (SPEC §16.4).
 - **Public repo exposure**: constant discipline — fictional data only, staged-diff review before publishing,
   demo paths isolated from production paths.
-- **Two-user concurrency**: optimistic concurrency + audit trails from Phase 2; stale-form overwrites must
-  fail visibly (blueprint §3).
+- **Two-user concurrency**: optimistic concurrency + audit trails implemented in Phase 2a for all money
+  records; stale-form overwrites fail visibly (blueprint §3). The version guard assumes synchronous
+  single-writer transactions (decision 42) — revisit if writers ever multiply.
 - **Attachments are real financial data**: receipts/invoices expose genuine spending — the fictional-only
   repo rule extends to them (no real receipts in commits, screenshots, PRs, issues or demo data; demo
   attachments are generated fictional images; staged-diff review before publishing).
