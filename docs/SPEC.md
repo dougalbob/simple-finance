@@ -406,7 +406,8 @@ query instead of a duplicated tree per car.
   store for a photo taken without signal — the app keeps no offline queue of its own.
 - Responsive web; installability (manifest) is a possible later nicety **only** if it never requires caching
   financial data or broad Access bypasses (blueprint §4). Not a v1 commitment.
-- **No notifications/reminders in v1** (agreed). Warnings live inside the app. Revisit later if wanted.
+- **No notifications/reminders in v1** (agreed). Warnings live inside the app. An optional email alert
+  channel for renewals/contract ends is a recorded **v2 roadmap item** (§22.3) — not a v1 blocker.
 
 ## 15. UX
 
@@ -727,10 +728,10 @@ plus context; where the renewal is also a payment (annual premium), that is a sc
 - **Overview panel "Contracts & renewals":** every item inside its warning window, soonest first, each one
   tap from the supplier contact card and the related schedule/renewal.
 - **Contracts & Renewals page:** the full list, leads, follow-up dates from interactions, and history.
-- **Channel in v1: in-app only**, consistent with decision 19 (no notifications) and with the users' 4–5-day
-  checkpoint cadence — a 21-day window guarantees several sightings. If a channel that reaches the users
-  *without* opening the app (email/push) is wanted, it reverses decision 19 and will be scoped separately;
-  confirmation was requested on 2026-09-20 and is recorded in the decision log.
+- **Channel: in-app for v1 — confirmed by the product owner 2026-09-20**, consistent with decision 19 and
+  with the users' 4–5-day checkpoint cadence (a 21-day window guarantees several sightings). An optional
+  **email alert channel is a recorded v2 roadmap item** (SMTP configuration, delivery-failure handling,
+  tested delivery — scoped separately when reached). It is deliberately not a v1 blocker.
 
 ## 23. Receipt and invoice attachments
 

@@ -196,9 +196,9 @@ covering attachments).*
 24. Renewals (house/car insurance etc.): dedicated **renewal records** — label, optional supplier link,
     optional vehicle/household target, next date, per-item warning lead (**default 21 days**), annual
     auto-advance; surfaced in an Overview panel and a Contracts & Renewals page. Schedules gain
-    **frequency (monthly|annual)** so annual lump-sum premiums convert like any instance. Delivery channel:
-    in-app (consistent with decision 19) — user confirmation requested whether an out-of-app channel
-    (email/push) is also wanted; outcome to be appended here.
+    **frequency (monthly|annual)** so annual lump-sum premiums convert like any instance. Delivery channel
+    **confirmed 2026-09-20: in-app for v1**; an optional **email alert channel is a recorded v2 roadmap
+    item** (SMTP config, delivery-failure handling, tested delivery; scoped separately, not a v1 blocker).
 25. Suppliers get **contact cards** (phone, email, website, address, label→value reference pairs such as
     policy numbers, notes) and an **interaction log** ("+ Create Interaction": channel, when, summary,
     optional outcome and follow-up date, optional links to a purchase/renewal), on a dedicated Suppliers
@@ -266,4 +266,5 @@ docs/HANDOFF.md               — next-session continuation point
 - **Phone camera variability** (capture support, formats, HEIC): manual acceptance on the users' real
   devices is part of Phase 5 exit; OQ9 fallback documented.
 - **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
-  checkpoint cadence vs 21-day default lead; out-of-app channel is decision 24's pending confirmation.
+  checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item
+  (decision 24).

@@ -14,8 +14,9 @@ Read, in order: `AGENT_APP_BLUEPRINT.md` (build contract) → `docs/SPEC.md` →
 
 **Scope additions agreed later the same day (decisions 23–28 in the plan's decision log):** supplier contact
 cards + reference pairs + interaction log; fixed-term contract end dates on schedules (alert-only, never
-auto-stop); renewal records with per-item warning leads (default 21 days, in-app channel — out-of-app channel
-confirmation pending); receipt/invoice attachments (PNG/JPEG/PDF, desktop picker + mobile camera, retroactive,
+auto-stop); renewal records with per-item warning leads (default 21 days; **in-app channel confirmed for v1,
+email alerts recorded as a v2 roadmap item**); receipt/invoice attachments (PNG/JPEG/PDF, desktop picker +
+mobile camera, retroactive,
 in backups with sha256 verification); fixed data root `/mnt/user/appdata/simple-finance` → `/data`
 (sqlite, `.env`, `documents/`, `logging/`); dedicated backup/restore contract in SPEC §18; new SPEC §21–§23
 and worked example E9; open questions OQ9–OQ13.
