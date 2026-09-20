@@ -12,6 +12,14 @@ with the full behavioural specification and worked fictional examples (E1–E8) 
 Read, in order: `AGENT_APP_BLUEPRINT.md` (build contract) → `docs/SPEC.md` → `docs/IMPLEMENTATION_PLAN.md`
 → this file.
 
+**Scope additions agreed later the same day (decisions 23–28 in the plan's decision log):** supplier contact
+cards + reference pairs + interaction log; fixed-term contract end dates on schedules (alert-only, never
+auto-stop); renewal records with per-item warning leads (default 21 days, in-app channel — out-of-app channel
+confirmation pending); receipt/invoice attachments (PNG/JPEG/PDF, desktop picker + mobile camera, retroactive,
+in backups with sha256 verification); fixed data root `/mnt/user/appdata/simple-finance` → `/data`
+(sqlite, `.env`, `documents/`, `logging/`); dedicated backup/restore contract in SPEC §18; new SPEC §21–§23
+and worked example E9; open questions OQ9–OQ13.
+
 **Release authority for the coding session: FULL DELIVERY LOOP** (blueprint §10 option 1), granted by the
 user 2026-09-20: gates → PR → merge → annotated `vX.Y.Z` tag → GHCR publish verification → user Force
 Updates in Unraid and runs the acceptance checks you list. Recorded once per blueprint §1 — do not re-ask

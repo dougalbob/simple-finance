@@ -14,9 +14,9 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 | Scope | MVP = SPEC.md §2 "In scope (v1)". Non-goals: bank integration/reconciliation, credit cards, investments/valuations, offline mode, notifications, drag-drop calendar, fractional splits. Sensitive data: real household finances — fictional-only in repo. |
 | Access | Cloudflare Tunnel + Access + Google sign-in; `jose` server-side JWT verification; allowlist of exactly two configured identities; full mutual visibility/editing with audit trail; no in-app roles. |
 | Scheduling | Recurring DD/SO/income schedules with auto-conversion on due date; read-only month calendar view of instances; no drag-and-drop; business timezone **Europe/London**; date-only facts date-only; instants UTC. |
-| Storage | SQLite via `better-sqlite3` + Drizzle ORM, checked-in migrations. No uploaded files in v1 (no receipt images — revisit later if ever wanted). Single instance, two users, low concurrency; optimistic concurrency on shared edits. |
-| Deployment | Repo `dougalbob/simple-finance` (public) → GitHub Actions → GHCR image → Unraid XML template. Internal port 3000; **choose a free host port at install time — do not copy the reference app's 3005**. Appdata under the app's own Unraid directory (`/data` mapping). Health endpoint with no records/diagnostics. |
-| Recovery | Encrypted downloadable backup (AES-256-GCM, scrypt-derived key, versioned filename per blueprint §6 contract) + tested restore into a clean isolated installation before real data is trusted. Recovery password never persisted. Restore staging on same filesystem (EXDEV lesson). |
+| Storage | SQLite via `better-sqlite3` + Drizzle ORM, checked-in migrations. Single instance, two users, low concurrency; optimistic concurrency on shared edits. **Attachment files** (receipt/invoice PNG/JPEG/PDF, SPEC §23) stored under the appdata `documents/` directory — expected volume modest (a few MB/month), included in backups. |
+| Deployment | Repo `dougalbob/simple-finance` (public) → GitHub Actions → GHCR image → Unraid XML template. Internal port 3000; **choose a free host port at install time — do not copy the reference app's 3005**. Host data root **fixed by the product owner: `/mnt/user/appdata/simple-finance`** → container `/data`, containing the SQLite database (+WAL/SHM), `.env`, `documents/` and `logging/` (SPEC §18.1). Health endpoint with no records/diagnostics. |
+| Recovery | Encrypted downloadable backup (AES-256-GCM, scrypt-derived key, versioned filename per blueprint §6 contract) **including `documents/` attachments with sha256 manifest verification**; excludes `.env` and `logging/` (separate recovery checklist for configuration). Tested restore into a clean isolated installation before real data is trusted. Recovery password never persisted. Restore staging on same filesystem (EXDEV lesson). Full contract: SPEC §18. |
 | Delivery | Session branch per platform instructions (this discovery session: `arena/01a0c00b-simple-finance`). **Release authority: full delivery loop** — gates → PR → merge → annotated `vX.Y.Z` tag → GHCR publish verification → user Force Updates in Unraid + runs listed acceptance checks. Granted by the user 2026-09-20 for coding sessions following this handoff; recorded once, not re-asked per release. |
 | Verification | Gates: `npm ci`, `npm run format:check`, `npm run typecheck`, `npm test`, `NEXT_TELEMETRY_DISABLED=1 npm run build`, `npm audit --omit=dev`; Playwright `npm run test:e2e` where browser tooling exists. Manual acceptance still required: real Cloudflare hostname sign-in, phone entry at a real till moment, Unraid install/Force Update, restore rehearsal. |
 
@@ -34,7 +34,11 @@ everywhere; per-period rounding, half-up, once (SPEC §7.3).
 
 - `pots` — id, label, kind (bank|cash), sort, overdraft_limit_pence?, warning_threshold_pence?, archived.
 - `checkpoints` — id, pot_id, amount_pence, effective_at (UTC instant), entered_by, created_at. Immutable.
-- `suppliers` — id, name, normalized_name, default_category_id (most-used, derived or cached).
+- `suppliers` — id, name, normalized_name, default_category_id (most-used, derived or cached),
+  contact_phone?, contact_email?, website?, address?, notes? (contact card, SPEC §21).
+- `supplier_references` — id, supplier_id, label, value (label→value pairs, e.g. policy/account numbers).
+- `supplier_interactions` — id, supplier_id, occurred_at, channel (call|email|letter|in_person|other),
+  summary, outcome?, follow_up_date?, related_purchase_id?, related_renewal_id?, created_by.
 - `categories` — id, parent_id (null = parent; exactly two levels enforced), name, retired_at?, sort.
 - `targets` — household (singleton), `people` (id, label), `vehicles` (id, label, owner_person_id).
 - `purchases` — id, supplier_id?, pot_id, total_pence, occurred_at (timestamp), occurred_date (backdatable),
@@ -44,12 +48,17 @@ everywhere; per-period rounding, half-up, once (SPEC §7.3).
   Constraint: Σ allocations = purchase total (enforced in a transaction, tested).
 - `refunds` — modelled as purchases with negative allocation amounts + `refund_of_purchase_id` link.
 - `transfers` — id, from_pot_id, to_pot_id, amount_pence, occurred_at, entered_by, voided_at?, version.
-- `schedules` — id, name, kind (dd|so|receipt), amount_pence, due_day_of_month, pot_id, category_id?,
-  target_kind/target_id?, active_from, active_until?, cancelled_at?, version.
+- `schedules` — id, name, kind (dd|so|receipt), amount_pence, frequency (monthly|annual), due_day_of_month,
+  pot_id, category_id?, target_kind/target_id?, contract_ends_on?, active_from, active_until?,
+  cancelled_at?, version.
+- `renewals` — id, label, supplier_id?, target_kind/target_id?, renewal_date, warn_days_before (default 21),
+  repeats_annually, notes, advanced_from? (history of auto-advances), version (SPEC §22.2).
 - `schedule_instances` — id, schedule_id, due_date, state (**upcoming|converted** — exactly one, unique per
   schedule+date), converted_record_id? (purchase/receipt), UNIQUE(schedule_id, due_date).
 - `receipts` — income records from receipt schedules (or reuse purchases table with a sign/kind flag —
   decide in Phase 3 design note; keep one money-record abstraction if it stays clean).
+- `attachments` — id, purchase_id, file_key (server-generated under `documents/`), original_name, mime,
+  size_bytes, sha256, state (pending|stored|failed), created_by, created_at (SPEC §23).
 - `settings` — household labels, payday config, projection figures (weekly groceries, per-vehicle monthly
   fuel), tier thresholds, UI prefs. Private runtime values.
 - `audit_entries` — actor, action, entity, before/after summary, timestamp; written in the same transaction
@@ -75,30 +84,39 @@ restore round-trip passes on an isolated copy.*
 exact-total constraint and remainder helper, split validation, category tree (seeded with SPEC §12, editable),
 suppliers with memory + default chip, targets (household/people/vehicles), transfers, refunds, void/edit with
 audit trail, optimistic concurrency, duplicate-entry notice. Mobile entry flows (Add Purchase / Add Fuel /
-Update Balance) functional. *Exit: acceptance scenarios E1, E2, E4, E6, E7 (SPEC §17) pass as integration
+Update Balance) functional; supplier records include the contact card + reference pairs and the interaction
+log (SPEC §21). *Exit: acceptance scenarios E1, E2, E4, E6, E7 (SPEC §17) pass as integration
 tests plus a Playwright mobile-viewport run where tooling allows.*
 
 **Phase 3 — Schedules, estimate and projection engines.** Schedules + instances with the upcoming→converted
 lifecycle (unique-state enforcement), income schedules, estimate engine (SPEC §7.1, timestamp/date comparison
 rules), projection engine (§7.2–7.3, period-level rounding), warning tiers (§8), pot-level transfer watch
-(§7.5). *Exit: scenario E3 (counted exactly once at every instant — property-tested across the due-date
+(§7.5). Schedules gain frequency (monthly|annual) and optional contract end dates; renewal records and the
+key-date alert engine (pure date arithmetic: warning windows, annual advance, "rolled / awaiting review" —
+SPEC §22). *Exit: scenario E3 (counted exactly once at every instant — property-tested across the due-date
 boundary), E5 (assume-cleared documented behaviour), E8 (projection arithmetic to the penny, tier selection,
 DST + month/year boundary cases) all green.*
 
 **Phase 4 — Desktop pages + Insights v1.** Overview (dense dashboard per SPEC §15.2), Purchases (filters,
 inline edit), Recurring Payments (+ read-only month calendar view), Accounts & Pots, Insights (SPEC §16
-panels 1–4), Settings (category tree editor, projection figures, thresholds, labels). Version display.
+panels 1–4), Settings (category tree editor, projection figures, thresholds, labels), **Suppliers page** and
+**Contracts & Renewals page** with the Overview panel (SPEC §21–22), **receipt/invoice attachments**
+(desktop picker, mobile camera capture, retroactive attach, authenticated viewer — SPEC §23), scenario E9.
+Version display.
 *Exit: desktop and mobile primary paths checked; calendar consistent with lists after schedule edits;
 insights figures reconcile with the pure engines in tests.*
 
-**Phase 5 — Hardening & first release (v0.1.0).** Full backup/restore per blueprint §6 (encryption, filename
-contract incl. blob-download filename lesson, EXDEV staging, failure recovery, wrong-password/corruption
-tests), restore rehearsal into a clean isolated installation, security review against blueprint §4 checklist,
+**Phase 5 — Hardening & first release (v0.1.0).** Full backup/restore per blueprint §6 and SPEC §18
+(encryption, filename contract incl. blob-download filename lesson, EXDEV staging, failure recovery,
+wrong-password/corruption tests, **documents/attachments consistency and sha256 manifest verification**),
+restore rehearsal into a clean isolated installation **covering records and attachments**, security review
+against blueprint §4 checklist,
 Dockerfile + GHCR workflow + Unraid XML template + first-install instructions, README brought to operating
 truth, all gates + `npm audit --omit=dev`, PR → merge → tag → publish verification. *Exit: blueprint §12
 "Definition of ready" checklist complete; user Force Updates and runs the listed acceptance checks
-(real Cloudflare sign-in, a real till-moment mobile entry, checkpoint + projection sanity, restore
-rehearsal evidence).*
+(real Cloudflare sign-in, a real till-moment mobile entry **including a camera receipt attachment**,
+checkpoint + projection sanity, a renewal/contract-end alert inside its window, restore rehearsal evidence
+covering attachments).*
 
 ## Test strategy (domain-specific, on top of blueprint §9)
 
@@ -112,6 +130,14 @@ rehearsal evidence).*
   confirm in Phase 3), payday window arithmetic.
 - Auth tests: missing/invalid/wrong-issuer/wrong-audience/expired JWTs rejected on every protected entry
   point, including API routes and backup/restore.
+- Key-date tests: renewal warning-window arithmetic (default 21 days, per-item overrides), annual advance
+  including 29 February (OQ13 rule), contract-end alerts that never stop instances (property test across the
+  end-date boundary), "rolled / awaiting review" state transitions.
+- Attachment pipeline tests: content-sniffed MIME vs spoofed extension, size limit enforcement, failed upload
+  leaves the purchase intact and retryable, orphan sweep reports without deleting, authenticated-only serving
+  (no unauthenticated fetch), sha256 verification on restore.
+- Backup consistency tests: an archive can never reference a missing document; unreferenced documents are
+  excluded and reported; `.env`/`logging/` provably absent from archives.
 - Browser tests (Playwright where available): mobile-viewport entry flows, desktop table editing, calendar
   view consistency, backup download filename via the real client path.
 - Never claim a browser run from markup rendering; distinguish harnesses honestly (blueprint §9).
@@ -162,6 +188,33 @@ rehearsal evidence).*
 22. Privacy: public repo — all repo content fictional; real figures only in private installation config;
     `.gitignore` committed before any code (already on branch).
 
+*Scope additions agreed later the same day (2026-09-20), after the initial handoff draft:*
+
+23. Fixed-term contracts: DD/SO schedules carry an optional **contract end date** — informational with an
+    ahead-of-time alert (configurable lead, default 21 days); **instances never auto-stop** because the app
+    never assumes a bank instruction changed; past dates show as "rolled / awaiting review".
+24. Renewals (house/car insurance etc.): dedicated **renewal records** — label, optional supplier link,
+    optional vehicle/household target, next date, per-item warning lead (**default 21 days**), annual
+    auto-advance; surfaced in an Overview panel and a Contracts & Renewals page. Schedules gain
+    **frequency (monthly|annual)** so annual lump-sum premiums convert like any instance. Delivery channel:
+    in-app (consistent with decision 19) — user confirmation requested whether an out-of-app channel
+    (email/push) is also wanted; outcome to be appended here.
+25. Suppliers get **contact cards** (phone, email, website, address, label→value reference pairs such as
+    policy numbers, notes) and an **interaction log** ("+ Create Interaction": channel, when, summary,
+    optional outcome and follow-up date, optional links to a purchase/renewal), on a dedicated Suppliers
+    page; both users see all; audited.
+26. **Receipt/invoice attachments in scope for v1** (supersedes OQ6): PNG/JPEG/PDF, multiple per purchase,
+    desktop file picker + mobile camera capture, retroactive attachment; purchase save never blocks on
+    upload; stored under `documents/` with server-generated keys, content-sniffed MIME, sha256,
+    authenticated private serving; included in backups with manifest verification (SPEC §18.2, §23).
+27. **Data root fixed:** `/mnt/user/appdata/simple-finance` on the Unraid host → container `/data`,
+    containing the SQLite files (+WAL/SHM), `.env`, `documents/`, `logging/`. `.env` and logs are excluded
+    from backups; a separate recovery checklist covers configuration (SPEC §18.1).
+28. Backup/restore contract made explicit in **SPEC §18** (previously only referenced via blueprint §6 in
+    SPEC §2, this profile and Phase 5): contents/exclusions, consistency boundary for attachments,
+    encryption + filename + blob-download lessons, restore staging/rollback rules, and the clean-installation
+    rehearsal gate before real data is trusted.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -171,9 +224,14 @@ rehearsal evidence).*
 | OQ3 | Duplicate-notice matching window & rule (currently ~2h, same pot+supplier/category+amount) | Ship as stated; tune after real use. |
 | OQ4 | Checkpoint effective-date granularity (date-only backdating vs full timestamp) | Date-only backdating, boundary = end of local date; revisit if users want finer. |
 | OQ5 | Receipts storage shape (own table vs signed purchase records) | Decide in Phase 3 design; prefer one clean money-record abstraction. |
-| OQ6 | Receipt images / attachments | Out of scope v1; note as possible future (would add file storage + backup implications). |
+| OQ6 | ~~Receipt images / attachments~~ | **Resolved 2026-09-20 — in scope (decision 26, SPEC §23).** Residual sub-questions moved to OQ9–OQ12. |
 | OQ7 | PWA installability | Post-v1 evaluation; never with offline caching of financial data or broad Access bypasses. |
 | OQ8 | Unraid host port | Pick a free port at first install; template documents it (never inherit 3005). |
+| OQ9 | Phone camera formats: accept HEIC directly, or rely on browser JPEG capture? | v1 accepts PNG/JPEG/PDF; document the iPhone "Most Compatible"/JPEG camera setting; server-side HEIC conversion only if real devices demand it. |
+| OQ10 | Supplier-level document attachments (e.g. a policy PDF not tied to a purchase)? | Defer; v1 attaches to purchases only. Renewals/suppliers hold references + notes meanwhile. |
+| OQ11 | Interaction follow-up dates surfaced in the key-dates panel — useful? | Include the optional field and panel display (proposed); no notifications either way. |
+| OQ12 | Attachment size limit and retention guidance | 10 MB per file; README guidance on archive growth; no server-side pruning in v1. |
+| OQ13 | 29 February renewal dates under annual advance | Land on 28 February in non-leap years; visible and editable. |
 
 ## Release history
 
@@ -200,3 +258,12 @@ docs/HANDOFF.md               — next-session continuation point
   demo paths isolated from production paths.
 - **Two-user concurrency**: optimistic concurrency + audit trails from Phase 2; stale-form overwrites must
   fail visibly (blueprint §3).
+- **Attachments are real financial data**: receipts/invoices expose genuine spending — the fictional-only
+  repo rule extends to them (no real receipts in commits, screenshots, PRs, issues or demo data; demo
+  attachments are generated fictional images; staged-diff review before publishing).
+- **Backup archive growth** with photos: per-file size limits, honest README guidance on download cadence
+  and archive size, no implied offsite automation.
+- **Phone camera variability** (capture support, formats, HEIC): manual acceptance on the users' real
+  devices is part of Phase 5 exit; OQ9 fallback documented.
+- **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
+  checkpoint cadence vs 21-day default lead; out-of-app channel is decision 24's pending confirmation.

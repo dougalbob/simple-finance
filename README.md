@@ -23,7 +23,10 @@ specification and delivery plan produced by a structured discovery session with 
 - **Will:** fast mobile entry at the till (supplier memory, splits, visible one-tap defaults); user-reported
   balance checkpoints per pot; recurring payments that auto-convert on their due date; household estimate and
   payday-to-payday projection with calm two-tier overdraft warnings; per-vehicle running costs; personal-vs-
-  personal and month-vs-month insights; dense, functional desktop review pages; encrypted tested backups.
+  personal and month-vs-month insights; supplier contact cards (phone/email/policy references) with an
+  interaction log for calls and emails; fixed-term contract end dates and insurance renewal alerts (default
+  21 days' warning); receipt/invoice attachments (file upload or phone camera); dense, functional desktop
+  review pages; encrypted, restore-rehearsed backups covering the database and documents.
 - **Won't:** connect to any bank, import statements, reconcile transactions, ask for bank credentials, track
   investments or vehicle valuations, work offline, or send notifications (all explicit v1 non-goals —
   see `docs/SPEC.md` §2).
@@ -33,6 +36,11 @@ specification and delivery plan produced by a structured discovery session with 
 TypeScript · Next.js (App Router) · SQLite (`better-sqlite3` + Drizzle, checked-in migrations) · Zod ·
 Cloudflare Tunnel + Access (Google identity, server-side JWT verification via `jose`) · Docker → GHCR →
 Unraid template. Full contract in `AGENT_APP_BLUEPRINT.md`.
+
+All runtime data lives in one host directory — `/mnt/user/appdata/simple-finance` (container `/data`):
+the SQLite database, `.env` configuration, `documents/` (receipt/invoice attachments) and `logging/`.
+Backups cover the database and documents, exclude `.env` and logs, and must pass a clean-installation
+restore rehearsal before real data is trusted — `docs/SPEC.md` §18.
 
 ## Privacy — this repository is public
 

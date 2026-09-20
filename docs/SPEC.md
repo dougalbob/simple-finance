@@ -46,6 +46,14 @@ with its inputs inspectable.
   overdraft facility.
 - Insights: month comparisons, personal-vs-personal spending, per-vehicle running costs, projection feedback.
 - Dense desktop overview plus dedicated menu pages; mobile focused on quick entry.
+- Supplier contact cards (phone, email, website, label→value reference pairs such as policy numbers) and a
+  per-supplier interaction log for calls/emails (§21).
+- Fixed-term **contract end dates** on DD/SO schedules and **renewal dates** (house/car insurance etc.) with
+  configurable ahead-of-time warnings, default 21 days (§22).
+- **Receipt/invoice attachments** on purchases: .png/.jpg/.pdf uploads from desktop, camera capture on
+  mobile, retroactive attachment (§23).
+- A single fixed data root on the Unraid host — `/mnt/user/appdata/simple-finance` (database, `.env`,
+  `documents/`, `logging/`) — with encrypted, user-managed, restore-rehearsed backups (§18).
 - Encrypted backup/restore, Cloudflare Access auth, Unraid deployment — per `AGENT_APP_BLUEPRINT.md`.
 
 ### Explicit non-goals (v1)
@@ -310,8 +318,10 @@ month end.
 ### 11.1 Schedules
 
 A schedule carries: name (fictional example: "Energy Co direct debit"), kind (direct debit | standing order |
-expected receipt), amount (**fixed**, user-maintained), due day-of-month, pot, category (child) + target
-(e.g. Vehicle Running/Insurance → Vehicle A; Utilities/Energy → household), active from/until.
+expected receipt), amount (**fixed**, user-maintained), **frequency (monthly | annual)**, due day-of-month,
+pot, category (child) + target (e.g. Vehicle Running/Insurance → Vehicle A; Utilities/Energy → household),
+an optional **contract end date** (§22.1 — informational + alert only; instances never auto-stop because of
+it), active from/until.
 
 The users' direct debits are fixed amounts; when one changes, they update the schedule and it applies **from
 the next instance onward** — historical instances are never rewritten.
@@ -391,6 +401,9 @@ query instead of a duplicated tree per car.
   the half-typed record on screen** and retries the save on reconnection (single in-flight submission guard —
   no duplicate posts on flaky networks). No offline queue, no sensitive financial data cached on the device,
   no service-worker caching of pages or API responses.
+- Receipt photos/uploads need connectivity like everything else (§23): the purchase save **never waits on an
+  attachment**; uploads are retryable and can be added days later. The phone's own gallery is the temporary
+  store for a photo taken without signal — the app keeps no offline queue of its own.
 - Responsive web; installability (manifest) is a possible later nicety **only** if it never requires caching
   financial data or broad Access bypasses (blueprint §4). Not a v1 commitment.
 - **No notifications/reminders in v1** (agreed). Warnings live inside the app. Revisit later if wanted.
@@ -427,12 +440,14 @@ Menu pages:
 
 | Page | Contents |
 |---|---|
-| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; compact recent-entries table with inline edit; month-to-date by parent category with small bars. Quick-add always visible. |
-| **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag; inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule. |
-| **Recurring Payments** | The DD/SO/income schedule list (amount, due day, category, target, pot, next instance, state); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
+| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries table with inline edit; month-to-date by parent category with small bars. Quick-add always visible. |
+| **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag; inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed and added from the purchase detail. |
+| **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
+| **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21). Tap-to-call on mobile. |
+| **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
 | **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account. |
 | **Insights** | §16 panels. |
-| **Settings** | Household labels; pots; category-tree editor; suppliers; projection figures; thresholds; payday/income config. All private numbers live here at runtime — never in the repo. |
+| **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends. (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
 
 **Calendar (agreed: read-only month view).** A month grid on Recurring Payments showing due DD/SO instances and
 expected receipts — another view of the same schedule data, never a second database. Clicking a day shows that
@@ -552,6 +567,91 @@ Pot-level transfer watch (§7.5): `pot_watch(Main)` = £348.88 − £1,014.96 = 
 on the 1st; Salary account holds £520.00." The household warning and the transfer nudge are separate signals
 with separate remedies.
 
+### E9 — Contract ends, renewals and key-date alerts (fictional)
+
+- **Renewal:** "Vehicle A insurance — InsurerCo", renewal date 12 October, warning lead 21 days (default),
+  repeats annually, target Vehicle A, supplier InsurerCo (contact card holds the policy-number reference and
+  phone number). From **21 September** the Overview panel shows: *"Vehicle A insurance renews in 21 days —
+  check quotes before it auto-renews"* — one tap to InsurerCo's contact card (tap-to-call on mobile) and one
+  more to "+ Create Interaction" to log the call while it's fresh. On 12 October the renewal advances to
+  12 October next year automatically (visible, editable; 29 February handling per plan OQ13). If the premium
+  is paid by annual lump, that is simply a schedule with `frequency = annual` converting on the day (§11.2) —
+  the alert and the money are separate, complementary things and never double-counted.
+- **Contract end:** the Broadband DD (£42.00 monthly) carries `contract_ends_on = 3 November`. From
+  13 October (21-day lead, configurable) the panel shows: *"Broadband contract ends 3 November — time to
+  shop around."* **The DD instances never auto-stop**: the schedule keeps forecasting £42.00 until the users
+  edit or cancel it after renegotiating, because UK fixed-term deals typically roll onto monthly and the app
+  never assumes a bank instruction changed. A past end date displays as "rolled / awaiting review" — a quiet,
+  honest state, not a silent deletion.
+
+## 18. Backup, restore and data locations
+
+Backup/restore has been in scope since day one (§2, README, plan Phase 5) under the `AGENT_APP_BLUEPRINT.md`
+§6 contract. This section pins it to Simple Finance specifically, including the documents directory
+introduced by attachments (§23).
+
+### 18.1 Data locations (fixed by the product owner)
+
+Host path on Unraid: **`/mnt/user/appdata/simple-finance`**, mapped to container **`/data`**:
+
+```text
+/mnt/user/appdata/simple-finance/        →  /data/
+  simple-finance.sqlite (+ -wal / -shm)       database (SQLite, WAL mode)
+  .env                                        runtime configuration/secrets (root-owned, 0600)
+  documents/                                  receipt/invoice attachments (§23)
+  logging/                                    application logs
+```
+
+- The entrypoint prepares any missing directories with sane permissions, applies pending migrations, then
+  `exec`s the server (blueprint §7). Migration failure prevents normal startup.
+- `.env` semantics per blueprint §7: shell-sourcing an env file executes shell code — it is a trusted,
+  admin-only file, never editable by untrusted users, never committed to Git, never copied into the image
+  build context, and **never included in backup archives**. A separate recovery checklist in the README
+  covers recreating configuration; a data-only archive does not recreate the host (blueprint §6).
+- The database and `documents/` are the durable user data; nothing durable lives only in the container layer.
+- `.gitignore` mirrors these runtime paths so a stray development copy can never reach this public repo.
+
+### 18.2 Backup contents and exclusions
+
+- A consistent SQLite snapshot via the supported backup mechanism (WAL-safe, not a raw file copy), **plus**
+  every `documents/` file referenced by the database, **plus** a versioned manifest: archive format,
+  producing app version, creation instant (Europe/London, generated from the same instant as the filename),
+  file counts/sizes, per-document sha256 hashes, and the metadata needed to validate restoration.
+- **Excluded:** `.env` and any secrets; `logging/`.
+- Consistency boundary: an attachment is referenceable only in `stored` state after its file is fully written
+  (§23.3); backup coordinates the database snapshot with document enumeration so a valid archive can never
+  reference a missing file. Orphan files (present but unreferenced) are reported, never silently included or
+  silently deleted.
+
+### 18.3 Encryption, filename, download
+
+- Encrypted before the archive reaches the browser: AES-256-GCM with a scrypt-derived key, fresh salt and
+  nonce per archive (reviewed primitives per blueprint §6). The recovery password is **never persisted**;
+  losing it loses the archive — stated plainly in the UI and README.
+- Filename contract: `simple-finance-backup-v<app-version>-YYYY-MM-DD-HHmm.simple-finance-backup`, date and
+  time from one instant in Europe/London. The client-side blob download must carry the server filename into
+  `anchor.download` (the blueprint's v0.2.21 regression lesson) with a fallback; the real client path is
+  tested, including midnight and DST.
+- Downloads are user-managed: **no implied scheduled offsite backup and no server-side retention.** The
+  README explains how often to take archives, where to keep them, and what password loss means.
+
+### 18.4 Restore
+
+Authenticate and authorise; explicit destructive-replacement confirmation; bounded upload limits;
+authenticate the encrypted archive before trusting contents; reject unsafe paths, traversal and unsupported
+formats; validate manifest, document hashes and schema compatibility **before** touching live data; stage
+replacements **on the same filesystem as each destination** (EXDEV lesson — `/tmp` and `/data` may differ on
+Unraid); preserve recoverable old data until the replacement fully succeeds; the database-and-documents swap
+is not one atomic transaction, so rollback and crash recovery are implemented and tested; reopen the
+application against restored data, refresh the UI, and never delete the only recoverable copy on an error
+path.
+
+### 18.5 Rehearsal requirement
+
+Before real household data is entrusted to an installation, a backup must be restored into a **clean isolated
+installation** and verified — records *and* attachments (blueprint §12). Rehearsals never run against the
+live household installation.
+
 ## 19. Security and repository privacy (binding rules)
 
 - Cloudflare Tunnel + Access + Google sign-in, server-side JWT verification via `jose`, allowlist of exactly
@@ -567,5 +667,97 @@ with separate remedies.
 ## 20. Agreed decisions vs open questions
 
 The complete dated decision log lives in `docs/IMPLEMENTATION_PLAN.md` (§ Decision log). Open questions
-(e.g. income-schedule working-day shift toggle, dedupe window length, checkpoint effective-date granularity
-detail) are listed there; **none block Phase 0–1** and each has a proposed default.
+(e.g. income-schedule working-day shift toggle, dedupe window length, checkpoint effective-date granularity,
+camera file formats, attachment size limits, the 29 February renewal rule) are listed there; **none block
+Phase 0–1** and each has a proposed default.
+
+## 21. Suppliers: contact cards and interactions
+
+Suppliers grow beyond autocomplete: each has an optional **contact card** and an **interaction log**, on a
+dedicated Suppliers page (desktop-first; fully reachable on mobile — this is review territory, per §15).
+
+### 21.1 Contact card
+
+Optional fields: phone, email, website, postal address, free-form notes, plus **label→value reference pairs**
+(fictional examples: "Policy Number — Vehicle A" → "ABC123"; "Account Number" → "XYZ789"). Purpose: when
+something goes wrong, the number or policy reference is in the app — tap-to-call on mobile — instead of being
+dug out of paperwork. Contact cards are visible to both users (§3 full mutual visibility) and audited on
+change like every record.
+
+### 21.2 Interactions
+
+**"+ Create Interaction"** on any supplier: date/time (defaults now), channel (call / email / letter /
+in person / other), summary of what was said or sent, optional outcome, optional **follow-up date** (surfaces
+in the Contracts & renewals panel so promises don't evaporate; no notification — decision 19), optional link
+to a related purchase or renewal. `recorded_by` is audited; both users see and add interactions.
+
+### 21.3 Privacy
+
+Contact details, policy numbers and interaction summaries are real personal data: they live only in the
+private installation. Repository demos and tests use fictional suppliers ("InsurerCo", "BroadbandCo") with
+invented numbers, and screenshots are reviewed before publishing (§19).
+
+## 22. Contract ends, renewals and key-date alerts
+
+Two kinds of dates the household must not miss, united in one Overview panel and one page (§15.2), but
+modelled separately because they behave differently.
+
+### 22.1 Fixed-term contract end dates (on schedules)
+
+Any DD/SO schedule may carry an optional **contract end date**. Semantics:
+
+- **Informational plus alert — never an auto-stop.** As the date approaches (configurable lead, default
+  21 days) the panel shows "time to shop around". Instances keep generating and forecasting past the end
+  date until the users edit or cancel the schedule, because fixed-term deals commonly roll onto monthly and
+  the app never assumes a bank instruction changed.
+- A past end date displays as **"rolled / awaiting review"** — a quiet, honest state.
+
+### 22.2 Renewal dates (their own records)
+
+A **renewal** carries: label, optional supplier link, optional target (a vehicle or household), next renewal
+date, **warning lead in days (default 21, per item)**, repeats-annually flag, notes. Intended for house/car
+insurance and anything else that auto-renews. Renewals are deliberately not supplier-level fields: one
+insurer can hold two vehicle policies with different renewal dates. When a repeating renewal date passes, it
+advances a year automatically (visible, editable; 29 February handling per plan OQ13). A renewal is an alert
+plus context; where the renewal is also a payment (annual premium), that is a schedule with
+`frequency = annual` (§11) — reminder and money stay separate and complementary.
+
+### 22.3 Where alerts appear — and the delivery channel
+
+- **Overview panel "Contracts & renewals":** every item inside its warning window, soonest first, each one
+  tap from the supplier contact card and the related schedule/renewal.
+- **Contracts & Renewals page:** the full list, leads, follow-up dates from interactions, and history.
+- **Channel in v1: in-app only**, consistent with decision 19 (no notifications) and with the users' 4–5-day
+  checkpoint cadence — a 21-day window guarantees several sightings. If a channel that reaches the users
+  *without* opening the app (email/push) is wanted, it reverses decision 19 and will be scoped separately;
+  confirmation was requested on 2026-09-20 and is recorded in the decision log.
+
+## 23. Receipt and invoice attachments
+
+Any purchase can carry **attachments** — receipt or invoice photos/scans. v1 formats: PNG, JPEG, PDF;
+multiple per purchase; per-file size limit (proposed 10 MB, plan OQ12).
+
+### 23.1 Capture flows
+
+- **Desktop:** file picker during purchase creation, or retroactively from the purchase detail.
+- **Mobile:** standard camera capture (`accept="image/*" capture`) during entry, or attach later from the
+  phone gallery via the purchase detail.
+- **The till moment stays fast:** the purchase save never waits on an attachment upload. Attachment lifecycle
+  is independent (`pending → stored | failed`), retryable, and a receipt can be attached days later. The
+  online-only stance is unchanged (§14).
+
+### 23.2 Storage and serving
+
+Files live under `/data/documents/` (§18.1) with server-generated storage keys — never user-controlled paths.
+The database stores the original filename (for display/download naming only), MIME type, size, sha256,
+uploader and timestamp. Viewing/downloading an attachment requires authentication; responses are private and
+uncached, with `Content-Disposition` using a sanitized display name.
+
+### 23.3 Integrity and security rules
+
+- MIME validated by content sniffing, not extension alone; size limits enforced server-side (Zod boundary).
+- Only `stored` attachments are referenceable by backups (§18.2); an orphan sweep runs at backup time and
+  reports unreferenced files without deleting them.
+- Restore verifies presence and sha256 of every referenced document (§18.4).
+- **Real receipts are real financial data:** they must never appear in the repository, screenshots, PRs,
+  issues or demo data (§19). Demo/dev attachments are generated fictional images.
