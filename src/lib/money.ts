@@ -10,7 +10,15 @@
  */
 const AMOUNT_PATTERN = /^[+-]?(\d{1,10}(\.\d{1,2})?|\.\d{1,2})$/;
 
-const MAX_ABS_PENCE = 999_999_999_999; // £9,999,999,999.99 — far beyond household scale
+/** £9,999,999,999.99 — far beyond household scale; shared by domain and Zod validation. */
+export const MAX_ABS_PENCE = 999_999_999_999;
+
+/** True when the value is a whole-pence amount inside the representable range. */
+export function isValidPenceAmount(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isSafeInteger(value) && Math.abs(value) <= MAX_ABS_PENCE
+  );
+}
 
 /**
  * Parse a user-typed amount into integer pence.

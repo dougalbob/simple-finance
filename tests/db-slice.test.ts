@@ -74,6 +74,7 @@ describe('pots & checkpoints on an isolated database', () => {
         effectiveAt: new Date('2026-09-22T16:00:00Z'),
         note: 'counted the jar',
         actor: 'sam@example.com',
+        now: new Date('2026-09-22T16:05:00Z'),
       });
       assert.equal(checkpoint.amountPence, 10450);
       assert.equal(checkpoint.enteredBy, 'sam@example.com');
@@ -113,12 +114,14 @@ describe('pots & checkpoints on an isolated database', () => {
         amountPence: 50000,
         effectiveAt: new Date('2026-09-25T09:00:00Z'),
         actor: 'alex@example.com',
+        now: new Date('2026-09-25T09:05:00Z'),
       });
       addCheckpoint(handle.db, {
         potId: pot.id,
         amountPence: 41235,
         effectiveAt: new Date('2026-09-22T16:00:00Z'),
         actor: 'alex@example.com',
+        now: new Date('2026-09-25T09:05:00Z'),
       });
       const latest = latestCheckpointPerPot(handle.db);
       assert.equal(latest.get(pot.id)?.amountPence, 50000);

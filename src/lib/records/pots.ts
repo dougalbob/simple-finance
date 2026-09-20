@@ -2,7 +2,8 @@ import { desc, eq } from 'drizzle-orm';
 import { recordAudit } from '../audit';
 import type { Db } from '../db/client';
 import { checkpoints, pots } from '../db/schema';
-import { formatPence } from '../money';
+import { formatPence, isValidPenceAmount } from '../money';
+import { InvalidOccurredError, resolveOccurred } from './occurred';
 
 /**
  * Domain functions for pots and balance checkpoints (SPEC §4–§5).
@@ -31,6 +32,15 @@ export class PotNotFoundError extends Error {
     this.name = 'PotNotFoundError';
   }
 }
+
+export class InvalidCheckpointInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCheckpointInputError';
+  }
+}
+
+export const MAX_CHECKPOINT_NOTE_LENGTH = 280;
 
 export interface CreatePotInput {
   label: string;
@@ -88,7 +98,13 @@ export interface Checkpoint {
 export interface AddCheckpointInput {
   potId: number;
   amountPence: number;
-  effectiveAt: Date;
+  /**
+   * Exactly one timing, or neither for \"now\": an explicit instant, or a
+   * date-only backdate ('YYYY-MM-DD', today or earlier) that takes effect at
+   * the end of that local date (SPEC §5).
+   */
+  effectiveAt?: Date;
+  effectiveDate?: string;
   note?: string | null;
   actor: string;
   now?: Date;
@@ -100,6 +116,23 @@ export interface AddCheckpointInput {
  */
 export function addCheckpoint(db: Db, input: AddCheckpointInput): Checkpoint {
   const now = input.now ?? new Date();
+  if (!isValidPenceAmount(input.amountPence)) {
+    throw new InvalidCheckpointInputError('The checkpoint figure must be a whole-pence amount.');
+  }
+  let effectiveAt: Date;
+  try {
+    effectiveAt = resolveOccurred({
+      occurredAt: input.effectiveAt,
+      occurredDate: input.effectiveDate,
+      now,
+    }).occurredAt;
+  } catch (err) {
+    if (err instanceof InvalidOccurredError) {
+      throw new InvalidCheckpointInputError(err.message);
+    }
+    throw err;
+  }
+  const note = checkedCheckpointNote(input.note);
   return db.transaction((tx) => {
     const potRow = tx.select().from(pots).where(eq(pots.id, input.potId)).get();
     if (potRow === undefined) {
@@ -110,8 +143,8 @@ export function addCheckpoint(db: Db, input: AddCheckpointInput): Checkpoint {
       .values({
         potId: input.potId,
         amountPence: input.amountPence,
-        effectiveAt: input.effectiveAt,
-        note: input.note ?? null,
+        effectiveAt,
+        note,
         enteredBy: input.actor,
         createdAt: now,
       })
@@ -157,6 +190,18 @@ export function latestCheckpointPerPot(db: Db): Map<number, Checkpoint> {
     }
   }
   return latest;
+}
+
+function checkedCheckpointNote(raw: string | null | undefined): string | null {
+  if (raw === undefined || raw === null) return null;
+  const note = raw.trim();
+  if (note === '') return null;
+  if (note.length > MAX_CHECKPOINT_NOTE_LENGTH) {
+    throw new InvalidCheckpointInputError(
+      `Keep the note to ${MAX_CHECKPOINT_NOTE_LENGTH} characters or fewer.`,
+    );
+  }
+  return note;
 }
 
 export interface CheckpointWithPotLabel extends Checkpoint {
