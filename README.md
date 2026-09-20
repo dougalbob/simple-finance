@@ -6,8 +6,8 @@ by payday?\"* Built for a single household behind Cloudflare Access, deployed to
 
 ## Current status
 
-**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b complete (Sessions 1–3, build complete on this branch) —
-core money records and mobile quick-entry UI are running; no release published yet.** Phases 3–5 (engines,
+**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b complete (Sessions 1–3, merged via PR #4) — core money
+records and mobile quick-entry UI are running; no release published yet.** Phases 3–5 (engines,
 desktop pages, hardening/v0.1.0) remain planned and sequenced — see the **session map** in
 `docs/IMPLEMENTATION_PLAN.md`.
 

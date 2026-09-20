@@ -23,8 +23,8 @@ Standing decisions remain unchanged:
 
 - Repository: `dougalbob/simple-finance`.
 - Session branch: `arena/01a0c0cb-simple-finance` (continue on this branch for this session; do not switch branches).
-- Phase 0, Phase 1 and Phase 2a were merged to `main` in PRs #2 and #3. Phase 2b is implemented on this branch;
-  it has not been merged or deployed.
+- Phase 0, Phase 1 and Phase 2a were merged to `main` in PRs #2 and #3. Phase 2b was merged to `main` via PR #4
+  on 2026-09-20. Nothing has been deployed.
 - Last user-confirmed deployed version: none. No tag and no image exist yet.
 - The home page now has a mobile-first quick-entry surface. It intentionally does not show an estimate,
   projection or bank-connected balance before Phase 3.

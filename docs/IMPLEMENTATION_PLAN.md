@@ -290,8 +290,9 @@ covering attachments).*
 - No versioned releases yet (no tag, no image, no deployment). **Phase 0 + Phase 1 merged to `main` on
   2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
   container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,
-  Session 2)** — core money-record domain with E1/E2/E4/E6/E7 integration coverage, no UI yet. First
-  planned release: **v0.1.0** at end of Phase 5.
+  Session 2)** — core money-record domain with E1/E2/E4/E6/E7 integration coverage, no UI yet. **Phase 2b
+  mobile entry merged via PR #4 on 2026-09-20** — 111 tests green; browser tooling unavailable in the sandbox.
+  First planned release: **v0.1.0** at end of Phase 5.
 
 ## File map (current)
 
