@@ -15,11 +15,18 @@
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# Native module toolchain: better-sqlite3 compiles from source during npm ci
+# (the slim base ships no compiler; libstdc++6 needed at runtime is included
+# in the base image). Blueprint §7: build in a compatible stage, carry the
+# result into the runtime image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-# Keep only production dependencies; native modules are already present.
+# Keep only production dependencies; native modules are already built above.
 RUN npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
