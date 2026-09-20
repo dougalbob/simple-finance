@@ -1,7 +1,8 @@
 # Simple Finance — Implementation Plan
 
-**Status:** Phase 0 + Phase 1 + Phase 2a complete (Sessions 1–2, merged 2026-09-20 — PRs #2, #3).
-Phase 2b (mobile entry UI) is next per the session map below. Discovery completed 2026-09-20.
+**Status:** Phase 0 + Phase 1 + Phase 2a + Phase 2b complete (Sessions 1–3; Phase 2b build is complete on the
+current session branch). PRs #2 and #3 merged 2026-09-20; this session adds the mobile entry surface. Discovery
+completed 2026-09-20.
 This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.md` (the product spec).
 
 > All names, amounts and dates in this document are fictional placeholders. Real values live only in the
@@ -13,8 +14,8 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 |---|---|---|
 | 1 | Phase 0 + Phase 1 — bootstrap + thin vertical slice | Complete (PR #2) |
 | 2 | Phase 2a — core money records: schema + pure domain modules, E1/E2/E4/E6/E7 | Complete (PR #3) |
-| 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Next |
-| 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Planned |
+| 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Complete (build; browser tooling unavailable in this sandbox) |
+| 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Next |
 | 5 | Phase 4a — desktop pages + Insights v1 (first part) | Planned |
 | 6 | Phase 4b — desktop pages + attachments (remainder) | Planned |
 | 7 | Phase 5 — hardening & first release (v0.1.0) | Planned |
@@ -257,6 +258,15 @@ covering attachments).*
 47. **Refunds default to the original's pot/supplier/payer** but may override each (a cash refund can differ from a card purchase); no same-pot enforcement.
 48. **Phase-1 test maintenance:** fixed-date checkpoint tests now pass explicit `now` (future-dated records are rejected by the new validation); the `__drizzle_migrations` count assertion moved to 2 with migration 0001. People/vehicles/suppliers are never seeded (household data); categories are seeded (product content).
 
+*Session 3 (2026-09-20) — Phase 2b build decisions:*
+
+49. **Entry boundary shape:** Add Purchase submits integer-pence totals and a JSON split payload through a server action; Zod validates the parsed shape before the existing domain module enforces exact totals, live leaf categories and target existence. Add Fuel uses the same purchase path with the Fuel category and a vehicle target fixed server-side.
+50. **Signed-in payer default:** until the Phase 4 Settings mapping exists, a visible paid-by chip is preselected from a person whose label appears in the signed-in email local part, falling back deterministically to the first person. The user can override it before save; schedule conversions may still use the nullable schema value later.
+51. **Supplier entry ordering:** recent non-void supplier use is listed first, followed by alphabetical suppliers. Unknown typed names pass through the existing inline supplier creation path; near matches are a non-blocking client prompt, never an automatic merge.
+52. **Quick-entry duplicate handling:** a duplicate notice is returned only after the save has succeeded. It links to the home review row and offers an explicit version-guarded void action; no duplicate is blocked and no record is deleted.
+53. **Phase-2b setup:** people and vehicles remain unseeded household data. A small authenticated setup section is available on the home page so a fresh installation can create the labels needed by paid-by, personal and vehicle target chips; it is not a replacement for the Phase 4 Settings page.
+54. **Browser harness status:** no Playwright package or browser is present in this sandbox. The mobile layout and single-flight guards are implemented, but no browser run is claimed; browser setup/real mobile acceptance remains an explicit Phase 5 gate.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -306,20 +316,23 @@ src/lib/auth/{verify,current-user,next}.ts — jose JWT verification, fail-close
 src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint (effective-date rule), reads
 src/lib/records/{splits,categories,people,vehicles,suppliers,purchases,transfers,occurred,errors}.ts — Phase 2a
                               domain: exact-total splits, category tree, parties, money records, backdating, concurrency
-src/lib/validation.ts         — Zod schemas at the server boundary
+src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads
 src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
-src/app/                      — layout, home page (slice), unauthorized page, server actions
+src/app/                      — layout, home page (quick entry + review), unauthorized page, server actions
 src/app/api/health/route.ts   — public health endpoint (no diagnostics)
 src/app/api/backup/route.ts   — authenticated encrypted backup download (POST)
 src/components/pot-forms.tsx  — client forms (Add pot / checkpoint)
+src/components/quick-entry.tsx — mobile Add Purchase / Add Fuel / Update Balance, split helper, chips, duplicate notice
+src/components/household-setup.tsx — authenticated initial people/vehicle labels (household data is never seeded)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
 docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
 Dockerfile                    — multi-stage production image
 .env.example                  — placeholder configuration (real values only in the private install)
-tests/*.test.ts               — 107 tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
+tests/*.test.ts               — 111 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
                                 current-user fail-closed, db slice, backup/restore round-trip, route, migrate script, version,
                                 splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
                                 purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void)
+tests/entry-validation.test.ts — Phase 2b Zod boundary tests for split/purchase, fuel and checkpoint payloads
 tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a tests
 .github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```
