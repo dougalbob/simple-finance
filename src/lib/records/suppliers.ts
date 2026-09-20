@@ -56,6 +56,39 @@ export function listSuppliers(db: Db): Supplier[] {
   return db.select().from(suppliers).orderBy(asc(suppliers.name)).all();
 }
 
+/**
+ * Entry-friendly ordering: suppliers used recently appear first, followed by
+ * the remaining names alphabetically. The list is deliberately small so the
+ * browser can provide a native datalist without turning autocomplete into a
+ * second financial workflow.
+ */
+export function listSuppliersForEntry(db: Db, limit = 40): Supplier[] {
+  const all = listSuppliers(db);
+  const recentIds = db
+    .select({
+      supplierId: purchases.supplierId,
+      lastUsed: sql<number>`max(${purchases.occurredAt})`,
+    })
+    .from(purchases)
+    .where(and(isNull(purchases.voidedAt), sql`${purchases.supplierId} IS NOT NULL`))
+    .groupBy(purchases.supplierId)
+    .orderBy(desc(sql`max(${purchases.occurredAt})`))
+    .limit(limit)
+    .all()
+    .flatMap((row) => (row.supplierId === null ? [] : [row.supplierId]));
+  const rank = new Map(recentIds.map((id, index) => [id, index]));
+  return [...all]
+    .sort((left, right) => {
+      const leftRank = rank.get(left.id);
+      const rightRank = rank.get(right.id);
+      if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
+      if (leftRank !== undefined) return -1;
+      if (rightRank !== undefined) return 1;
+      return left.name.localeCompare(right.name);
+    })
+    .slice(0, limit);
+}
+
 export function getSupplier(db: Db, supplierId: number): Supplier {
   const row = db.select().from(suppliers).where(eq(suppliers.id, supplierId)).get();
   if (row === undefined) {
