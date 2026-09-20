@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+build
+dist
+coverage
+.git
+data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.*
+!.env.example
