@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    name: Gates (format, types, tests, build, audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: NEXT_TELEMETRY_DISABLED=1 npm run build
+      - run: npm audit --omit=dev
+
+  docker:
+    name: Docker image build + entrypoint smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t simple-finance:ci .
+      - name: Smoke test (start, health, recreate with volume, health)
+        run: |
+          set -eu
+          AUTH_ENV="-e AUTH_ISSUER=https://example.cloudflareaccess.com -e AUTH_AUDIENCE=dummy-audience -e AUTH_ALLOWED_EMAILS=alex@example.com,sam@example.com"
+          docker run -d --name sf-run1 -p 3000:3000 $AUTH_ENV simple-finance:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          echo "first start: healthy"
+          docker rm -f sf-run1
+
+          docker run -d --name sf-run2 -p 3000:3000 -v sf-smoke-data:/data $AUTH_ENV simple-finance:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          echo "recreated container with existing volume: healthy"
+          test -n "$(docker exec sf-run2 ls -A /data/simple-finance.sqlite)"
+          echo "database persisted across container recreation"
+          docker rm -f sf-run2
+          docker volume rm sf-smoke-data
