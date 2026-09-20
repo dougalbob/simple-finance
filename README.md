@@ -6,10 +6,11 @@ by payday?\"* Built for a single household behind Cloudflare Access, deployed to
 
 ## Current status
 
-**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b complete (Sessions 1–3, merged via PR #4) — core money
-records and mobile quick-entry UI are running; no release published yet.** Phases 3–5 (engines,
-desktop pages, hardening/v0.1.0) remain planned and sequenced — see the **session map** in
-`docs/IMPLEMENTATION_PLAN.md`.
+**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 complete (Sessions 1–4; Phases 1–2b merged
+via PR #4) — core money records, mobile quick-entry, schedules with auto-conversion, the estimate and
+payday-projection engines and the two-tier warnings are running; no release published yet.** Phases 4–5
+(desktop pages, Insights, attachments, hardening/v0.1.0) remain planned and sequenced — see the
+**session map** in `docs/IMPLEMENTATION_PLAN.md`.
 
 | Implemented & merged | Status |
 |---|---|
@@ -21,11 +22,13 @@ desktop pages, hardening/v0.1.0) remain planned and sequenced — see the **sess
 | Unauthorised / wrong-audience requests rejected on pages and API routes | ✅ tested at unit and live-server level |
 | Core money records (Phase 2a): people, vehicles, category tree seeded per SPEC §12, suppliers + contact cards, purchases with exact-total splits, refunds as linked negatives, transfers, void/edit with audit + optimistic concurrency, checkpoint effective-date rule | ✅ integration tested incl. E1, E2, E4, E6, E7 on isolated databases (111 tests total including Phase 2b boundary tests) |
 | Mobile entry (Phase 2b): Add Purchase with exact splits/remainder helper, Add Fuel, Update Balance with date-only backdating, supplier recents/inline add/near-duplicate prompt, derived category memory chip, visible pot/paid-by/target defaults, non-blocking duplicate review/void, single in-flight submission guard | ✅ server actions use Zod + domain validation; production build green |
+| Money engines (Phase 3): per-pot + household "available now" estimates with the conservative date-only comparison rule; payday-to-payday projection with period-level half-up day-to-day figures, outgoings-before-receipts ordering, two-tier warnings and the pot-level "plan a transfer" watch; schedules (DD/SO/income) with unique upcoming→converted instances, lazy midnight conversion that self-heals across crashes, clamp-to-month-end due days, effective-date cancellation; renewals with per-item leads and annual auto-advance (29 Feb → 28 Feb); key-date alerts incl. contract ends ("rolled / awaiting review") | ✅ pure engines + domain tested to the penny incl. E3, E5, E8, E9 and DST sweeps (2026-10-25 / 2026-03-29); home page shows money, projection, due-this-week, key dates and entry forms (154 tests total) |
 
-**Not yet built (per plan):** schedules & auto-conversion, estimate and payday-projection engines, warnings,
-desktop pages, Insights, attachments, live in-place restore, GHCR publication, Unraid template. Nothing has
-been deployed; the first release will be **v0.1.0** at the end of Phase 5. The home page now includes the
-mobile-first entry flows; it deliberately does not imply an estimate or bank connection before Phase 3.
+**Not yet built (per plan):** desktop pages (dense Recurring Payments month calendar, Insights,
+Settings), Insights + the projection honesty loop, attachments, live in-place restore, GHCR publication,
+Unraid template. Nothing has been deployed; the first release will be **v0.1.0** at the end of Phase 5.
+The home page now shows the money estimate and payday projection alongside the mobile-first entry flows;
+both are clearly labelled as estimates/projections — never a bank balance, never a bank connection.
 
 | Document | Purpose |
 |---|---|
@@ -76,7 +79,7 @@ Gates (same commands CI runs):
 ```sh
 npm run format:check
 npm run typecheck
-npm test                              # 111 tests (Phase 1 + 2a domain + Phase 2b boundary suite)
+npm test                              # 154 tests (Phase 1 + 2a domain + 2b boundary + Phase 3 engines/lifecycle)
 NEXT_TELEMETRY_DISABLED=1 npm run build
 npm audit --omit=dev                  # 0 vulnerabilities at time of writing
 npm run db:migrate                    # apply migrations explicitly (dev does it automatically)

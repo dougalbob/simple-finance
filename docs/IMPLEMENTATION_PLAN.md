@@ -1,8 +1,10 @@
 # Simple Finance — Implementation Plan
 
-**Status:** Phase 0 + Phase 1 + Phase 2a + Phase 2b complete (Sessions 1–3; Phase 2b build is complete on the
-current session branch). PRs #2 and #3 merged 2026-09-20; this session adds the mobile entry surface. Discovery
-completed 2026-09-20.
+**Status:** Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 complete (Sessions 1–4). PRs #2, #3 and #4
+merged 2026-09-20 (Phases 0–2b). Session 4 built Phase 3 on its session branch: schedules with
+upcoming→converted instances, income receipts, the estimate and payday-projection engines, the two
+warning tiers, the pot-level transfer watch, renewals and key-date alerts, and the E3/E5/E8/E9 test
+coverage — 154 tests green, all gates green. Discovery completed 2026-09-20.
 This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.md` (the product spec).
 
 > All names, amounts and dates in this document are fictional placeholders. Real values live only in the
@@ -15,7 +17,7 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 | 1 | Phase 0 + Phase 1 — bootstrap + thin vertical slice | Complete (PR #2) |
 | 2 | Phase 2a — core money records: schema + pure domain modules, E1/E2/E4/E6/E7 | Complete (PR #3) |
 | 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Complete (build; browser tooling unavailable in this sandbox) |
-| 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Next |
+| 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Complete (build on session branch; docs in same PR) |
 | 5 | Phase 4a — desktop pages + Insights v1 (first part) | Planned |
 | 6 | Phase 4b — desktop pages + attachments (remainder) | Planned |
 | 7 | Phase 5 — hardening & first release (v0.1.0) | Planned |
@@ -59,30 +61,45 @@ everywhere; per-period rounding, half-up, once (SPEC §7.3).
 - `categories` — id, parent_id (null = parent; exactly two levels enforced), name, retired_at?, sort.
 - `targets` — household (singleton), `people` (id, label), `vehicles` (id, label, owner_person_id).
 - `purchases` — id, supplier_id?, pot_id, total_pence, occurred_at (timestamp), occurred_date (backdatable),
-  paid_by_person_id, entered_by, note?, voided_at?, version (optimistic concurrency).
+  paid_by_person_id, entered_by, note?, **schedule_instance_id? (non-null = the "from schedule" tag — the
+  converted form of a schedule instance; also the self-heal back-reference)**, voided_at?, version
+  (optimistic concurrency).
 - `allocations` — id, purchase_id, amount_pence (signed: refunds negative), category_id (leaf),
   target_kind (household|person|vehicle), target_id?, refund_of_purchase_id?.
   Constraint: Σ allocations = purchase total (enforced in a transaction, tested).
 - `refunds` — modelled as purchases with negative allocation amounts + `refund_of_purchase_id` link.
 - `transfers` — id, from_pot_id, to_pot_id, amount_pence, occurred_at, entered_by, voided_at?, version.
 - `schedules` — id, name, kind (dd|so|receipt), amount_pence, frequency (monthly|annual), due_day_of_month,
-  pot_id, category_id?, target_kind/target_id?, contract_ends_on?, active_from, active_until?,
-  cancelled_at?, version.
-- `renewals` — id, label, supplier_id?, target_kind/target_id?, renewal_date, warn_days_before (default 21),
-  repeats_annually, notes, advanced_from? (history of auto-advances), version (SPEC §22.2).
-- `schedule_instances` — id, schedule_id, due_date, state (**upcoming|converted** — exactly one, unique per
-  schedule+date), converted_record_id? (purchase/receipt), UNIQUE(schedule_id, due_date).
-- `receipts` — income records from receipt schedules (or reuse purchases table with a sign/kind flag —
-  decide in Phase 3 design note; keep one money-record abstraction if it stays clean).
+  **due_month (annual only — which month it falls in; NULL for monthly; DB-check enforced)**,
+  pot_id, category_id? (leaf; NULL required for receipts), target_kind/target_id?, contract_ends_on?,
+  active_from, active_until?, cancelled_at?, **cancelled_effective_on?** (instances from that date stop),
+  version. (Phase 3 — decision 55.)
+- `renewals` — id, label, supplier_id?, target_kind/target_id?, next_renewal_date, warn_days_before
+  (default 21), repeats_annually, notes, advanced_from? (history of auto-advances), version (SPEC §22.2).
+- `schedule_instances` — id, schedule_id, due_date, state (**upcoming|converted** — exactly one, enforced
+  by a DB CHECK on the (state, link) pair), converted_record_kind (purchase|receipt), converted_record_id,
+  converted_at, UNIQUE(schedule_id, due_date). Derived rows: re-derivable from the schedule, so deletion is
+  the honest "instances stop existing" (SPEC §11.2).
+- `receipts` — **own table (Phase 3 decision 55 / OQ5 resolved):** id, schedule_instance_id?, pot_id,
+  amount_pence (>0), occurred_at/occurred_date, entered_by, note?, voided_at/by/reason?, version. Income has
+  no category/target (SPEC §6), so it does not reuse `purchases`/`allocations`; the estimate engine treats
+  it as +signed pence. This keeps one clean per-record shape while the estimate engine's per-pot sum stays
+  transfer-invariant.
 - `attachments` — id, purchase_id, file_key (server-generated under `documents/`), original_name, mime,
   size_bytes, sha256, state (pending|stored|failed), created_by, created_at (SPEC §23).
-- `settings` — household labels, payday config, projection figures (weekly groceries, per-vehicle monthly
-  fuel), tier thresholds, UI prefs. Private runtime values.
+- `settings` — typed string-key value store (Phase 3): `weekly_groceries_pence`,
+  `monthly_fuel_pence:<vehicleId>` (SPEC §7.3), `renewal_warning_lead_days` +
+  `contract_end_warning_lead_days` (default 21, SPEC §22); private runtime values, typed accessors in
+  `src/lib/records/settings.ts`, empty string clears. (Household labels / payday-of-month config move to the
+  Phase 4 Settings page when they become user-editable; the planning cycle's payday is currently derived from
+  the earliest unconverted receipt instance — SPEC §11.3.)
 - `audit_entries` — actor, action, entity, before/after summary, timestamp; written in the same transaction
   as the change (blueprint §3).
 
-Schema decisions to finalise at Phase 3 design: single money-records table vs purchases+receipts; index
-shape for estimate queries (pot_id, effective-time ordering).
+*Phase 3 design resolved (Session 4):* dedicated `receipts` table (not a signed-purchase reuse — OQ5), the
+instance↔record back-references on both tables, `purchases.schedule_instance_id` for the "from schedule"
+tag + crash self-heal, `due_month` for annual schedules, and `(pot_id, occurred_at)` / `(occurred_date)`
+indexes for the estimate queries.
 
 ## Phased plan
 
@@ -267,6 +284,65 @@ covering attachments).*
 53. **Phase-2b setup:** people and vehicles remain unseeded household data. A small authenticated setup section is available on the home page so a fresh installation can create the labels needed by paid-by, personal and vehicle target chips; it is not a replacement for the Phase 4 Settings page.
 54. **Browser harness status:** no Playwright package or browser is present in this sandbox. The mobile layout and single-flight guards are implemented, but no browser run is claimed; browser setup/real mobile acceptance remains an explicit Phase 5 gate.
 
+*Session 4 (2026-09-20) — Phase 3 build decisions:*
+
+55. **Phase 3 money-record shape (OQ5 resolved):** dedicated `receipts` table for income — NOT a reuse of
+   `purchases`/`allocations`. Income has no category or target (SPEC §6), so forcing it through the
+   exact-total split machinery would be a lie the schema would have to hide. `receipts` is a flat,
+   positive-pence, pot-scoped money record (voidable, versioned, audited) that the estimate engine reads as
+   +signed pence. Schedule↔record linking uses back-references on **both** sides:
+   `purchases.schedule_instance_id` / `receipts.schedule_instance_id` (the "from schedule" tag) and
+   `schedule_instances.converted_record_kind/_id` (history + self-heal). Migration `0002_phase3_schedules`
+   adds schedules, schedule_instances, receipts, renewals, settings and the purchase back-reference column.
+56. **Annual schedules need a due month:** a monthly-only `due_day_of_month` is ambiguous for annual
+   schedules ("12 October every year" — which month?). `schedules.due_month` (1–12) is required for
+   `frequency = annual` and NULL for monthly, enforced by the `schedules_due_month_rule` DB check. Annual
+   due date = clamped `due_month`-`due_day` each year (29 Feb → 28 non-leap, OQ13).
+57. **Conversion semantics (E3):** conversion is the local-midnight instant of the due date
+   (`startOfLocalDate`, Europe/London — always exists). The converted record is an ordinary record:
+   occurredAt = that midnight, occurredDate = the due date, single line = the schedule's amount/category/
+   target, `paid_by` null, actor `system`, note `From schedule "name"`, created through `createPurchase` /
+   `createReceipt` (so duplicate/void/edit/audit all work unchanged). The due pass is **lazy** — the app is
+   not a cron daemon: every money read (`getMoneySnapshot`/`getProjectionView`/`getKeyDateAlerts`) first
+   runs `ensureScheduleState` (materialize + convert due instances + advance due renewals). Conversion is
+   idempotent and **self-healing**: each conversion first looks for a record already back-referencing the
+   instance (crash between the two writes) and repairs the link instead of converting twice, so at no
+   instant is a fact in two states and it is never subtracted twice (a converted record before a later
+   checkpoint is excluded from that estimate — the E3 table, tested).
+58. **Instance set = derived data:** `syncScheduleInstances` recomputes the desired upcoming set
+   (due dates in `[max(active_from, day-after-last-converted), min(today+400d, active_until,
+   cancelled_effective_on−1)]`), inserts missing (onConflictDoNothing) and deletes stale — deletion is the
+   honest "instances stop existing" (SPEC §11.2); the schedule's own create/edit/cancel audits are the
+   retained record. Edits apply from the next instance onward; converted history is never rewritten
+   (SPEC §11.1). Cancellation = flag + effective date; instances from it stop existing, earlier ones remain
+   history. Contract end dates are alert-only — instances never auto-stop (SPEC §22.1, tested).
+59. **Comparison precision (E5 / SPEC §7.1):** a record is *after* a checkpoint ⇔ (timed) its instant is
+   strictly after the checkpoint instant, or (date-only, recognised by the end-of-local-date marker) its
+   local date is ≥ the checkpoint's local date — sharing the date counts as after, the conservative
+   direction, self-correcting at the next checkpoint. Timed-vs-timed comparisons therefore never use dates.
+60. **Projection reading (E8, penny-verified):** `days = payday − today` in whole local days; the configured
+   day-to-day block (weekly groceries × days/7, per-vehicle monthly fuel × days/30, each rounded once at
+   period level, integer half-up) is applied **pessimistically up front** — the low is computed as if all
+   predictable spending lands before pay (exactly the E8 arithmetic). Commitments (unconverted dd/so
+   instances) and receipts (unconverted receipt instances) apply on their due days; **within a day,
+   outgoings apply before receipts** (still the conservative direction). `projected_low` = the minimum
+   running value including the start; `payday` = the earliest unconverted receipt instance (today's dues are
+   already converted, so it is strictly in the future); no receipt schedule → the view is null and the UI
+   says exactly what is missing. Warnings (§8) against `projected_low`: below £0 → heads-up; at or beyond
+   the most-protective configured pot threshold → warning. The pot watch (§7.5) excludes day-to-day by
+   design.
+61. **Renewal auto-advance is a full catch-up:** `advanceDueRenewals` steps repeating renewals one year at
+   a time (each step audited, `advanced_from` history) until the date is in the future, so a late-created
+   renewal converges in one pass; non-repeating renewals are left in place (key dates show them as past).
+   29 Feb → 28 Feb in non-leap years (OQ13). Key-date windows are inclusive: an alert shows from exactly
+   `leadDays` days before (E9's 21st-day boundary, tested).
+62. **Phase 3 UI scope:** compact home panels — money estimate (household + per-pot, honest
+   "not a bank balance" labels + last-checkpoint times), projection breakdown with tier banner, pot-watch
+   nudges and a collapsible day-by-day table, due-this-week, key dates, and entry forms for
+   schedules/renewals/projection figures (new server actions + Zod schemas following the Phase 2b
+   conventions). The dense desktop pages (month calendar, Insights, Settings) remain Phase 4 per the
+   session map — the mobile surface is the primary Phase 3 deliverable.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -275,7 +351,7 @@ covering attachments).*
 | OQ2 | Income schedules: "shift to previous working day if weekend/bank holiday" toggle (salaries often pay on last working day)? | Add toggle for receipt schedules only; DDs/SOs use configured date as-is. |
 | OQ3 | Duplicate-notice matching window & rule (currently ~2h, same pot+supplier/category+amount) | Ship as stated; tune after real use. |
 | OQ4 | Checkpoint effective-date granularity (date-only backdating vs full timestamp) | Date-only backdating, boundary = end of local date; revisit if users want finer. |
-| OQ5 | Receipts storage shape (own table vs signed purchase records) | Decide in Phase 3 design; prefer one clean money-record abstraction. |
+| OQ5 | Receipts storage shape (own table vs signed purchase records) | **Resolved in Phase 3 (decision 55): dedicated `receipts` table** — income has no category/target (SPEC §6), so it does not reuse the split machinery; the estimate engine reads it as +signed pence. |
 | OQ6 | ~~Receipt images / attachments~~ | **Resolved 2026-09-20 — in scope (decision 26, SPEC §23).** Residual sub-questions moved to OQ9–OQ12. |
 | OQ7 | PWA installability | Post-v1 evaluation; never with offline caching of financial data or broad Access bypasses. |
 | OQ8 | Unraid host port | Pick a free port at first install; template documents it (never inherit 3005). |
@@ -292,12 +368,16 @@ covering attachments).*
   container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,
   Session 2)** — core money-record domain with E1/E2/E4/E6/E7 integration coverage, no UI yet. **Phase 2b
   mobile entry merged via PR #4 on 2026-09-20** — 111 tests green; browser tooling unavailable in the sandbox.
-  First planned release: **v0.1.0** at end of Phase 5.
+  **Phase 3 (Session 4) built on its session branch** — schedules + instances, income receipts, estimate and
+  payday-projection engines, two-tier warnings, pot-level transfer watch, renewals + key-date alerts, home
+  panels and entry forms; E3/E5/E8/E9 and DST boundary coverage; **154 tests green**, all gates green
+  (`npm ci --ignore-scripts` in-sandbox; plain `npm ci` in CI), migration `0002_phase3_schedules`. No tag and
+  no publish this session — **v0.1.0** remains the end-of-Phase-5 release.
 
 ## File map (current)
 
 ```
-README.md                     — operating truth (Phase 0+1 status, local run, gates, sandbox note)
+README.md                     — operating truth (Phase 0+1+2a+2b+3 status, local run, gates, sandbox note)
 AGENT_APP_BLUEPRINT.md        — engineering/delivery contract (from Estate Organiser lessons; user-provided)
 docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E9
 docs/IMPLEMENTATION_PLAN.md   — this file (now includes the session map)
@@ -317,24 +397,44 @@ src/lib/auth/{verify,current-user,next}.ts — jose JWT verification, fail-close
 src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint (effective-date rule), reads
 src/lib/records/{splits,categories,people,vehicles,suppliers,purchases,transfers,occurred,errors}.ts — Phase 2a
                               domain: exact-total splits, category tree, parties, money records, backdating, concurrency
-src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads
+src/lib/records/dates.ts      — Phase 3 pure local-calendar arithmetic (no instants): clamped due dates (OQ1/OQ13),
+                                whole-day adds, leap years — DST-safe by construction
+src/lib/records/estimates.ts  — Phase 3 pure estimate engine (SPEC §7.1): comparison-precision rule, per-pot + household sums
+src/lib/records/projection.ts — Phase 3 pure payday-projection engine (SPEC §7.2–7.5, §8): pessimistic day-to-day block,
+                                outgoings-before-receipts, two-tier selection, pot-level transfer watch
+src/lib/records/keydates.ts   — Phase 3 pure key-date engine (SPEC §22): inclusive warning windows, today/rolled/past states
+src/lib/records/{schedules,receipts,renewals,settings,money-view}.ts — Phase 3 domain + read-side assembly: schedule
+                                lifecycle (sync/convert/self-heal), income records, renewal auto-advance, typed settings,
+                                and the DB-backed money/projection/key-date views that run the lazy due pass first
+src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads and Phase 3
+                                schedule/cancel/renewal/settings payloads
 src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
-src/app/                      — layout, home page (quick entry + review), unauthorized page, server actions
+src/app/                      — layout, home page (money/projection/due/key-date panels + quick entry + review),
+                                unauthorized page, server actions (incl. Phase 3 schedule/renewal/settings actions)
 src/app/api/health/route.ts   — public health endpoint (no diagnostics)
 src/app/api/backup/route.ts   — authenticated encrypted backup download (POST)
 src/components/pot-forms.tsx  — client forms (Add pot / checkpoint)
 src/components/quick-entry.tsx — mobile Add Purchase / Add Fuel / Update Balance, split helper, chips, duplicate notice
 src/components/household-setup.tsx — authenticated initial people/vehicle labels (household data is never seeded)
+src/components/recurring.tsx  — Phase 3 client forms: Add/Cancel schedule, Add renewal, projection figures
 scripts/migrate.cjs           — production migration runner (entrypoint path)
 docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
 Dockerfile                    — multi-stage production image
 .env.example                  — placeholder configuration (real values only in the private install)
-tests/*.test.ts               — 111 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
-                                current-user fail-closed, db slice, backup/restore round-trip, route, migrate script, version,
-                                splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
+tests/*.test.ts               — 154 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
+                                current-user fail-closed, db slice, backup/restore round-trip (3 migrations), route, migrate
+                                script, version, splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
                                 purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void)
+tests/{dates,estimate,projection}.test.ts — Phase 3 pure-engine tests: local-date arithmetic + DST days (E3 sweep inputs),
+                                comparison-precision rule (E5), E8 projection to the penny + tiers + pot watch
+tests/schedule-lifecycle.test.ts — Phase 3 E3: 26th→30th counted-exactly-once timeline, crash self-heal, DST-midnight
+                                conversions (2026-10-25 / 2026-03-29), cancel/edit/annual-month/leap/receipt conversion
+tests/renewals.test.ts        — Phase 3 E9: inclusive 21-day window, annual auto-advance (audited, 29 Feb → 28 Feb),
+                                contract-end alerts ("rolled / awaiting review"), version guard
+tests/money-view.test.ts      — Phase 3 E8 end-to-end over the DB: estimates, payday selection, penny-exact projection,
+                                due-this-week, settings round-trip
 tests/entry-validation.test.ts — Phase 2b Zod boundary tests for split/purchase, fuel and checkpoint payloads
-tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a tests
+tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a+ tests
 .github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```
 

@@ -89,7 +89,7 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       assert.equal(countRows(target, 'pots'), 1);
       assert.equal(countRows(target, 'checkpoints'), 2);
       assert.equal(countRows(target, 'audit_entries'), 3);
-      assert.equal(countRows(target, '__drizzle_migrations'), 2);
+      assert.equal(countRows(target, '__drizzle_migrations'), 3);
     } finally {
       handle.raw.close();
     }

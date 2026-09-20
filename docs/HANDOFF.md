@@ -1,132 +1,210 @@
-# Handoff — 2026-09-20 — Session 3 complete: Phase 2b mobile entry build
+# Handoff — 2026-09-20 — Session 4 complete: Phase 3 schedules, money engines, warnings and key dates
 
 ## Goal and user decisions
 
-Session 3 of the agreed session map (`docs/IMPLEMENTATION_PLAN.md` → *Session map*). Deliverable: Phase 2b —
-server actions, Zod boundary schemas and mobile-first entry flows for Add Purchase, Add Fuel and Update Balance,
-built on the Phase 2a domain. Documentation rides in the same change as the code, as instructed by the product
-owner.
+Session 4 of the agreed session map (`docs/IMPLEMENTATION_PLAN.md` → *Session map*). Deliverable: Phase 3 —
+schedules with unique upcoming→converted instances, income receipts, the estimate and payday-projection
+engines, the two warning tiers, the pot-level transfer watch, renewals and key-date alerts, and the E3/E5/E8
+test coverage (plus E9 for renewals/contract ends). Documentation rides in the same PR as the code, as
+instructed by the product owner.
 
 Standing decisions remain unchanged:
 
+- Work on the platform-assigned session branch; never reuse/switch branches (this session:
+  `arena/01a0c0e6-simple-finance`).
 - Money is integer pence only; Zod validates at the server boundary and the domain remains the authority.
 - People, vehicles and suppliers are household data and are never seeded. Categories are product content and
   remain seeded by the checked-in migration.
-- The signed-in user has full mutual visibility/editing; every correction is audited and version guarded.
-- Duplicate detection is non-blocking. A saved duplicate is reviewed and explicitly voided; it is never silently
-  deleted or blocked.
-- Release authority is the full delivery loop: gates → PR → merge → annotated tag → GHCR verification → user
-  Force Update in Unraid and the documented acceptance checks. No release was made this session; v0.1.0 remains
+- Engines stay framework-free (pure modules) and are tested with DST and date boundaries.
+- Never edit an applied migration; new migrations are additive.
+- Release authority is the full delivery loop, but **no tag and no publish this session** — v0.1.0 remains
   the end-of-Phase-5 release.
+- The sandbox blocks `nodejs.org` (re-verified; plan decision 36): local gates use
+  `npm ci --ignore-scripts`; plain `npm ci` is the CI proof path. Do not "fix" the repo for this.
+- No browser run is claimed without Playwright present (decision 54: absent in this sandbox; mobile layout and
+  single-flight guards only).
 
 ## Current state
 
 - Repository: `dougalbob/simple-finance`.
-- Session branch: `arena/01a0c0cb-simple-finance` (continue on this branch for this session; do not switch branches).
-- Phase 0, Phase 1 and Phase 2a were merged to `main` in PRs #2 and #3. Phase 2b was merged to `main` via PR #4
-  on 2026-09-20. Nothing has been deployed.
+- Session branch: `arena/01a0c0e6-simple-finance` (continue on this branch; do not switch branches).
+- Phases 0, 1, 2a and 2b are merged to `main` (PRs #2–#4). Phase 3 is complete on this session branch with
+  README, implementation plan and this handoff refreshed in the same PR. Nothing has been deployed.
 - Last user-confirmed deployed version: none. No tag and no image exist yet.
-- The home page now has a mobile-first quick-entry surface. It intentionally does not show an estimate,
-  projection or bank-connected balance before Phase 3.
+- The home page now shows the money estimate, the payday projection (with tier banner and pot-watch nudges),
+  due-this-week, key dates and the schedule/renewal/projection-figure entry forms. Both money figures are
+  clearly labelled as estimates/projections — never a bank balance, never a bank connection.
 
-## Implemented in Session 3
+## Implemented in Session 4
 
-### Server boundary and actions
+### Migration and schema
 
-- `src/lib/validation.ts` adds strict parsed payload schemas for purchases, fuel and checkpoints. Dates are
-  strict `YYYY-MM-DD` values; integer-pence bounds are shared with the existing money helpers; target shape is
-  validated before the domain.
-- `src/app/actions.ts` adds authenticated actions:
-  - `addPurchaseAction`: parses the JSON split payload, resolves the visible payer, reuses `createPurchase`,
-    and returns a serialisable duplicate notice after a successful save.
-  - `addFuelAction`: resolves Vehicle Running / Fuel server-side and creates a vehicle-targeted purchase through
-    the same domain path.
-  - `addCheckpointAction` now accepts an optional effective date and keeps the end-of-local-date rule in the
-    existing checkpoint domain.
-  - `voidDuplicatePurchaseAction`: explicit version-guarded void action for the notice.
-  - `addPersonAction` and `addVehicleAction`: small authenticated fresh-install setup paths; they do not seed
-    personal data and are not a substitute for the Phase 4 Settings page.
-- The existing domain validation is not duplicated: exact split totals, live category leaves, target existence,
-  supplier inline creation, audit and concurrency still happen in `src/lib/records/`.
+- `drizzle/0002_phase3_schedules` (new, generated by drizzle-kit — never hand-edited):
+  - `schedules` — name, kind (dd|so|receipt), frequency (monthly|annual), due_day_of_month,
+    **due_month (annual only; `schedules_due_month_rule` DB check)**, amount > 0, pot, leaf category
+    (null required for receipts), target (household|person|vehicle), contract_ends_on (informational),
+    active_from/until, cancelled_at + **cancelled_effective_on**, version.
+  - `schedule_instances` — schedule_id, due_date, state (upcoming|converted) with a DB CHECK tying the state
+    to the link columns, converted_record_kind/_id/_at, UNIQUE(schedule_id, due_date).
+  - `receipts` — **OQ5 resolved (plan decision 55): dedicated income table** (no category/target — SPEC §6),
+    positive-pence, pot-scoped, voidable, versioned, back-referencing its schedule instance.
+  - `renewals` — label, optional supplier, vehicle/person/household target, next_renewal_date,
+    warn_days_before (default 21), repeats_annually, notes, advanced_from history, version.
+  - `settings` — typed string-key value store (projection figures + warning leads; empty string clears).
+  - `purchases.schedule_instance_id` + index — the "from schedule" tag and the crash self-heal back-reference.
+- `tests/backup-restore.test.ts` migration count bumped 2 → 3 (whole-DB snapshot backups include the new
+  tables automatically).
 
-### Mobile entry UI
+### Pure engines (framework-free, shared by UI and tests)
 
-- `src/components/quick-entry.tsx` provides three tabbed flows:
-  - Add Purchase: supplier datalist with recent suppliers first, inline unknown supplier creation, near-duplicate
-    prompt, most-used supplier category preselection, visible pot/paid-by/for-whom selectors, split lines,
-    exact-match status, one-tap remainder assignment, optional backdate/note, and Add another confirmation.
-  - Add Fuel: amount-first entry with visible vehicle, paid-by and pot defaults; Fuel category is fixed on the
-    server and the vehicle can be flipped in one tap.
-  - Update Balance: pot, amount, optional date-only effective date and note.
-- All three forms disable their save control while invalid or pending and use a submit ref guard so one flaky
-  tap cannot create two in-flight submissions. Controlled inputs remain on screen after a server validation
-  error.
-- The duplicate notice links to the retained review row on the home page and offers an explicit “Void this copy”
-  action. Voided history remains visible and marked.
-- `src/components/household-setup.tsx` lets a fresh private installation add the people and vehicles needed by
-  the visible attribution chips.
-- The home page now includes recent entries, checkpoint review, the Phase 1 pot forms and honest labels saying
-  these are reported figures, not bank balances.
-- `src/lib/records/suppliers.ts` adds entry ordering: recently used non-void suppliers first, then alphabetical
-  names. The most-used category remains live-derived, never cached.
+- `src/lib/records/dates.ts` — local-calendar arithmetic in UTC day numbers so DST can never leak in:
+  `daysBetween`, `addDaysLocal`, `addMonthsClamped`, `addYearsClamped` (29 Feb → 28 non-leap, OQ13),
+  `clampedDueDate` (due day 1–31 clamped to month end, OQ1), `isLeapYear`.
+- `src/lib/records/estimates.ts` — SPEC §7.1. Comparison precision (E5): timed records compare by instant
+  (strictly after); date-only records (end-of-local-date marker) count from the checkpoint's local date
+  onward — sharing the date counts as after (conservative, self-correcting). Refunds increase; household
+  total sums pots (transfer-invariant); no checkpoint → no estimate, ever.
+- `src/lib/records/projection.ts` — SPEC §7.2–7.5, §8. `days = payday − today`; the configured day-to-day
+  block (weekly groceries × days/7; per-vehicle monthly fuel × days/30; each rounded once at period level,
+  integer half-up — `roundHalfUpDivide`) is applied pessimistically up front (exactly E8's arithmetic);
+  commitments and receipts apply on due days with **outgoings before receipts within a day**;
+  `projected_low` = minimum running value incl. the start; two tiers (below £0 → heads-up; at or beyond the
+  most-protective pot threshold → warning); pot watch = estimate − that pot's window commitments
+  (day-to-day excluded by design).
+- `src/lib/records/keydates.ts` — SPEC §22. Inclusive warning windows (an alert shows from exactly
+  `leadDays` days before — E9's boundary), "renews today"/"time to shop around", past contract ends →
+  "rolled / awaiting review", past non-repeating renewals → "review it".
 
-### Tests and docs
+### Domain and read-side assembly
 
-- `tests/entry-validation.test.ts` adds four boundary-schema cases. The complete suite is now **111 tests**.
-- README, implementation plan and this handoff were updated in the same change.
-- The plan records Session 3 decisions 49–54, including the email-local-part payer fallback, supplier ordering,
-  duplicate handling, fresh-install setup and browser harness status.
+- `src/lib/records/schedules.ts` — create/edit/cancel with version guards and in-tx audit; annual due-month
+  rule; `syncScheduleInstances` recomputes the desired upcoming set
+  (`[max(active_from, day-after-last-converted), min(today+400d, active_until, cancelled_effective_on−1)]`,
+  insert missing / delete stale — deletion is the honest "instances stop existing"); `materializeAndConvert`
+  runs the lazy due pass; conversion at local midnight creates an ordinary record via `createPurchase` /
+  `createReceipt` (actor `system`, single line, note `From schedule "name"`) and is **idempotent +
+  self-healing** through the back-reference (crash between the two writes repairs the link, never
+  double-converts); edits apply from the next instance onward; cancellation stops instances from the
+  effective date; contract ends never auto-stop instances.
+- `src/lib/records/receipts.ts` — income CRUD (void/edit, version guards, pot check, in-tx audit).
+- `src/lib/records/renewals.ts` — CRUD + `advanceDueRenewals`: a full catch-up — each missed year is one
+  audited step (`renewal.advance`, `advanced_from` history) until the date is in the future; non-repeating
+  renewals are left in place; 29 Feb → 28 Feb.
+- `src/lib/records/settings.ts` — typed KV accessors: `weekly_groceries_pence`,
+  `monthly_fuel_pence:<vehicleId>`, `renewal_warning_lead_days`, `contract_end_warning_lead_days` (default 21).
+- `src/lib/records/money-view.ts` — the DB assembly layer: every read runs `ensureScheduleState` first
+  (materialize + convert + advance renewals — the app's replacement for a cron daemon), then builds
+  `getMoneySnapshot` (per-pot + household estimates), `getProjectionView` (payday = earliest unconverted
+  receipt instance; null when no pot is checkpointed **or** no income schedule exists) and
+  `getKeyDateAlerts` / `getUpcomingCommitments`.
+- `src/lib/records/purchases.ts` — `createPurchase` accepts optional `scheduleInstanceId`.
+- `src/lib/time.ts` — `startOfLocalDate` (inverse of `endOfLocalDate`) + `isDateOnlyInstant`.
+- `src/lib/money.ts` — `roundHalfUpDivide` + `periodProjectionPence`.
+
+### Server boundary, actions and UI
+
+- `src/lib/validation.ts` — `scheduleEntrySchema` (with kind/frequency/month/target cross-checks),
+  `cancelScheduleEntrySchema`, `renewalEntrySchema`, `projectionSettingsEntrySchema`.
+- `src/app/actions.ts` — `addScheduleAction`, `cancelScheduleAction` (version-guarded + effective date),
+  `addRenewalAction`, `saveProjectionSettingsAction`; same conventions (auth → Zod → domain →
+  `revalidatePath`).
+- `src/app/page.tsx` — money section (household + per-pot, honest labels), projection section (tier banner,
+  breakdown, collapsible day-by-day, pot-watch nudges naming the pot, the shortfall, the earliest due date and
+  what other pots hold), due-this-week, key dates, and the recurring section with schedule/renewal entry
+  forms, per-schedule cancellation and the projection-figures form.
+- `src/components/recurring.tsx` — the Phase 3 client forms (`useActionState`, `FormMessage` aria-live,
+  pending → disabled, composite "for" select split at the boundary).
+
+### Tests (suite now 154)
+
+- `tests/dates.test.ts` — clamping, whole-day arithmetic, DST days (2026-03-29 / 2026-10-25), leap years.
+- `tests/estimate.test.ts` — E5 assume-cleared arithmetic, comparison-precision rule, refund adds-back,
+  transfer-invariance, no-checkpoint null, E6 "counted exactly once at every stage".
+- `tests/projection.test.ts` — **E8 to the penny** (days 29; groceries £372.86; fuel £72.50 + £58.00;
+  commitments £1,014.96; projected low −£475.12 on 10/10; tier 2; pot watch −£666.08), rounding, no-payday
+  null, same-day ordering, DST window lengths.
+- `tests/schedule-lifecycle.test.ts` — **E3** 26th→30th timeline (upcoming → converted at local midnight →
+  excluded from the later checkpoint — never subtracted twice), idempotent repeat passes, crash self-heal,
+  **DST-midnight conversions on 2026-10-25 and 2026-03-29**, cancel effective-date behaviour, edit
+  history/next-instance rule, annual due-month rule + Feb 29 clamping, receipt schedules converting to
+  receipts, single-state invariant sweep.
+- `tests/renewals.test.ts` — **E9**: inclusive 21-day window (quiet on day 22, visible on day 21), audited
+  annual auto-advance with full catch-up, 29 Feb → 28 Feb, contract-end window + "rolled / awaiting
+  review", version guard.
+- `tests/money-view.test.ts` — E8 end-to-end over the database (checkpoints, purchase, transfer, six
+  schedules, settings → penny-exact snapshot + projection + payday selection + due-this-week + settings
+  round-trip), payday = earliest unconverted receipt, no-checkpoint → null view.
+- `tests/backup-restore.test.ts` — `__drizzle_migrations` count 2 → 3.
 
 ## Validation evidence
 
 Run from the repository root:
 
-- `npm ci --ignore-scripts` — pass in this sandbox. Plain `npm ci` remains the CI proof path because this
-  environment may be unable to fetch Node headers from `nodejs.org`; the bundled better-sqlite3 prebuild works.
-- `npm run format:check` — pass.
+- `npm ci --ignore-scripts` — pass in this sandbox (bundled better-sqlite3 prebuild). Plain `npm ci` remains
+  the CI proof path (plan decision 36).
+- `npm run format:check` — pass (all files Prettier-clean).
 - `npm run typecheck` — pass.
-- `npm test` — **111 tests, 111 pass, 0 fail**.
+- `npm test` — **154 tests, 154 pass, 0 fail** (111 baseline + 43 Phase 3).
 - `NEXT_TELEMETRY_DISABLED=1 npm run build` — pass; home page compiles as a dynamic route.
 - `npm audit --omit=dev` — 0 vulnerabilities.
-- `git diff --check` — pass after the final documentation/code edits.
-- Playwright/browser run — **not claimed**. No Playwright package or browser is present in this sandbox. The
-  mobile layout and single-flight guards are implemented; establish the browser harness before the Phase 2 exit
-  is accepted as browser-tested, and repeat the E1/E2 flow at a real mobile viewport.
+- Migration `0002_phase3_schedules` generated by drizzle-kit (schema → SQL), never hand-edited; applied
+  cleanly in every isolated test database and in the production build.
+- Playwright/browser run — **not claimed**. No Playwright package or browser is present in this sandbox
+  (decision 54). The home panels and entry forms are implemented; browser setup and real mobile acceptance
+  remain explicit Phase 5 gates.
 
 ## Outstanding acceptance, risks and blockers
 
-- Phase 2b has no known code blocker. Browser tooling is the explicit outstanding verification item.
-- The payer default is deterministic until a Settings mapping exists: match a person label in the email local
-  part, otherwise first person. It is visible and overrideable, and must not be presented as identity proof.
-- `addPersonAction`/`addVehicleAction` are intentionally small setup paths; full labels, ordering and settings
-  editing belong in Phase 4.
-- Estimate/projection engines do not exist yet. No current UI may imply a safe-to-spend figure or forecast.
-- Attachments, supplier interactions/reference pairs, schedules and renewals remain later planned work.
-- Accepted trade-offs from previous sessions continue: assume-cleared checkpoint semantics, synchronous single
-  writer concurrency assumption, container root user pending the Phase 5 security review.
+- No known code blockers in Phase 3. Browser tooling is the explicit outstanding verification item (Phase 5).
+- The due pass is lazy: a schedule due *today* converts on the next home read. That is the agreed design
+  (no cron daemon), tested for idempotency and self-heal — but it means the conversion timestamp is the
+  first read after local midnight, not midnight itself. The converted **record** is always dated at local
+  midnight; only the audit `converted_at` carries the read time.
+- Conversion failures surface as a thrown error from the read path if a schedule points at a retired
+  category or a missing pot (the honest failure: fix the schedule, the instance stays upcoming for the next
+  pass). No silent skips.
+- The UI shows at most 2 "other pots hold …" clauses in a pot-watch nudge; the dense view is Phase 4.
+- OQ2 (weekend/bank-holiday shift for salary) is deliberately not implemented: payday is the earliest
+  unconverted receipt instance as configured. Revisit if the household wants it.
+- Accepted trade-offs from previous sessions continue: assume-cleared checkpoint semantics, synchronous
+  single-writer concurrency assumption (decision 42), container root user pending the Phase 5 security
+  review.
 
-## Next exact actions — Session 4 / Phase 3
+## Next exact actions — Session 5 / Phase 4a
 
-1. Verify `origin/main`/the merged Phase 2b PR state before starting the next platform-assigned branch; do not
-   reuse a previous session branch.
-2. Read `AGENT_APP_BLUEPRINT.md`, SPEC §§7–8 and §§11, 15.2, 16–17, plus decisions 1–28 and 49–54 in the plan.
-3. Build Phase 3 domain first: schedules and unique upcoming→converted instances, income receipts, due-date
-   comparison semantics, estimate engine, payday projection with period-level half-up rounding, two warning
-   tiers, and the pot-level transfer watch. Keep engines framework-free and test E3/E5/E8 with DST and date
-   boundaries.
-4. Decide and document the Phase 3 money-record shape for expected receipts before adding migrations; preserve
-   the existing integer-pence/audit/version conventions.
-5. Keep README, plan and handoff current in the same PR. Do not tag or publish; v0.1.0 remains at the end of
+1. Verify `origin/main`/the merged Phase 3 PR state before starting the next platform-assigned branch; do
+   not reuse this session branch.
+2. Read `docs/HANDOFF.md`, `docs/IMPLEMENTATION_PLAN.md` (Session 4 decisions 55–62) and the blueprint, then
+   begin Session 5 / Phase 4a on the assigned branch.
+3. Phase 4a scope (plan, session map): desktop pages + Insights v1 — dense Overview (SPEC §15.2), Purchases
+   with filters/inline edit, **Recurring Payments with the read-only month calendar** (SPEC §11.1/§18;
+   calendar must stay consistent with the instance lists after edits/cancels), Accounts & Pots, Insights
+   panels 1–4 (including the projection **honesty loop** comparing configured figures with recent actuals),
+   Settings (category tree editor, projection figures, thresholds), version display. Reuse the existing pure
+   engines — never duplicate their arithmetic in UI code.
+4. Keep README, plan and handoff current in the same PR. Do not tag or publish; v0.1.0 remains at the end of
    Phase 5.
+
+## Standing session protocol (exact lines, per product owner instruction)
+
+Read docs/HANDOFF.md, docs/IMPLEMENTATION_PLAN.md and the blueprint, then begin Session 4 / Phase 3 from main on this session's assigned branch: schedules, conversions, estimate/projection engines, warnings and E3/E5/E8 tests; update all docs in the same PR.
+
+At the end, repeat these exact two lines in your final response and refreshed docs/HANDOFF.md, alongside validation evidence, blockers and next actions, so the next session can continue without another handoff request.
 
 ## File map for this handoff
 
-- `src/app/actions.ts` — authenticated pot/checkpoint and Phase 2b entry/setup actions.
-- `src/app/page.tsx` — authenticated home, quick-entry data assembly and recent-record review.
-- `src/components/quick-entry.tsx` — mobile-first purchase, fuel and balance flows.
-- `src/components/household-setup.tsx` — people/vehicle setup.
-- `src/lib/action-state.ts` — action and duplicate-notice serialisable state.
-- `src/lib/validation.ts` — Zod entry schemas plus Phase 1 schemas.
-- `src/lib/records/suppliers.ts` — recent-first entry ordering and derived category memory.
-- `tests/entry-validation.test.ts` — Phase 2b Zod boundary coverage.
-- `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/HANDOFF.md` — same-session documentation.
+- `drizzle/0002_phase3_schedules.sql` + `drizzle/meta/_journal.json` — Phase 3 migration (generated).
+- `src/lib/db/schema.ts` — schedules, schedule_instances, receipts, renewals, settings +
+  `purchases.schedule_instance_id`.
+- `src/lib/records/dates.ts`, `estimates.ts`, `projection.ts`, `keydates.ts` — pure engines.
+- `src/lib/records/schedules.ts`, `receipts.ts`, `renewals.ts`, `settings.ts`, `money-view.ts` — domain +
+  read-side assembly (lazy due pass, conversion, catch-up advance, typed settings).
+- `src/lib/time.ts` — `startOfLocalDate`, `isDateOnlyInstant`; `src/lib/money.ts` — `roundHalfUpDivide`,
+  `periodProjectionPence`.
+- `src/lib/validation.ts` — Phase 3 Zod boundary schemas.
+- `src/app/actions.ts` — schedule/renewal/settings server actions.
+- `src/app/page.tsx` — money, projection, due-this-week, key-date and recurring panels.
+- `src/components/recurring.tsx` — Phase 3 client forms.
+- `tests/{dates,estimate,projection,schedule-lifecycle,renewals,money-view}.test.ts` — Phase 3 coverage;
+  `tests/backup-restore.test.ts` — migration count 3.
+- `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/HANDOFF.md` — same-PR documentation.

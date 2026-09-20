@@ -40,6 +40,46 @@ export function parsePence(input: string): number | null {
 }
 
 /**
+ * Integer half-up division: round(numerator / denominator) to the nearest
+ * integer, halves away from zero. Pure integer arithmetic — the projection
+ * engine's period-level rounding (SPEC §6, §7.3: "round once, half-up to
+ * the nearest penny") must never pass through binary floating point.
+ */
+export function roundHalfUpDivide(numerator: number, denominator: number): number {
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator)) {
+    throw new Error(
+      `roundHalfUpDivide expects whole integers, received ${numerator} / ${denominator}`,
+    );
+  }
+  if (denominator <= 0) {
+    throw new Error(`roundHalfUpDivide denominator must be positive, received ${denominator}`);
+  }
+  const sign = numerator < 0 ? -1 : 1;
+  const abs = Math.abs(numerator);
+  // floor((2*n + d) / (2*d)) is exact integer half-up for n >= 0.
+  return sign * Math.floor((2 * abs + denominator) / (2 * denominator));
+}
+
+/**
+ * Project a periodic figure over a span of days, rounded once at the period
+ * level (SPEC §7.3): round(periodPence × days / periodDays). All inputs are
+ * integer pence; the result is integer pence.
+ */
+export function periodProjectionPence(
+  periodPence: number,
+  days: number,
+  periodDays: number,
+): number {
+  if (periodPence < 0 || days < 0) {
+    throw new Error(
+      `periodProjectionPence expects non-negative figures, received ${periodPence} over ${days} days`,
+    );
+  }
+  if (days === 0) return 0;
+  return roundHalfUpDivide(periodPence * days, periodDays);
+}
+
+/**
  * Format integer pence for display, e.g. 41235 -> "£412.35", -6608 -> "-£66.08".
  * Deterministic (no floating point, no locale drift between server and client).
  */
