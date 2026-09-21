@@ -1,16 +1,23 @@
 'use server';
 
-import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-
 import { eq } from 'drizzle-orm';
-import { attachments, purchases, supplierInteractions, supplierReferences } from '@/lib/db/schema';
+import { purchases } from '@/lib/db/schema';
+import {
+  addSupplierInteraction,
+  addSupplierReference,
+  InvalidSupplierDetailError,
+} from '@/lib/records/supplier-details';
+import {
+  InvalidSupplierContactError,
+  SupplierNotFoundError,
+  updateSupplierContact,
+} from '@/lib/records/suppliers';
 import { revalidatePath } from 'next/cache';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
 import { loadAppConfig } from '@/lib/config';
 import { formatPence, parsePence } from '@/lib/money';
+import { AttachmentInputError, storeAttachment } from '@/lib/records/attachments';
 import { toLocalDateString } from '@/lib/time';
 import {
   initialActionState,
@@ -86,6 +93,9 @@ import {
   renameTargetEntrySchema,
   renewalEntrySchema,
   scheduleEntrySchema,
+  supplierContactEntrySchema,
+  supplierInteractionEntrySchema,
+  supplierReferenceEntrySchema,
   transferEntrySchema,
   voidRecordEntrySchema,
   warningLeadsEntrySchema,
@@ -112,94 +122,143 @@ import {
   setWeeklyGroceriesPence,
 } from '@/lib/records/settings';
 
-export async function addSupplierReferenceAction(formData: FormData): Promise<void> {
+export async function addSupplierReferenceAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const user = await currentUserFromRequest();
-  if (!user) return;
-  const supplierId = Number(formData.get('supplierId'));
-  const label = String(formData.get('label') ?? '').trim();
-  const value = String(formData.get('value') ?? '').trim();
-  if (!Number.isInteger(supplierId) || !label || !value) return;
-  const now = new Date();
-  getDbHandle()
-    .db.insert(supplierReferences)
-    .values({
-      supplierId,
-      label: label.slice(0, 100),
-      value: value.slice(0, 500),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
-  revalidatePath('/suppliers');
-}
-export async function addSupplierInteractionAction(formData: FormData): Promise<void> {
-  const user = await currentUserFromRequest();
-  if (!user) return;
-  const supplierId = Number(formData.get('supplierId'));
-  const summary = String(formData.get('summary') ?? '').trim();
-  if (!Number.isInteger(supplierId) || !summary) return;
-  const now = new Date();
-  getDbHandle()
-    .db.insert(supplierInteractions)
-    .values({
-      supplierId,
-      occurredAt: now,
-      channel: String(formData.get('channel') || 'other'),
-      summary: summary.slice(0, 1000),
-      outcome: String(formData.get('outcome') || '').trim() || null,
-      followUpDate: String(formData.get('followUpDate') || '').trim() || null,
-      createdBy: user.email,
-      createdAt: now,
-    })
-    .run();
-  revalidatePath('/suppliers');
-  revalidatePath('/overview');
-  revalidatePath('/contracts');
+  if (!user) return NOT_SIGNED_IN;
+  const parsed = supplierReferenceEntrySchema.safeParse({
+    supplierId: Number(formData.get('supplierId')),
+    label: String(formData.get('label') ?? ''),
+    value: String(formData.get('value') ?? ''),
+  });
+  if (!parsed.success)
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the reference.') };
+  try {
+    const reference = addSupplierReference(getDbHandle().db, {
+      supplierId: parsed.data.supplierId,
+      label: parsed.data.label,
+      value: parsed.data.value,
+      actor: user.email,
+    });
+    revalidatePath('/suppliers');
+    return { status: 'ok', message: `Saved reference “${reference.label}”.` };
+  } catch (err) {
+    if (err instanceof InvalidSupplierDetailError || err instanceof SupplierNotFoundError)
+      return { status: 'error', message: err.message };
+    throw err;
+  }
 }
 
-export async function uploadAttachmentAction(formData: FormData): Promise<ActionState> {
+export async function addSupplierInteractionAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (!user) return NOT_SIGNED_IN;
+  const parsed = supplierInteractionEntrySchema.safeParse({
+    supplierId: Number(formData.get('supplierId')),
+    channel: String(formData.get('channel') ?? ''),
+    summary: String(formData.get('summary') ?? ''),
+    outcome: textOrNull(formData.get('outcome')),
+    followUpDate: textOrNull(formData.get('followUpDate')),
+  });
+  if (!parsed.success)
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the interaction.') };
+  try {
+    addSupplierInteraction(getDbHandle().db, {
+      supplierId: parsed.data.supplierId,
+      channel: parsed.data.channel,
+      summary: parsed.data.summary,
+      outcome: parsed.data.outcome,
+      followUpDate: parsed.data.followUpDate,
+      actor: user.email,
+    });
+    revalidatePath('/suppliers');
+    revalidatePath('/contracts');
+    revalidatePath('/overview');
+    return { status: 'ok', message: 'Interaction logged.' };
+  } catch (err) {
+    if (err instanceof InvalidSupplierDetailError || err instanceof SupplierNotFoundError)
+      return { status: 'error', message: err.message };
+    throw err;
+  }
+}
+
+export async function saveSupplierContactAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (!user) return NOT_SIGNED_IN;
+  const parsed = supplierContactEntrySchema.safeParse({
+    id: Number(formData.get('id')),
+    expectedVersion: Number(formData.get('expectedVersion')),
+    contactPhone: textOrNull(formData.get('contactPhone')),
+    contactEmail: textOrNull(formData.get('contactEmail')),
+    website: textOrNull(formData.get('website')),
+    address: textOrNull(formData.get('address')),
+    notes: textOrNull(formData.get('notes')),
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the contact details.') };
+  }
+  try {
+    updateSupplierContact(getDbHandle().db, {
+      id: parsed.data.id,
+      expectedVersion: parsed.data.expectedVersion,
+      contactPhone: parsed.data.contactPhone,
+      contactEmail: parsed.data.contactEmail,
+      website: parsed.data.website,
+      address: parsed.data.address,
+      notes: parsed.data.notes,
+      actor: user.email,
+    });
+    revalidatePath('/suppliers');
+    return { status: 'ok', message: 'Contact card updated.' };
+  } catch (err) {
+    if (
+      err instanceof InvalidSupplierContactError ||
+      err instanceof SupplierNotFoundError ||
+      err instanceof VersionConflictError
+    )
+      return { status: 'error', message: err.message };
+    throw err;
+  }
+}
+
+export async function uploadAttachmentAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const user = await currentUserFromRequest();
   if (!user) return NOT_SIGNED_IN;
   const id = Number(formData.get('purchaseId'));
   const file = formData.get('file');
   if (!Number.isInteger(id) || !(file instanceof File))
     return { status: 'error', message: 'Choose a purchase and a file.' };
-  if (file.size === 0 || file.size > 10 * 1024 * 1024)
-    return { status: 'error', message: 'Attachments must be between 1 byte and 10 MB.' };
+
   const bytes = Buffer.from(await file.arrayBuffer());
-  const mime =
-    bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46
-      ? 'application/pdf'
-      : bytes[0] === 0xff && bytes[1] === 0xd8
-        ? 'image/jpeg'
-        : bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-          ? 'image/png'
-          : null;
-  if (!mime)
-    return { status: 'error', message: 'Only genuine PNG, JPEG or PDF files are accepted.' };
-  const db = getDbHandle().db;
-  if (!db.select({ id: purchases.id }).from(purchases).where(eq(purchases.id, id)).get())
-    return { status: 'error', message: 'Purchase not found.' };
-  const ext = mime === 'application/pdf' ? 'pdf' : mime === 'image/png' ? 'png' : 'jpg';
-  const fileKey = `${randomUUID()}.${ext}`;
-  const dir = path.join(path.dirname(loadAppConfig().databasePath), 'documents');
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, fileKey), bytes, { flag: 'wx' });
-  db.insert(attachments)
-    .values({
+  try {
+    // One shared pipeline for sniffing, limits, storage keys and the audit
+    // entry (SPEC §23): the action, the serving route and the backup engine
+    // cannot drift apart.
+    const stored = await storeAttachment({
+      db: getDbHandle().db,
       purchaseId: id,
-      fileKey,
-      originalName: file.name.slice(0, 200),
-      mime,
-      sizeBytes: bytes.length,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-      state: 'stored',
-      createdBy: user.email,
-      createdAt: new Date(),
-    })
-    .run();
-  revalidatePath('/purchases');
-  return { status: 'ok', message: 'Attachment saved.' };
+      originalName: file.name,
+      bytes,
+      actor: user.email,
+      documentsDir: loadAppConfig().documentsDir,
+    });
+    revalidatePath('/purchases');
+    revalidatePath('/overview');
+    return { status: 'ok', message: `Attached ${stored.originalName}.` };
+  } catch (err) {
+    if (err instanceof AttachmentInputError) return { status: 'error', message: err.message };
+    throw err;
+  }
 }
 
 /**

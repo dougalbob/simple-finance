@@ -31,6 +31,12 @@ export interface AppConfig {
   /** Data root: ./data in development, /data in the production container */
   readonly dataDir: string;
   readonly databasePath: string;
+  /**
+   * Attachment root (SPEC §18.1, §23.2): `<dataDir>/documents` — derived from
+   * the data root, never from user input. Every read, write, backup and
+   * restore path goes through this one field.
+   */
+  readonly documentsDir: string;
   readonly auth: AuthConfig;
 }
 
@@ -50,6 +56,7 @@ export function loadAppConfig(env: EnvSource = process.env): AppConfig {
   const isProduction = env.NODE_ENV === 'production';
   const dataDir = trimmed(env.DATA_DIR) ?? (isProduction ? '/data' : './data');
   const databasePath = trimmed(env.DATABASE_PATH) ?? path.join(dataDir, 'simple-finance.sqlite');
+  const documentsDir = trimmed(env.DOCUMENTS_DIR) ?? path.join(dataDir, 'documents');
 
   const issuer = trimmed(env.AUTH_ISSUER);
   const audience = trimmed(env.AUTH_AUDIENCE);
@@ -68,6 +75,7 @@ export function loadAppConfig(env: EnvSource = process.env): AppConfig {
     isProduction,
     dataDir,
     databasePath,
+    documentsDir,
     auth: { issuer, audience, certsUrl, allowedEmails, devBypass, devIdentityEmail },
   };
 }

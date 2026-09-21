@@ -1,0 +1,217 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { and, asc, eq } from 'drizzle-orm';
+import { recordAudit, type DbTx } from '../audit';
+import type { Db } from '../db/client';
+import { attachments, purchases } from '../db/schema';
+
+/**
+ * Receipt/invoice attachments (SPEC §23). One shared, framework-free pipeline
+ * so the upload action, the authenticated serving route, the backup engine and
+ * the restore path all agree on what a valid attachment is:
+ *
+ * - MIME is decided by **content sniffing** of the leading bytes, never by the
+ *   filename or the browser-supplied type (SPEC §23.3);
+ * - the size limit is enforced here, server-side (SPEC §23, plan OQ12: 10 MB);
+ * - storage keys are server-generated under `<dataDir>/documents/` and must
+ *   match a strict pattern before anything touches the filesystem — that same
+ *   pattern is what makes an archive member safe to restore (SPEC §18.4).
+ */
+
+/** Per-file limit (plan OQ12). Enforced on upload and on restore. */
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+export type AttachmentMime = 'image/png' | 'image/jpeg' | 'application/pdf';
+
+export const ATTACHMENT_MIMES: readonly AttachmentMime[] = [
+  'image/png',
+  'image/jpeg',
+  'application/pdf',
+];
+
+/**
+ * Server-generated storage keys: a UUID plus an extension derived from the
+ * sniffed MIME. Anything else is rejected — user-controlled paths never reach
+ * the filesystem (SPEC §23.2), and archive members are validated with the same
+ * pattern on restore.
+ */
+export const FILE_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|pdf)$/;
+
+export class AttachmentInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AttachmentInputError';
+  }
+}
+
+export function isSafeFileKey(fileKey: string): boolean {
+  return FILE_KEY_PATTERN.test(fileKey);
+}
+
+/**
+ * Content sniffing. Deliberately strict about the leading bytes: a JPEG must
+ * start FF D8 FF, a PNG must carry its full 8-byte signature and a PDF must
+ * start with `%PDF-`. A renamed archive or HTML file is rejected here even
+ * when the browser claims `image/png`.
+ */
+export function sniffAttachmentMime(bytes: Buffer): AttachmentMime | null {
+  if (bytes.length >= 5 && bytes.subarray(0, 5).toString('latin1') === '%PDF-') {
+    return 'application/pdf';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length >= pngSignature.length && pngSignature.every((b, i) => bytes[i] === b)) {
+    return 'image/png';
+  }
+  return null;
+}
+
+export function extensionForMime(mime: AttachmentMime): 'png' | 'jpg' | 'pdf' {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/jpeg') return 'jpg';
+  return 'pdf';
+}
+
+export function newFileKey(mime: AttachmentMime): string {
+  return `${randomUUID()}.${extensionForMime(mime)}`;
+}
+
+/**
+ * Display name used for `Content-Disposition` and download naming. Only the
+ * basename survives, control characters are replaced and the length is capped
+ * — the stored key, never this string, decides where the bytes live.
+ */
+export function sanitizeOriginalName(raw: string): string {
+  // Treat a Windows-style path as a path too, so its directory part is dropped
+  // on every platform rather than surviving as literal characters.
+  const base = path
+    .basename(raw.trim().replace(/\\/g, '/'))
+    // Control characters, quotes/backslashes and the characters Windows (and
+    // the Content-Disposition header) dislike, so a display name can never
+    // break out of the header or the markup it lands in.
+    .replace(/[\u0000-\u001f\u007f"\\/<>|*?:]/g, '_');
+  const cleaned = base.replace(/\s+/g, ' ').replace(/^\.+/, '').trim();
+  if (cleaned.length === 0) return 'attachment';
+  return cleaned.slice(0, 200);
+}
+
+export interface StoreAttachmentInput {
+  db: Db;
+  purchaseId: number;
+  originalName: string;
+  bytes: Buffer;
+  actor: string;
+  /** `<dataDir>/documents` — from AppConfig, never from a request (SPEC §18.1). */
+  documentsDir: string;
+  now?: Date;
+}
+
+export interface StoredAttachment {
+  id: number;
+  fileKey: string;
+  originalName: string;
+  mime: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+/**
+ * The upload half of the pipeline: validate, write the file, then record the
+ * row and the audit entry together. A rejected upload writes nothing at all,
+ * so the purchase is untouched and the retry is a clean retry (SPEC §23.1).
+ *
+ * The file is written with `wx` (never overwriting an existing key) before the
+ * database row exists; a crash between the two leaves an unreferenced file,
+ * which the backup's orphan report surfaces without ever deleting it (SPEC
+ * §18.2). The reverse order would be worse: a stored row whose bytes are
+ * missing would make the archive inconsistent.
+ */
+export async function storeAttachment(input: StoreAttachmentInput): Promise<StoredAttachment> {
+  const purchase = input.db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .where(eq(purchases.id, input.purchaseId))
+    .get();
+  if (purchase === undefined) throw new AttachmentInputError('That purchase no longer exists.');
+
+  if (input.bytes.length === 0) throw new AttachmentInputError('The file is empty.');
+  if (input.bytes.length > MAX_ATTACHMENT_BYTES) {
+    throw new AttachmentInputError(
+      `Attachments must be 10 MB or smaller (this one is ${(input.bytes.length / (1024 * 1024)).toFixed(1)} MB).`,
+    );
+  }
+
+  const mime = sniffAttachmentMime(input.bytes);
+  if (mime === null) {
+    throw new AttachmentInputError('Only genuine PNG, JPEG or PDF files are accepted.');
+  }
+
+  const now = input.now ?? new Date();
+  const fileKey = newFileKey(mime);
+  if (!isSafeFileKey(fileKey)) throw new AttachmentInputError('Could not allocate a storage key.');
+
+  await mkdir(input.documentsDir, { recursive: true, mode: 0o700 });
+  await writeFile(path.join(input.documentsDir, fileKey), input.bytes, {
+    flag: 'wx',
+    mode: 0o600,
+  });
+
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+  const originalName = sanitizeOriginalName(input.originalName);
+  const id = input.db.transaction((tx: DbTx) => {
+    const row = tx
+      .insert(attachments)
+      .values({
+        purchaseId: input.purchaseId,
+        fileKey,
+        originalName,
+        mime,
+        sizeBytes: input.bytes.length,
+        sha256,
+        state: 'stored',
+        createdBy: input.actor,
+        createdAt: now,
+      })
+      .returning({ id: attachments.id })
+      .get();
+    recordAudit(tx, {
+      actor: input.actor,
+      action: 'attachment.store',
+      entity: 'purchase',
+      entityId: input.purchaseId,
+      summary: `Attached ${originalName} (${(input.bytes.length / 1024).toFixed(0)} KB, ${mime})`,
+      after: { fileKey, originalName, mime, sizeBytes: input.bytes.length, sha256 },
+      now,
+    });
+    return row.id;
+  });
+
+  return { id, fileKey, originalName, mime, sizeBytes: input.bytes.length, sha256 };
+}
+
+/** Stored attachments of one purchase, oldest first (the receipt order). */
+export function listStoredAttachments(db: Db, purchaseId: number): StoredAttachment[] {
+  return db
+    .select({
+      id: attachments.id,
+      fileKey: attachments.fileKey,
+      originalName: attachments.originalName,
+      mime: attachments.mime,
+      sizeBytes: attachments.sizeBytes,
+      sha256: attachments.sha256,
+    })
+    .from(attachments)
+    .where(and(eq(attachments.purchaseId, purchaseId), eq(attachments.state, 'stored')))
+    .orderBy(asc(attachments.id))
+    .all();
+}
+
+/** Read one stored attachment's bytes from the documents directory. */
+export async function readAttachmentBytes(documentsDir: string, fileKey: string): Promise<Buffer> {
+  if (!isSafeFileKey(fileKey)) throw new AttachmentInputError('Unsafe attachment key.');
+  return readFile(path.join(documentsDir, fileKey));
+}

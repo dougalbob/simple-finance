@@ -1,8 +1,38 @@
 import type { NextConfig } from 'next';
 
+/**
+ * Simple Finance sits behind Cloudflare Access; keep responses quiet and lean.
+ *
+ * Security headers (blueprint §4.8: "keep sensitive responses private and
+ * uncached; use appropriate security headers"). They are applied to production
+ * builds only: a development server is also what the operator's own preview
+ * harness embeds, and refusing to be framed there would break a local preview
+ * for no security gain — in production the app is behind Cloudflare Access,
+ * where clickjacking protection is the point.
+ *
+ * `Cache-Control` for money and document responses is set per route
+ * (`no-store` / `private, no-store`), not here.
+ */
+const isProductionBuild = process.env.NODE_ENV === 'production';
+
+const securityHeaders = [
+  // Nothing here needs to be framed by another site.
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'same-origin' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+  // The app is HTTPS-only in production; remember that for a year.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+];
+
 const nextConfig: NextConfig = {
-  // Simple Finance sits behind Cloudflare Access; keep responses quiet and lean.
   poweredByHeader: false,
+  async headers() {
+    if (!isProductionBuild) return [];
+    return [{ source: '/:path*', headers: securityHeaders }];
+  },
 };
 
 export default nextConfig;
