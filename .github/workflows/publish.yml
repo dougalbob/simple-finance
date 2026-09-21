@@ -1,0 +1,149 @@
+name: Publish
+
+# Tag-triggered publication to GHCR (AGENT_APP_BLUEPRINT.md §7, §10):
+# merging a PR does not publish anything — the release tag does.
+#
+# The image is smoke-tested BEFORE it is pushed: a broken image must not reach
+# the registry just because its tag exists. Tags published for a release:
+#   ghcr.io/<repo>:vX.Y.Z      (the release tag)
+#   ghcr.io/<repo>:latest      (what Unraid's Force Update pulls)
+#   ghcr.io/<repo>:sha-<short> (commit identifier for traceability)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to publish (must already exist, e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build, smoke test and push the release image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Resolve version and image name
+        id: meta
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -eu
+          VERSION="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          case "$VERSION" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Refusing to publish a non vX.Y.Z tag: $VERSION" >&2; exit 1 ;;
+          esac
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "Publishing $IMAGE:$VERSION (latest, sha-$SHORT_SHA)"
+
+      - name: Verify the version metadata matches the tag
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -eu
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          MODULE_VERSION="$(node -p "require('fs').readFileSync('src/lib/version.ts','utf8').match(/APP_VERSION = '([^']+)'/)[1]")"
+          test "v${PKG_VERSION}" = "$VERSION" || { echo "package.json ($PKG_VERSION) does not match $VERSION" >&2; exit 1; }
+          test "v${MODULE_VERSION}" = "$VERSION" || { echo "src/lib/version.ts ($MODULE_VERSION) does not match $VERSION" >&2; exit 1; }
+          echo "version metadata agrees with $VERSION"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image (no push yet)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.title=Simple Finance
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Smoke test the built image (start, health, unprivileged, persistence)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+        run: |
+          set -eu
+          AUTH_ENV="-e AUTH_ISSUER=https://example.cloudflareaccess.com -e AUTH_AUDIENCE=dummy-audience -e AUTH_ALLOWED_EMAILS=alex@example.com,sam@example.com"
+          docker run -d --name sf-release -p 3000:3000 -v sf-release-data:/data $AUTH_ENV "$IMAGE"
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          echo "health: ok"
+          # Least privilege: the server process must not be running as root.
+          SERVER_UID="$(docker exec sf-release awk '/^Uid:/{print $2}' /proc/1/status)"
+          test "$SERVER_UID" = "99" || { echo "server runs as uid $SERVER_UID, expected 99" >&2; exit 1; }
+          echo "least privilege: server runs as uid 99"
+          test -n "$(docker exec sf-release ls -A /data/simple-finance.sqlite)"
+          echo "database created under /data"
+          docker rm -f sf-release
+          docker run -d --name sf-release2 -p 3000:3000 -v sf-release-data:/data $AUTH_ENV "$IMAGE"
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          test -n "$(docker exec sf-release2 ls -A /data/simple-finance.sqlite)"
+          echo "database survived container recreation"
+          docker rm -f sf-release2
+          docker volume rm sf-release-data
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the verified image
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          set -eu
+          for TAG in "$VERSION" "latest" "sha-$SHORT_SHA"; do
+            docker push "$IMAGE:$TAG"
+          done
+          echo "### Published $IMAGE:$VERSION (latest, sha-$SHORT_SHA)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the registry tags resolve
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          set -eu
+          LOCAL_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$VERSION")"
+          for TAG in "$VERSION" "latest" "sha-$SHORT_SHA"; do
+            REMOTE_DIGEST="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$IMAGE:$TAG")"
+            echo "$IMAGE:$TAG -> $REMOTE_DIGEST"
+          done
+          REMOTE_DIGEST="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$IMAGE:$VERSION")"
+          LOCAL_ONLY="${LOCAL_DIGEST#*@}"
+          test "$REMOTE_DIGEST" = "$LOCAL_ONLY" || {
+            echo "Registry digest ($REMOTE_DIGEST) does not match the built image ($LOCAL_ONLY)" >&2
+            exit 1
+          }
+          echo "### Registry digest $REMOTE_DIGEST" >> "$GITHUB_STEP_SUMMARY"

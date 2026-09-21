@@ -1,0 +1,246 @@
+import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import path from 'node:path';
+import { openDatabase } from '../src/lib/db/client';
+import { applyMigrations } from '../src/lib/db/migrate';
+import { findChildCategory } from '../src/lib/records/categories';
+import { createPerson } from '../src/lib/records/people';
+import { addCheckpoint, createPot } from '../src/lib/records/pots';
+import { createPurchase } from '../src/lib/records/purchases';
+import { createRenewal } from '../src/lib/records/renewals';
+import { createSchedule } from '../src/lib/records/schedules';
+import { setMonthlyFuelPence, setWeeklyGroceriesPence } from '../src/lib/records/settings';
+import { createSupplier } from '../src/lib/records/suppliers';
+import { createVehicle } from '../src/lib/records/vehicles';
+import { addSupplierInteraction } from '../src/lib/records/supplier-details';
+
+/**
+ * E2E server (Playwright `webServer`): an isolated, fictional installation.
+ *
+ * Everything here is made up: fake people, fake suppliers, fake amounts. It
+ * never touches the real appdata directory (`.e2e-data` is git-ignored), which
+ * is the rule in blueprint §9 ("never run seeds, restore tests or destructive
+ * checks against the user's appdata").
+ *
+ * The development identity bypass is used so the browser can sign in without
+ * Cloudflare; `loadAppConfig` computes that bypass as impossible whenever
+ * NODE_ENV is production, so this can never become a production hole.
+ */
+const DATA_DIR = path.resolve(process.cwd(), '.e2e-data');
+const PORT = Number(process.env.E2E_PORT ?? 3100);
+const DATABASE_PATH = path.join(DATA_DIR, 'simple-finance.sqlite');
+const ACTOR = 'alex@example.com';
+
+function seed(): void {
+  rmSync(DATA_DIR, { recursive: true, force: true });
+  const handle = openDatabase(DATABASE_PATH);
+  applyMigrations(handle.db);
+  const db = handle.db;
+
+  const now = new Date();
+  const today = new Date(`${now.toISOString().slice(0, 10)}T12:00:00Z`);
+
+  const main = createPot(db, {
+    label: 'Main account',
+    kind: 'bank',
+    overdraftLimitPence: 80000,
+    warningThresholdPence: 25000,
+    actor: ACTOR,
+    now,
+  });
+  const salary = createPot(db, { label: 'Salary account', kind: 'bank', actor: ACTOR, now });
+  const jar = createPot(db, { label: 'Household jar', kind: 'cash', actor: ACTOR, now });
+
+  const alex = createPerson(db, { label: 'Alex', actor: ACTOR, now });
+  const sam = createPerson(db, { label: 'Sam', actor: ACTOR, now });
+  const vehicleA = createVehicle(db, {
+    label: 'Vehicle A',
+    ownerPersonId: alex.id,
+    actor: ACTOR,
+    now,
+  });
+  const vehicleB = createVehicle(db, {
+    label: 'Vehicle B',
+    ownerPersonId: sam.id,
+    actor: ACTOR,
+    now,
+  });
+
+  addCheckpoint(db, {
+    potId: main.id,
+    amountPence: 161235,
+    note: 'Friday evening check',
+    actor: ACTOR,
+    now,
+  });
+  addCheckpoint(db, { potId: salary.id, amountPence: 120000, actor: ACTOR, now });
+  addCheckpoint(db, { potId: jar.id, amountPence: 4210, actor: ACTOR, now });
+
+  const groceries = findChildCategory(db, 'Groceries', 'Weekly Shop');
+  const fuel = findChildCategory(db, 'Vehicle Running', 'Fuel');
+  const insurance = findChildCategory(db, 'Vehicle Running', 'Insurance');
+  if (groceries === null || fuel === null || insurance === null) {
+    throw new Error('E2E seed: the SPEC §12 category tree is missing an expected child');
+  }
+
+  const cornerFoods = createSupplier(db, {
+    name: 'Corner Foods',
+    contactPhone: '01632 960111',
+    contactEmail: 'hello@cornerfoods.example',
+    website: 'https://cornerfoods.example',
+    address: '1 Fictional Parade, Testville',
+    notes: 'Weekend shop usually here.',
+    actor: ACTOR,
+    now,
+  });
+  const insurerCo = createSupplier(db, {
+    name: 'InsurerCo',
+    contactPhone: '01632 960222',
+    contactEmail: 'policies@insurerco.example',
+    actor: ACTOR,
+    now,
+  });
+  const broadbandCo = createSupplier(db, {
+    name: 'BroadbandCo',
+    contactEmail: 'billing@broadbandco.example',
+    notes: '18-month contract, ends next spring.',
+    actor: ACTOR,
+    now,
+  });
+
+  createPurchase(db, {
+    potId: main.id,
+    totalPence: 6347,
+    occurredAt: new Date(now.getTime() - 26 * 60 * 60 * 1000),
+    paidByPersonId: alex.id,
+    supplierId: cornerFoods.id,
+    note: 'Weekly shop',
+    actor: ACTOR,
+    lines: [
+      { amountPence: 4198, categoryId: groceries.id, targetKind: 'household' },
+      { amountPence: 2149, categoryId: fuel.id, targetKind: 'vehicle', targetId: vehicleA.id },
+    ],
+    now,
+  });
+  createPurchase(db, {
+    potId: jar.id,
+    totalPence: 349,
+    occurredAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
+    paidByPersonId: sam.id,
+    supplierName: 'The Corner Cafe',
+    actor: 'sam@example.com',
+    lines: [{ amountPence: 349, categoryId: groceries.id, targetKind: 'person', targetId: sam.id }],
+    now,
+  });
+
+  // Recurring commitments: a direct debit whose contract ends inside the
+  // warning window, a standing order, a monthly income schedule (the payday the
+  // projection plans to) and an annual insurance renewal.
+  const dueDay = Math.min(now.getUTCDate() + 2, 28);
+  createSchedule(db, {
+    name: 'BroadbandCo fibre',
+    kind: 'dd',
+    frequency: 'monthly',
+    dueDayOfMonth: dueDay,
+    amountPence: 3499,
+    potId: main.id,
+    categoryId: insurance.id,
+    targetKind: 'household',
+    contractEndsOn: localDate(today, 12),
+    activeFrom: localDate(today, -180),
+    actor: ACTOR,
+    now,
+  });
+  createSchedule(db, {
+    name: 'Phone plan',
+    kind: 'so',
+    frequency: 'monthly',
+    dueDayOfMonth: Math.min(dueDay + 5, 28),
+    amountPence: 1200,
+    potId: main.id,
+    categoryId: insurance.id,
+    targetKind: 'household',
+    activeFrom: localDate(today, -90),
+    actor: ACTOR,
+    now,
+  });
+  createSchedule(db, {
+    name: 'Salary',
+    kind: 'receipt',
+    frequency: 'monthly',
+    dueDayOfMonth: 27,
+    amountPence: 245000,
+    potId: salary.id,
+    activeFrom: localDate(today, -60),
+    actor: ACTOR,
+    now,
+  });
+  createRenewal(db, {
+    label: 'Vehicle A insurance',
+    supplierId: insurerCo.id,
+    targetKind: 'vehicle',
+    targetId: vehicleA.id,
+    nextRenewalDate: localDate(today, 17),
+    warnDaysBefore: 21,
+    repeatsAnnually: true,
+    notes: 'Compare the comparison sites before renewing.',
+    actor: ACTOR,
+    now,
+  });
+
+  addSupplierInteraction(db, {
+    supplierId: broadbandCo.id,
+    channel: 'call',
+    summary: 'Asked what the out-of-contract price would be',
+    outcome: 'They will write to us',
+    followUpDate: localDate(today, 6),
+    actor: ACTOR,
+    now,
+  });
+
+  setWeeklyGroceriesPence(db, 8500, ACTOR);
+  setMonthlyFuelPence(db, vehicleA.id, 6000, ACTOR);
+  setMonthlyFuelPence(db, vehicleB.id, 4500, ACTOR);
+
+  handle.raw.close();
+  // The second vehicle exists so the Insights panels have a zero-activity row
+  // to list honestly (SPEC §16 decision 66).
+  void vehicleB;
+}
+
+function localDate(base: Date, dayOffset: number): string {
+  const shifted = new Date(base.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
+}
+
+seed();
+
+// `E2E_SEED_ONLY=1` prepares (or refreshes) the fictional data and exits. CI
+// uses it to check the harness itself; a human can use it to inspect the seed
+// before starting the server by hand.
+if (process.env.E2E_SEED_ONLY === '1') {
+  console.log(`[e2e-server] seeded ${DATA_DIR} (fictional data only)`);
+  process.exit(0);
+}
+
+const child = spawn('node_modules/.bin/next', ['dev', '-H', '0.0.0.0', '-p', String(PORT)], {
+  stdio: 'inherit',
+  env: {
+    ...process.env,
+    NODE_ENV: 'development',
+    NEXT_TELEMETRY_DISABLED: '1',
+    DATA_DIR,
+    DATABASE_PATH,
+    PORT: String(PORT),
+    AUTH_DEV_BYPASS: 'true',
+    AUTH_DEV_IDENTITY_EMAIL: ACTOR,
+  },
+});
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    child.kill(signal);
+    process.exit(0);
+  });
+}
+child.on('exit', (code) => process.exit(code ?? 0));

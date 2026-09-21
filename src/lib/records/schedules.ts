@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
 import {
@@ -332,6 +332,39 @@ export function listSchedules(db: Db, nowArg?: Date): ScheduleWithNext[] {
     .all()
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((schedule) => ({ schedule, nextDueDate: nextDueDateAfter(schedule, today) }));
+}
+
+/**
+ * Schedules carrying a fixed-term contract end (SPEC §22.1), soonest end date
+ * first, for the Contracts & Renewals page. Cancelled schedules are excluded:
+ * once cancelled they no longer generate instances, so their end date is
+ * history rather than something to act on.
+ */
+export interface ScheduleContractEnd {
+  id: number;
+  name: string;
+  kind: 'dd' | 'so' | 'receipt';
+  frequency: 'monthly' | 'annual';
+  amountPence: number;
+  contractEndsOn: string;
+  supplierId: number | null;
+}
+
+export function listSchedulesWithContractEnds(db: Db): ScheduleContractEnd[] {
+  return db
+    .select({
+      id: schedules.id,
+      name: schedules.name,
+      kind: schedules.kind,
+      frequency: schedules.frequency,
+      amountPence: schedules.amountPence,
+      contractEndsOn: schedules.contractEndsOn,
+    })
+    .from(schedules)
+    .where(and(isNotNull(schedules.contractEndsOn), isNull(schedules.cancelledAt)))
+    .orderBy(schedules.contractEndsOn)
+    .all()
+    .filter((row): row is ScheduleContractEnd => row.contractEndsOn !== null);
 }
 
 export interface InstanceFilters {

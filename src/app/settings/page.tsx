@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { BackupPanel } from '@/components/backup-panel';
 import { ProjectionSettingsForm } from '@/components/recurring';
 import {
   CategoryTreeEditor,
@@ -8,6 +9,7 @@ import {
   WarningLeadsForm,
 } from '@/components/settings-forms';
 import { currentUserFromRequest } from '@/lib/auth/next';
+import { inspectDocuments } from '@/lib/backup/backup';
 import { getDbHandle } from '@/lib/db/client';
 import { categoryTree } from '@/lib/records/categories';
 import { listPeople } from '@/lib/records/people';
@@ -20,6 +22,7 @@ import {
   getWeeklyGroceriesPence,
 } from '@/lib/records/settings';
 import { listVehicles } from '@/lib/records/vehicles';
+import { APP_VERSION } from '@/lib/version';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +44,7 @@ export default async function SettingsPage() {
   const tree = categoryTree(db);
   const fuelByVehicle = getMonthlyFuelByVehicle(db);
   const projection = getProjectionView(db, now);
+  const documentsStatus = await inspectDocuments(getDbHandle());
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
@@ -196,6 +200,21 @@ export default async function SettingsPage() {
             renewalLeadDays={getRenewalWarningLeadDays(db)}
             contractEndLeadDays={getContractEndWarningLeadDays(db)}
           />
+        </section>
+
+        <section
+          aria-labelledby="backup-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 id="backup-heading" className="mb-1 text-lg font-semibold">
+            Backup &amp; restore
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Encrypted archives of the database and the attached receipts, and the one-way door that
+            puts one back. Read the wording on each button before you press it — the restore
+            replaces this installation's data.
+          </p>
+          <BackupPanel appVersion={APP_VERSION} documentsStatus={documentsStatus} />
         </section>
 
         <section

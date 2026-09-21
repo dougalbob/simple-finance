@@ -12,6 +12,12 @@ export type RawDatabase = Database.Database;
 export interface DbHandle {
   db: Db;
   raw: RawDatabase;
+  fileIdentity: DatabaseFileIdentity;
+}
+
+interface DatabaseFileIdentity {
+  dev: number;
+  ino: number;
 }
 
 /**
@@ -24,7 +30,7 @@ export function openDatabase(databasePath: string): DbHandle {
   raw.pragma('journal_mode = WAL');
   raw.pragma('foreign_keys = ON');
   raw.pragma('busy_timeout = 5000');
-  return { db: drizzle(raw, { schema }), raw };
+  return { db: drizzle(raw, { schema }), raw, fileIdentity: databaseFileIdentity(databasePath) };
 }
 
 let handle: DbHandle | null = null;
@@ -36,7 +42,11 @@ let handle: DbHandle | null = null;
  * they cannot be applied (blueprint §7).
  */
 export function getDbHandle(config: AppConfig = loadAppConfig()): DbHandle {
-  if (handle === null || handle.raw.name !== path.resolve(config.databasePath)) {
+  if (
+    handle === null ||
+    handle.raw.name !== path.resolve(config.databasePath) ||
+    !sameDatabaseFile(handle.fileIdentity, config.databasePath)
+  ) {
     if (handle !== null) handle.raw.close();
     handle = openDatabase(config.databasePath);
     if (!config.isProduction) {
@@ -44,6 +54,20 @@ export function getDbHandle(config: AppConfig = loadAppConfig()): DbHandle {
     }
   }
   return handle;
+}
+
+function databaseFileIdentity(databasePath: string): DatabaseFileIdentity {
+  const stat = fs.statSync(databasePath);
+  return { dev: stat.dev, ino: stat.ino };
+}
+
+function sameDatabaseFile(identity: DatabaseFileIdentity, databasePath: string): boolean {
+  try {
+    const current = databaseFileIdentity(databasePath);
+    return current.dev === identity.dev && current.ino === identity.ino;
+  } catch {
+    return false;
+  }
 }
 
 /** Close the shared handle (used by tests to switch isolated databases). */

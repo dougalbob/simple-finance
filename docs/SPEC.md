@@ -622,17 +622,26 @@ Host path on Unraid: **`/mnt/user/appdata/simple-finance`**, mapped to container
 - Consistency boundary: an attachment is referenceable only in `stored` state after its file is fully written
   (§23.3); backup coordinates the database snapshot with document enumeration so a valid archive can never
   reference a missing file. Orphan files (present but unreferenced) are reported, never silently included or
-  silently deleted.
+  silently deleted. (As built, Phase 5 reads the document list from the snapshot itself and fails the backup
+  — HTTP 409 — if the snapshot references a file the disk has lost; `manifest.documents.orphans` reports the
+  reverse case.)
+- Archive layout (format 2, as built): the encrypted stream wraps a tar holding exactly `db.sqlite` (the
+  WAL-safe snapshot), `manifest.json`, and `documents/<fileKey>` for each `stored` attachment the snapshot
+  references. `manifest.json` records `formatVersion`, the producing version, the creation instant, row
+  counts, the document summary and `files[]` with per-file byte length and sha256 — it holds hashes of every
+  member except itself. Format 1 (a bare encrypted database, no documents) remains restorable; format 1 with
+  a manifest that references attachments is refused rather than restored incompletely.
 
 ### 18.3 Encryption, filename, download
 
 - Encrypted before the archive reaches the browser: AES-256-GCM with a scrypt-derived key, fresh salt and
   nonce per archive (reviewed primitives per blueprint §6). The recovery password is **never persisted**;
   losing it loses the archive — stated plainly in the UI and README.
-- Filename contract: `simple-finance-backup-v<app-version>-YYYY-MM-DD-HHmm.simple-finance-backup`, date and
-  time from one instant in Europe/London. The client-side blob download must carry the server filename into
-  `anchor.download` (the blueprint's v0.2.21 regression lesson) with a fallback; the real client path is
-  tested, including midnight and DST.
+- Filename contract: `simple-finance-backup-v<app-version>-YYYY-MM-DD-HHmmss.simple-finance-backup`, date and
+  time from one instant in Europe/London (seconds included so two archives taken in the same minute cannot
+  collide on disk). The client-side blob download must carry the server filename into `anchor.download`
+  (the blueprint's v0.2.21 regression lesson) with a fallback; the real client path is tested, including
+  midnight and DST.
 - Downloads are user-managed: **no implied scheduled offsite backup and no server-side retention.** The
   README explains how often to take archives, where to keep them, and what password loss means.
 
@@ -742,7 +751,10 @@ multiple per purchase; per-file size limit (proposed 10 MB, plan OQ12).
 
 - **Desktop:** file picker during purchase creation, or retroactively from the purchase detail.
 - **Mobile:** standard camera capture (`accept="image/*" capture`) during entry, or attach later from the
-  phone gallery via the purchase detail.
+  phone gallery via the purchase detail. (As built, the input accepts PNG/JPEG/PDF with
+  `capture="environment"`; the saved file is classified by content sniffing, so a photo that arrives as
+  HEIC is offered as a PNG-extension target only if the bytes really are PNG — the plan's OQ9 default
+  applies: the UI asks for JPEG and the household's phone normalises, with HEIC conversion out of scope.)
 - **The till moment stays fast:** the purchase save never waits on an attachment upload. Attachment lifecycle
   is independent (`pending → stored | failed`), retryable, and a receipt can be attached days later. The
   online-only stance is unchanged (§14).
@@ -757,6 +769,10 @@ uncached, with `Content-Disposition` using a sanitized display name.
 ### 23.3 Integrity and security rules
 
 - MIME validated by content sniffing, not extension alone; size limits enforced server-side (Zod boundary).
+  (As built: PNG signature, JPEG `FF D8 FF` and PDF `%PDF-` are the only accepted sniff results; the browser
+  MIME type and the file extension are ignored; the 10 MB limit is checked before any bytes are written and
+  the display name is sanitised to a basename with control characters, quotes, slashes and the Windows
+  reserved set replaced.)
 - Only `stored` attachments are referenceable by backups (§18.2); an orphan sweep runs at backup time and
   reports unreferenced files without deleting them.
 - Restore verifies presence and sha256 of every referenced document (§18.4).

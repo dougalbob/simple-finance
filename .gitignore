@@ -43,6 +43,14 @@ logging/
 *.dump
 *.bak
 
+# --- Browser acceptance run (Playwright) ---
+# scripts/e2e-server.mts seeds a fictional household here; it is never the real
+# appdata directory, and the reports/traces below are run artefacts.
+.e2e-data/
+playwright-report/
+test-results/
+blob-report/
+
 # --- Logs ---
 *.log
 npm-debug.log*

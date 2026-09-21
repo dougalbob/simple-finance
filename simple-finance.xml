@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<!--
+  Simple Finance — Unraid container template (AGENT_APP_BLUEPRINT.md §7).
+
+  Installation:
+    1. Put this file in /boot/config/plugins/dockerMan/templates-user/ (or add
+       the container manually with the same settings).
+    2. Pick a free host port — 3000 is only a default, never inherit another
+       app's port.
+    3. Point /data at /mnt/user/appdata/simple-finance (fixed by the product
+       owner, docs/SPEC.md §18.1) and review PUID/PGID.
+    4. Start the container once, then put the Cloudflare Access values in
+       /data/.env (admin-owned, 0600). The entrypoint sources that file on
+       every start, and it is deliberately excluded from backups.
+
+  Configuration precedence: environment values set in Unraid are the defaults;
+  anything defined in /data/.env overrides them (the .env file is the trusted,
+  admin-owned configuration described in docs/SPEC.md §18.1).
+-->
+<Container version="2">
+  <Name>Simple Finance</Name>
+  <Repository>ghcr.io/dougalbob/simple-finance:latest</Repository>
+  <Registry>https://github.com/dougalbob/simple-finance/pkgs/container/simple-finance</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/dougalbob/simple-finance/issues</Support>
+  <Project>https://github.com/dougalbob/simple-finance</Project>
+  <Overview>
+    Private household spending tracker for two people: fast mobile entry at the
+    till, recurring payments with a read-only month calendar, honest "available
+    now" estimates and a payday-to-payday projection, per-vehicle running costs,
+    supplier contact cards, contract-end and renewal alerts, receipt/invoice
+    attachments, and encrypted downloadable backups.
+
+    Access is through Cloudflare Tunnel + Access (Google sign-in) with an
+    allowlist of exactly two identities; the app verifies the Access JWT
+    itself. Keep this container off the public internet.
+  </Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/dougalbob/simple-finance/main/simple-finance.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/dougalbob/simple-finance/main/docs/assets/simple-finance-icon.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Description>
+    Simple Finance (v0.1.0). Internal port 3000; choose a free host port.
+    Data lives in /mnt/user/appdata/simple-finance (database, .env, documents,
+    logging). Health endpoint: /api/health. Backups: Settings → Backup &amp;
+    restore (encrypted archive of the database and every attachment).
+  </Description>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>3000</HostPort>
+        <ContainerPort>3000</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/simple-finance</HostDir>
+      <ContainerDir>/data</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>99</Value>
+      <Name>PUID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>100</Value>
+      <Name>PGID</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
+  <Labels/>
+  <Config Name="WebUI (host port)" Target="3000" Default="3000" Mode="tcp" Description="Pick a free host port on your server; the container always listens on 3000. Cloudflare Tunnel points at this host port." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Appdata (/data)" Target="/data" Default="/mnt/user/appdata/simple-finance" Mode="rw" Description="Database (+WAL/SHM), .env, documents/ (receipts) and logging/. Fixed by the product owner — do not relocate without reading docs/SPEC.md §18.1." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/simple-finance</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Owner of the data directory. Unraid's nobody is 99; the entrypoint aligns ownership once, then the app runs as this user (never root)." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group of the data directory. Unraid's users group is 100." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="AUTH_ISSUER" Target="AUTH_ISSUER" Default="" Mode="" Description="Cloudflare Access team URL, e.g. https://your-team.cloudflareaccess.com. Optional here — values in /data/.env override the template." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="AUTH_AUDIENCE" Target="AUTH_AUDIENCE" Default="" Mode="" Description="The Access application's AUD tag. Optional here — values in /data/.env override the template." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="AUTH_ALLOWED_EMAILS" Target="AUTH_ALLOWED_EMAILS" Default="" Mode="" Description="Exactly the two household identities, comma-separated. Optional here — values in /data/.env override the template." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

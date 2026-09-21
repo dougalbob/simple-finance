@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_ABS_PENCE } from './money';
+import { MIN_BACKUP_PASSWORD_LENGTH } from './backup/policy';
 
 /**
  * Zod schemas at the server boundary (blueprint §3). Browser validation is
@@ -38,6 +39,21 @@ export const potIdSchema = z.coerce
 export const backupPasswordSchema = z
   .string()
   .min(1, 'A backup password is required')
+  .max(1024, 'That password is too long');
+
+/**
+ * Password strength for a NEW archive (see lib/backup/policy.ts). Restoring
+ * deliberately accepts any non-empty password, but creating one with a single
+ * character would make the household's only copy of their data trivially
+ * guessable: scrypt slows a brute-force attack, it does not rescue a weak
+ * passphrase.
+ */
+export const backupPasswordCreateSchema = z
+  .string()
+  .min(
+    MIN_BACKUP_PASSWORD_LENGTH,
+    `Use a passphrase of at least ${MIN_BACKUP_PASSWORD_LENGTH} characters — this password is the only thing protecting the archive.`,
+  )
   .max(1024, 'That password is too long');
 
 const positiveIdSchema = z.number().int('Choose an option').positive('Choose an option');
@@ -243,17 +259,14 @@ export const voidRecordEntrySchema = z.object({
 });
 
 /**
- * Inline edit of a purchase (Purchases page, SPEC §15.2): the full record
- * including its allocation lines — the same exact-total rule as entry
- * (the domain re-enforces Σ lines = total inside its transaction).
+ * Inline edit of a purchase (Purchases page, SPEC §15.2): the editable fields
+ * this form owns (date, note and full replacement allocation lines). The
+ * action derives the total from those lines and leaves the supplier / pot /
+ * payer unchanged.
  */
 export const editPurchaseEntrySchema = z.object({
   purchaseId: positiveIdSchema,
   expectedVersion: positiveIdSchema,
-  supplierName: nullableText(120, 'Supplier name'),
-  potId: positiveIdSchema,
-  totalPence: positivePenceSchema,
-  paidByPersonId: positiveIdSchema.nullable().default(null),
   occurredDate: localDateSchema.nullable().default(null),
   note: nullableText(280, 'Note'),
   lines: z.array(entryAllocationLineSchema).min(1, 'Add at least one allocation line.'),
@@ -456,4 +469,44 @@ export const warningLeadsEntrySchema = z.object({
     .int('Whole days')
     .min(0, '0 days or more')
     .max(365, '365 days or fewer'),
+});
+
+/**
+ * Supplier contact card (SPEC §21.1). Empty strings arrive as null; the domain
+ * still enforces lengths and shape, this is the boundary that stops obvious
+ * nonsense (a 5,000-character phone number) before it reaches it.
+ */
+export const supplierContactEntrySchema = z.object({
+  id: z.number().int().positive('Unknown supplier'),
+  expectedVersion: z.number().int().positive('The edit link is incomplete — refresh.'),
+  contactPhone: z.string().max(254, 'Keep the phone number to 254 characters.').nullable(),
+  contactEmail: z
+    .string()
+    .max(254, 'Keep the email to 254 characters.')
+    .refine(
+      (value) => value === null || value === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+      'That does not look like an email address.',
+    )
+    .nullable(),
+  website: z.string().max(254, 'Keep the website to 254 characters.').nullable(),
+  address: z.string().max(254, 'Keep the address to 254 characters.').nullable(),
+  notes: z.string().max(2000, 'Keep the notes to 2000 characters.').nullable(),
+});
+
+/** Supplier reference pair (SPEC §21.1). */
+export const supplierReferenceEntrySchema = z.object({
+  supplierId: z.number().int().positive('Unknown supplier'),
+  label: z.string().trim().min(1, 'Give the reference a label.').max(100, 'Label too long.'),
+  value: z.string().trim().min(1, 'Give the reference a value.').max(500, 'Value too long.'),
+});
+
+/** Interaction log entry (SPEC §21.2). */
+export const supplierInteractionEntrySchema = z.object({
+  supplierId: z.number().int().positive('Unknown supplier'),
+  channel: z.enum(['call', 'email', 'letter', 'in_person', 'other'], {
+    error: 'Choose how the conversation happened.',
+  }),
+  summary: z.string().trim().min(1, 'Say what happened.').max(1000, 'Summary too long.'),
+  outcome: z.string().max(1000, 'Outcome too long.').nullable(),
+  followUpDate: z.string().nullable(),
 });

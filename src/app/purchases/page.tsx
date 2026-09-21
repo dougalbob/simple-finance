@@ -10,6 +10,7 @@ import { listPeople } from '@/lib/records/people';
 import { listPots } from '@/lib/records/pots';
 import { listPurchases, type PurchaseFilters } from '@/lib/records/purchases';
 import { listSuppliersForEntry } from '@/lib/records/suppliers';
+import { listStoredAttachments, type StoredAttachment } from '@/lib/records/attachments';
 import { listVehicles } from '@/lib/records/vehicles';
 import { formatInstantLocal, toLocalDateString } from '@/lib/time';
 
@@ -171,6 +172,7 @@ export default async function PurchasesPage({
                       targetKind: line.targetKind,
                       targetId: line.targetId,
                     }))}
+                    attachments={listStoredAttachments(db, purchase.id)}
                     fromSchedule={purchase.scheduleInstanceId !== null}
                     isRefund={purchase.refundOfPurchaseId !== null}
                     voidedAt={purchase.voidedAt}
@@ -228,6 +230,7 @@ interface PurchaseRowProps {
   voidReason: string | null;
   note: string;
   version: number;
+  attachments: StoredAttachment[];
   people: Array<{ id: number; label: string }>;
   vehicles: Array<{ id: number; label: string }>;
   categories: Array<{ id: number; parentName: string; childName: string }>;
@@ -261,7 +264,7 @@ function PurchaseRow(props: PurchaseRowProps) {
           {props.supplierLabel}
         </span>
         {props.note !== '' ? <p className="mt-0.5 text-xs text-slate-500">{props.note}</p> : null}
-        <AttachmentForm purchaseId={props.purchaseId} />
+        <AttachmentForm purchaseId={props.purchaseId} attachments={props.attachments} />
       </td>
       <td className="px-3 py-2.5">
         <ul className="space-y-0.5">

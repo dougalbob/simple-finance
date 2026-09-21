@@ -1,108 +1,155 @@
 # Simple Finance
 
-A private, self-hosted household spending app for **two people watching money carefully** — everyday
-purchases, direct debits and standing orders, cash and bank pots, and an honest answer to *\"will we be OK
-by payday?\"* Built for a single household behind Cloudflare Access, deployed to Unraid.
+A private household finance app for two people, running on the household's own server (Unraid, Docker,
+Cloudflare Access in front). It records what actually happened, keeps reported balances honestly labelled
+as checkpoints, projects the shape of the month ahead, and warns before the dates that cost money to
+miss.
 
-## Current status
-
-**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 + Phase 4a complete (Sessions 1–5; Phases 1–2b
-merged via PR #4) — core money records, mobile quick-entry, schedules with auto-conversion, the estimate
-and payday-projection engines, the two-tier warnings, the desktop pages and Insights v1 are running; no
-release published yet.** Phase 4b (Suppliers, Contracts & Renewals, attachments) and Phase 5
-(hardening/v0.1.0) remain planned and sequenced — see the **session map** in
-`docs/IMPLEMENTATION_PLAN.md`.
-
-| Implemented & merged | Status |
-|---|---|
-| Toolchain scaffold (TS strict, Next.js 16 App Router, Tailwind 4, Drizzle + better-sqlite3, checked-in migrations, Prettier, node:test via tsx) | ✅ locally tested, gates green in CI |
-| Auth: `jose` verification of Cloudflare Access JWTs, two-identity allowlist, fail-closed config, dev-only identity bypass (production never honours it) | ✅ unit/integration tested incl. wrong-issuer/audience/expired/key/allowlist |
-| Vertical slice: create pots, record immutable balance checkpoints, persistent read (home page), audit trail written in-transaction | ✅ integration tested on isolated databases |
-| Encrypted backup skeleton (WAL-safe snapshot, versioned manifest + sha256, AES-256-GCM + scrypt, filename contract) + restore into isolated targets | ✅ round-trip, wrong-password, tamper & truncation tested |
-| Container: multi-stage Dockerfile, entrypoint (dirs → `.env` → migrations → exec), public `/api/health`, healthcheck | ✅ entrypoint simulate passed locally; image build + container smoke tested in CI |
-| Unauthorised / wrong-audience requests rejected on pages and API routes | ✅ tested at unit and live-server level |
-| Core money records (Phase 2a): people, vehicles, category tree seeded per SPEC §12, suppliers + contact cards, purchases with exact-total splits, refunds as linked negatives, transfers, void/edit with audit + optimistic concurrency, checkpoint effective-date rule | ✅ integration tested incl. E1, E2, E4, E6, E7 on isolated databases (111 tests total including Phase 2b boundary tests) |
-| Mobile entry (Phase 2b): Add Purchase with exact splits/remainder helper, Add Fuel, Update Balance with date-only backdating, supplier recents/inline add/near-duplicate prompt, derived category memory chip, visible pot/paid-by/target defaults, non-blocking duplicate review/void, single in-flight submission guard | ✅ server actions use Zod + domain validation; production build green |
-| Money engines (Phase 3): per-pot + household "available now" estimates with the conservative date-only comparison rule; payday-to-payday projection with period-level half-up day-to-day figures, outgoings-before-receipts ordering, two-tier warnings and the pot-level "plan a transfer" watch; schedules (DD/SO/income) with unique upcoming→converted instances, lazy midnight conversion that self-heals across crashes, clamp-to-month-end due days, effective-date cancellation; renewals with per-item leads and annual auto-advance (29 Feb → 28 Feb); key-date alerts incl. contract ends ("rolled / awaiting review") | ✅ pure engines + domain tested to the penny incl. E3, E5, E8, E9 and DST sweeps (2026-10-25 / 2026-03-29); home page shows money, projection, due-this-week, key dates and entry forms |
-| Desktop pages + Insights v1 (Phase 4a): dense Overview (money, projection with the "what's in this forecast" day-by-day, due this week, key dates, month-to-date bars, vehicle rolling-12, review list with inline edit/refund/void); Purchases (filters, receipt-style table, inline edit/refund/void); Recurring Payments with the read-only month calendar (server-rendered from the instance list, so calendar and lists stay consistent after edits/cancels; app date changes never move bank instructions); Accounts & Pots (edits, checkpoint history); Insights panels 1–4 (month comparison, per-person attribution, vehicle running costs, the projection honesty loop over complete weeks/months only); Settings (renames, pots, category tree editor, projection figures, warning leads); version badge in the nav | ✅ pure insights engine + DB assembly (transfers/receipts excluded by construction); due-day edits now move the next instance (SPEC §11.1 regression); every figure reconciles with the engines in tests (182 tests total) |
-
-**Not yet built (per plan):** Suppliers page, Contracts & Renewals page + its Overview panel,
-receipt/invoice attachments (SPEC §23), live in-place restore, GHCR publication, Unraid template. Nothing
-has been deployed; the first release will be **v0.1.0** at the end of Phase 5. The desktop pages and the
-mobile home share the pure engines and the quick-entry/review components; every money figure is labelled
-as an estimate or projection — never a bank balance, never a bank connection.
-
-| Document | Purpose |
-|---|---|
-| [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) | Engineering & delivery contract (stack, auth, backup/restore, Unraid packaging, release workflow). |
-| [`docs/SPEC.md`](docs/SPEC.md) | The product specification (money model, purchases/splits, schedules, categories, UX, Insights, §18 backup, §21–23, examples E1–E9). |
-| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Project profile, architecture, **session map**, phased plan with exit criteria, test strategy, decision log, open questions. |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md) | Continuation point for the next agent session. |
+- **Built for:** one household of two adults, one Unraid box, one Cloudflare Access application, no cloud
+  account, no bank connection.
+- **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
+  services. The app talks to nothing but its own SQLite database and filesystem.
+- **Status:** Phases 0–4b are merged to `main`. Phase 5 (hardening and the first release) is built on its
+  session branch and awaiting review; **v0.1.0** is the first release and will be tagged on the merged
+  commit. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the exact continuation point.
+- **Docs:** [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md)
+  (engineering contract), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) (plan + decision log),
+  [`docs/HANDOFF.md`](docs/HANDOFF.md) (session handover).
 
 ## What the app will be (and won't be)
 
 - **Will:** fast mobile entry at the till (supplier memory, splits, visible one-tap defaults); user-reported
-  balance checkpoints per pot; recurring payments that auto-convert on their due date; household estimate and
-  payday-to-payday projection with calm two-tier overdraft warnings; per-vehicle running costs; personal-vs-
-  personal and month-vs-month insights; supplier contact cards with an interaction log; fixed-term contract
-  end dates and insurance renewal alerts (default 21 days); receipt/invoice attachments; dense, functional
-  desktop review pages; encrypted, restore-rehearsed backups covering the database and documents.
-- **Won't:** connect to any bank, import statements, reconcile transactions, ask for bank credentials, track
-  investments or vehicle valuations, work offline, or send notifications (all explicit v1 non-goals —
-  see `docs/SPEC.md` §2).
+  checkpoints with honest labels; a payday projection with pessimistic day-to-day behaviour; recurring
+  schedule instances that convert automatically; two-tier warnings; renewal and contract-end alerts;
+  receipt/invoice attachments kept with the record they belong to; encrypted, restorable backups that
+  include those attachments.
+- **Won't:** connect to a bank or read statements; move money; recommend products; share or upload
+  anything; run as more than one household.
+
+## Install (Unraid)
+
+The supported path is the Unraid container template. The household's data lives in one directory,
+`/mnt/user/appdata/simple-finance`, which maps to `/data` in the container.
+
+1. **Create the appdata directory and its config file.**
+   ```
+   mkdir -p /mnt/user/appdata/simple-finance
+   cp .env.example /mnt/user/appdata/simple-finance/.env
+   chmod 600 /mnt/user/appdata/simple-finance/.env
+   ```
+2. **Fill in `/data/.env`** — the two Cloudflare Access values and the two allowed household e-mail
+   addresses (`AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_ALLOWED_EMAILS`). The file is sourced by the
+   entrypoint on every start and overrides the template; keep it owned by `root`/`99:100` and unreadable by
+   anyone else. `.env.example` explains every variable, including the optional `DOCUMENTS_DIR`.
+3. **Add the template in Unraid.** Docker → Templates → *Add Container*, then paste the template URL
+   `https://raw.githubusercontent.com/dougalbob/simple-finance/main/simple-finance.xml` (or copy the file
+   into `/boot/config/plugins/dockerMan/templates-user/`). Set a free host port (the template defaults to
+   `3000`; do not reuse another container's port) and leave `PUID`/`PGID` at `99`/`100` unless the array
+   uses different ownership.
+4. **Start the container.** The entrypoint aligns `/data` ownership, applies migrations, then runs the
+   server as `PUID:PGID` — never as root. The health endpoint is `/api/health`.
+5. **Put Cloudflare Access in front** of the published port and point it at the same hostname as
+   `AUTH_ISSUER`. Until `AUTH_ISSUER`, `AUTH_AUDIENCE` and `AUTH_ALLOWED_EMAILS` are set, the app refuses
+   everyone (fail closed, `docs/SPEC.md` §3).
+6. **Open the app in a browser** and sign in through Cloudflare Access. On first run the Overview/Household
+   panels ask for the two people and any vehicles (household data is never seeded); categories already
+   exist because they are product content, not household data.
+
+### Updating
+
+The image is published to GHCR as `ghcr.io/dougalbob/simple-finance` — `vX.Y.Z`, `latest`, and
+`sha-<short>` all point at the same digest. In Unraid, Docker → check the container → **Force Update**
+(or `docker pull ghcr.io/dougalbob/simple-finance:latest`), then start it again. Migrations run on
+startup and are additive; there is no downgrade path, so **take a backup from Settings before updating**
+if the release notes say the database changed. Nothing is published by merging a pull request — a release
+is a `vX.Y.Z` tag, and the workflow refuses to push an image whose version does not match the tag.
+
+### Local development
+
+```
+npm ci            # plain install (CI uses this; the sandbox here uses --ignore-scripts)
+cp .env.example .env
+npm run db:migrate
+npm run dev       # http://localhost:3000 with the dev identity bypass
+```
+
+`AUTH_DEV_BYPASS=true` with `NODE_ENV` anything other than `production` signs every request in as the
+configured development identity; a production build ignores the bypass entirely.
+
+## Everyday use
+
+- **At the till (phone):** Quick entry → Purchase — supplier (with its remembered category), total, split
+  lines so the total matches exactly, paid-by, date, optional note, optional receipt photo.
+- **Cash and bank checks:** Quick entry → Balance ("Balance now" = ledger balance for a bank, counted
+  amount for cash). Checkpoints are labelled as checkpoints, and never as a bank balance.
+- **Fuel:** Quick entry → Fuel for a vehicle.
+- **Reviewing:** `/purchases` filters and inline edit/refund/void (nothing is deleted — the history is
+  kept), `/recurring` shows the month calendar and the schedule list, `/contracts` shows contract ends
+  and renewals with the follow-ups you promised.
+- **Insights:** `/insights` — month comparison, per-person attribution, vehicle running costs, and the
+  honesty loop that compares configured figures with recent complete periods.
+
+## Backup, restore and recovery
+
+The Settings page holds the whole capability; nothing is automatic and nothing leaves the house.
+
+- **Backup** takes a password (at least 12 characters, never stored) and downloads
+  `simple-finance-backup-v<version>-<local timestamp>.simple-finance-backup` — an AES-256-GCM archive
+  (scrypt key derivation, `SFBA` frame) containing the database snapshot, every attachment the snapshot
+  references, and a `manifest.json` listing counts, sizes and sha256 values. If the snapshot references an
+  attachment that is missing on disk, the backup **fails loudly** instead of producing an archive that
+  only looks complete; unreferenced files are listed as orphans and left alone. Store the archive and the
+  password in two different places.
+- **Restore** replaces **everything** — database and attachments — from an archive. The form requires the
+  archive's password and the typed word `RESTORE`. Before anything is swapped, every member is checked
+  against the manifest (size, sha256, member allowlist) and the restored database is checked for the
+  attachments it references; if any check fails, the running installation is untouched. On success the
+  previous database and documents directory are kept beside the new ones as `.pre-restore-<stamp>`.
+- **Recovery checklist** (if a restore is interrupted or the app will not start). Both the database and
+  the documents directory are preserved under `.pre-restore-<stamp>…` names next to the live ones:
+  1. Stop the container. List the `/data` directory and note the preserved names (for example
+     `simple-finance.sqlite.pre-restore-20260921-143012` and
+     `documents.pre-restore-20260921-143012/`; the WAL sidecars are preserved the same way).
+  2. Move the live files aside — never overwrite them in place — then rename the preserved copies back to
+     `simple-finance.sqlite` and `documents/`.
+  3. Start the container and confirm the app shows the expected data; only then tidy up the copies you
+     no longer need. The app itself never deletes the last recoverable copy on any error path.
 
 ## Stack (as built)
 
-TypeScript (strict) · Next.js 16 App Router · React 19 · SQLite (`better-sqlite3` + Drizzle, checked-in
-migrations under `drizzle/`) · Zod at server boundaries · Tailwind CSS 4 · Cloudflare Tunnel + Access
-(Google identity, server-side JWT verification via `jose`) · Node test runner via `tsx` · Prettier ·
-multi-stage Dockerfile → GHCR → Unraid template (publication workflow lands with v0.1.0).
+Next.js 16 (App Router, React 19) · TypeScript strict · Tailwind CSS · SQLite via better-sqlite3 + Drizzle
+ORM with checked-in SQL migrations · `jose` for Cloudflare Access JWT verification · Zod at the server
+boundary · Node's built-in test runner through `tsx` · Playwright for the browser acceptance suite.
+Domain engines (`estimates`, `projection`, `keydates`, `insights`, `dates`) are framework-free pure
+modules with DST and boundary tests.
 
-All runtime data lives in one host directory — `/mnt/user/appdata/simple-finance` (container `/data`):
-the SQLite database (+WAL/SHM), `.env` configuration, `documents/` (attachments, Phase 4) and `logging/`.
-Backups cover the database (and later documents), exclude `.env` and logs, and must pass a clean-installation
-restore rehearsal before real data is trusted — `docs/SPEC.md` §18.
+## Gates
 
-## Running locally
+The same commands CI runs, all from the repository root:
 
-```sh
-npm ci            # full toolchain (see note below in constrained sandboxes)
-npm run dev       # http://localhost:3000
+```
+npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
+npm run format:check   # Prettier (markdown is excluded deliberately)
+npm run typecheck      # tsc --noEmit
+npm test               # Node test runner: 224 tests across 62 suites
+npm run build          # production build (Turbopack)
+npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
+npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)
 ```
 
-Local development needs no Cloudflare setup: set `AUTH_DEV_BYPASS=true` and
-`AUTH_DEV_IDENTITY_EMAIL=dev@example.com` (in `.env`, git-ignored — see `.env.example`). The bypass is
-computed to be impossible in production (`NODE_ENV=production` refuses it regardless of flags). Data lands
-in `./data` (git-ignored). Alternatively, configure real Access values (`AUTH_ISSUER`, `AUTH_AUDIENCE`,
-`AUTH_ALLOWED_EMAILS`) and front the dev server with your tunnel.
-
-Gates (same commands CI runs):
-
-```sh
-npm run format:check
-npm run typecheck
-npm test                              # 182 tests (Phase 1 + 2a domain + 2b boundary + Phase 3 engines/lifecycle + 4a insights/pages)
-NEXT_TELEMETRY_DISABLED=1 npm run build
-npm audit --omit=dev                  # 0 vulnerabilities at time of writing
-npm run db:migrate                    # apply migrations explicitly (dev does it automatically)
-```
-
-> **Constrained-sandbox note:** if `nodejs.org` is unreachable, plain `npm ci` fails when npm's gypfile
-> auto-build tries to compile `better-sqlite3` from source (it needs Node headers from nodejs.org).
-> `npm ci --ignore-scripts` works — the package bundles prebuilt binaries — and the test suite verifies
-> the native module. Plain `npm ci` is exercised in CI (`.github/workflows/ci.yml`) where network is
-> unrestricted. Recorded per blueprint §9.
+The browser suite runs in CI's `browser` job; the release workflow smoke-tests the built image (health,
+unprivileged uid, database survival across recreation) before pushing it to GHCR. `npm audit` will suggest
+`npm audit fix --force` for four moderate advisories in the dev-only drizzle-kit/esbuild chain — **do not
+run it**: it downgrades drizzle-kit to 0.18.1.
 
 ## Privacy — this repository is public
 
-No real personal financial data may ever appear in commits, PRs, issues, screenshots, logs, fixtures, seed
-files or release artefacts. Every name, amount, date and threshold in the documentation and demo data is a
-**fictional placeholder**; the real household's data exists only in its private installation, and
-`.gitignore` keeps databases, backups, receipts, uploads, exports and `.env` files out of version control.
-See `docs/SPEC.md` §19.
+No real names, balances, receipts or addresses exist anywhere in this repository, and none may be added —
+not in code, tests, fixtures, screenshots, issues or pull requests. `.env.example` holds placeholders only.
+Real configuration lives in `/data/.env` inside the private installation, and real data never leaves
+`/data`.
 
 ## Version
 
-**v0.1.0 (pre-release, unreleased).** No image published, no deployment. First planned release: **v0.1.0**
-at the end of Phase 5. The running app displays its version as a small badge in the site navigation
-(desktop and mobile).
+The app version is `v0.1.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+release tag must agree; the publish workflow refuses to push an image when they do not.
