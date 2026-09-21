@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { RecentEntryActions } from '@/components/record-forms';
+import { AttachmentForm } from '@/components/attachment-form';
 import { formatPence } from '@/lib/money';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
@@ -260,6 +261,7 @@ function PurchaseRow(props: PurchaseRowProps) {
           {props.supplierLabel}
         </span>
         {props.note !== '' ? <p className="mt-0.5 text-xs text-slate-500">{props.note}</p> : null}
+        <AttachmentForm purchaseId={props.purchaseId} />
       </td>
       <td className="px-3 py-2.5">
         <ul className="space-y-0.5">

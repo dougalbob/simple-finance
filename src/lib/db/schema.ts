@@ -451,3 +451,43 @@ export const settings = sqliteTable('settings', {
   updatedBy: text('updated_by').notNull(),
   version: integer('version').notNull().default(1),
 });
+
+export const supplierReferences = sqliteTable('supplier_references', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  supplierId: integer('supplier_id')
+    .notNull()
+    .references(() => suppliers.id),
+  label: text('label').notNull(),
+  value: text('value').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+export const supplierInteractions = sqliteTable('supplier_interactions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  supplierId: integer('supplier_id')
+    .notNull()
+    .references(() => suppliers.id),
+  occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+  channel: text('channel').notNull(),
+  summary: text('summary').notNull(),
+  outcome: text('outcome'),
+  followUpDate: text('follow_up_date'),
+  relatedPurchaseId: integer('related_purchase_id'),
+  relatedRenewalId: integer('related_renewal_id'),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+export const attachments = sqliteTable('attachments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  purchaseId: integer('purchase_id')
+    .notNull()
+    .references(() => purchases.id),
+  fileKey: text('file_key').notNull().unique(),
+  originalName: text('original_name').notNull(),
+  mime: text('mime').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  sha256: text('sha256').notNull(),
+  state: text('state').notNull().default('stored'),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
