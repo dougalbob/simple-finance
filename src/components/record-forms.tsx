@@ -61,6 +61,18 @@ const inputClass =
 const labelClass = 'text-xs font-medium text-slate-600';
 const submitClass =
   'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+/**
+ * Destructive submit. Deliberately self-contained rather than
+ * `${submitClass} … text-red-700`: Tailwind resolves competing utilities by
+ * their order in the *generated stylesheet*, not by the order in the class
+ * attribute, and `.text-white` is emitted after `.text-red-700` — so layering a
+ * colour override on top of `submitClass` produced white-on-white (and
+ * white-on-red-50 on hover, 1.09:1). Red label on white at rest, inverting to a
+ * saturated red-700 with a white label on hover (6.42:1 — WCAG AA), which also
+ * keeps it legible on a touch screen where `:hover` never applies.
+ */
+const dangerSubmitClass =
+  'rounded border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:border-red-700 hover:bg-red-700 hover:text-white disabled:opacity-60';
 
 interface LineEditorProps {
   idPrefix: string;
@@ -370,6 +382,8 @@ export function VoidForm({ kind, recordId, expectedVersion, summary }: VoidFormP
   );
   return (
     <form action={(formData: FormData) => formAction(formData)} className="flex flex-col gap-2">
+      {/* Field names are the contract with voidPurchaseAction/voidTransferAction:
+          they read `recordId`, `expectedVersion` and `reason`. */}
       <input type="hidden" name="recordId" value={recordId} />
       <input type="hidden" name="expectedVersion" value={expectedVersion} />
       <div className="flex flex-col gap-1">
@@ -387,11 +401,7 @@ export function VoidForm({ kind, recordId, expectedVersion, summary }: VoidFormP
           className={inputClass}
         />
       </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className={`${submitClass} self-start border border-red-200 bg-white text-red-700 hover:bg-red-50`}
-      >
+      <button type="submit" disabled={pending} className={`${dangerSubmitClass} self-start`}>
         {pending ? 'Voiding…' : `Void ${kind}`}
       </button>
       <FormMessage status={state.status} message={state.message} />

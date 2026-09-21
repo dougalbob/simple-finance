@@ -9,9 +9,10 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–4b are merged to `main`. Phase 5 (hardening and the first release) is built on its
-  session branch and awaiting review; **v0.1.0** is the first release and will be tagged on the merged
-  commit. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the exact continuation point.
+- **Status:** Phases 0–5 are merged to `main` and released. The published image is **v0.1.2** — a patch for
+  three field-reported bugs (receipt-upload permissions on a bind-mounted appdata folder, the broken void
+  flow, and the unreadable void button) plus the receipt-upload body-limit fix that never shipped as an
+  image in v0.1.1. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the exact continuation point.
 - **Docs:** [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md)
   (engineering contract), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) (plan + decision log),
   [`docs/HANDOFF.md`](docs/HANDOFF.md) (session handover).
@@ -151,5 +152,9 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.1.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+The app version is `v0.1.2` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
 release tag must agree; the publish workflow refuses to push an image when they do not.
+
+The tag must be lower-case `vX.Y.Z`. Both the workflow's `on.push.tags` filter and its version check
+(`test "v${PKG_VERSION}" = "$VERSION"`) reject a capital `V` — which is why the `V0.1.1` tag never published an
+image and the registry held only v0.1.0 until v0.1.2.

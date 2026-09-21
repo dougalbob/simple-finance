@@ -48,6 +48,50 @@ test.describe('desktop review', () => {
     });
   });
 
+  test('a purchase can be voided, and the void control stays legible', async ({ page }) => {
+    // Regression for two field reports on v0.1.1. The void form posts
+    // `expectedVersion` while both void actions read `version`, so every void
+    // failed with "Invalid input: expected number, received null"; and the
+    // submit button layered `text-red-700` over `submitClass`'s `text-white`,
+    // which Tailwind resolves to white-on-white because `.text-white` is emitted
+    // later in the stylesheet. Nothing covered either path.
+    //
+    // Its own purchase, so the seeded rows the other specs assert on are
+    // untouched and a CI retry starts from a clean state.
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    await entry.locator('input[name="supplierName"]').fill('Voided By Playwright');
+    await entry.locator('input[name="amount"]').fill('4.50');
+    await entry.getByLabel('Line 1 amount').fill('4.50');
+    await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
+    await entry.getByRole('button', { name: 'Save purchase' }).click();
+    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
+
+    await page.goto('/purchases');
+    const results = page.locator('section[aria-labelledby="results-heading"]');
+    const row = results.locator('tbody tr', { hasText: 'Voided By Playwright' }).first();
+    await expect(row).toBeVisible();
+    await row.locator('summary', { hasText: 'Edit' }).click();
+    await row.getByRole('button', { name: 'Void', exact: true }).click();
+
+    // Legibility, as the product owner specified it: a coloured label at rest,
+    // and a white label only on a saturated (non-white) background when hovered.
+    const submit = row.getByRole('button', { name: 'Void purchase' });
+    await expect(submit).not.toHaveCSS('color', 'rgb(255, 255, 255)');
+    await submit.hover();
+    await expect(submit).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(submit).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
+
+    await row.getByLabel(/Why are you voiding this/).fill('Entered twice at the till');
+    await submit.click();
+
+    // Voids never delete (decision 6): the row stays, marked with its reason,
+    // and the editor is replaced by the "history kept" note.
+    await expect(row).toContainText('Voided', { timeout: 30_000 });
+    await expect(row).toContainText('Entered twice at the till');
+    await expect(row).toContainText('history kept');
+  });
+
   test('the month calendar follows a real due-day edit', async ({ page }) => {
     await page.goto('/recurring');
     await expect(
