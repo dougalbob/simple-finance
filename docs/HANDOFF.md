@@ -305,6 +305,10 @@ Route/e2e:
    anything that is not an `AttachmentInputError`, so an `EACCES`/`EROFS` reaches the browser as a generic
    server-action error. A mapped message ("the receipts folder is not writable — check the container log")
    would have made report #1 self-diagnosing. The new entrypoint probe (§2.3) covers the log side.
+   The same pattern is worth a look everywhere: when a server action *throws* rather than returning
+   `{ status: 'error' }`, `useActionState` leaves the submit button pending forever with no message — the
+   void button would sit at "Voiding…" with nothing to explain why. A catch-all that returns a friendly
+   `ActionState` (and logs the real error server-side) would make every form self-diagnosing.
 3. **`logging/` is created but never written** by anything in `src/` or `scripts/`. Either use it or stop
    creating it; the entrypoint still repairs its ownership, which is harmless.
 4. **`documents/` mode.** `attachments.ts:157` asks for `0o700`, but the entrypoint's `mkdir -p` runs first as

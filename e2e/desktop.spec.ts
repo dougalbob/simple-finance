@@ -56,11 +56,13 @@ test.describe('desktop review', () => {
     // which Tailwind resolves to white-on-white because `.text-white` is emitted
     // later in the stylesheet. Nothing covered either path.
     //
-    // Its own purchase, so the seeded rows the other specs assert on are
-    // untouched and a CI retry starts from a clean state.
+    // Three sequential mutations against a dev server, so allow more than the
+    // default budget. Its own purchase, so the seeded rows the other specs
+    // assert on are untouched and a CI retry starts from a clean state.
+    test.slow();
     await page.goto('/');
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
-    await entry.locator('input[name="supplierName"]').fill('Voided By Playwright');
+    await entry.locator('input[name="supplierName"]').fill('Playwright Duplicate');
     await entry.locator('input[name="amount"]').fill('4.50');
     await entry.getByLabel('Line 1 amount').fill('4.50');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
@@ -69,27 +71,40 @@ test.describe('desktop review', () => {
 
     await page.goto('/purchases');
     const results = page.locator('section[aria-labelledby="results-heading"]');
-    const row = results.locator('tbody tr', { hasText: 'Voided By Playwright' }).first();
-    await expect(row).toBeVisible();
-    await row.locator('summary', { hasText: 'Edit' }).click();
-    await row.getByRole('button', { name: 'Void', exact: true }).click();
+    const rows = results.locator('tbody tr', { hasText: 'Playwright Duplicate' });
+    await expect(rows).toHaveCount(1);
+    await rows.first().locator('summary', { hasText: 'Edit' }).click();
+    await rows.first().getByRole('button', { name: 'Void', exact: true }).click();
 
     // Legibility, as the product owner specified it: a coloured label at rest,
     // and a white label only on a saturated (non-white) background when hovered.
-    const submit = row.getByRole('button', { name: 'Void purchase' });
+    const submit = rows.first().getByRole('button', { name: 'Void purchase' });
     await expect(submit).not.toHaveCSS('color', 'rgb(255, 255, 255)');
     await submit.hover();
     await expect(submit).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(submit).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
 
-    await row.getByLabel(/Why are you voiding this/).fill('Entered twice at the till');
+    await rows
+      .first()
+      .getByLabel(/Why are you voiding this/)
+      .fill('Entered twice at the till');
     await submit.click();
 
-    // Voids never delete (decision 6): the row stays, marked with its reason,
-    // and the editor is replaced by the "history kept" note.
-    await expect(row).toContainText('Voided', { timeout: 30_000 });
-    await expect(row).toContainText('Entered twice at the till');
-    await expect(row).toContainText('history kept');
+    // The void lands and the table revalidates. A voided entry leaves the
+    // default history view: listPurchases excludes voided records unless the
+    // Voided tag is active (SPEC §15.2), so the row disappearing *is* the
+    // success signal - a rejected void would leave it there with an error.
+    await expect(rows).toHaveCount(0, { timeout: 30_000 });
+
+    // Voids never delete (decision 6): the record is still in the history under
+    // the Voided tag, with its reason and the editor replaced by "history kept".
+    await page.getByLabel('Voided', { exact: true }).check();
+    await page.getByRole('button', { name: 'Apply filters' }).click();
+    const voidedRow = results.locator('tbody tr', { hasText: 'Playwright Duplicate' }).first();
+    await expect(voidedRow).toContainText(/Voided .* Entered twice at the till/, {
+      timeout: 30_000,
+    });
+    await expect(voidedRow).toContainText('history kept');
   });
 
   test('the month calendar follows a real due-day edit', async ({ page }) => {
