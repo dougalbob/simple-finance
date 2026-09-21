@@ -29,6 +29,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  /**
+   * Development-only: the browser acceptance run and the operator's hosted
+   * preview load the dev server through a proxy host, not localhost. This list
+   * is ignored by `next build`/`next start`; production behind Cloudflare
+   * Access serves its own hostname and needs no entry here.
+   */
+  allowedDevOrigins: ['localhost', '127.0.0.1', '*.e2b.app'],
   async headers() {
     if (!isProductionBuild) return [];
     return [{ source: '/:path*', headers: securityHeaders }];

@@ -3,10 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import * as tar from 'tar';
-import { count } from 'drizzle-orm';
 import { APP_NAME, APP_VERSION } from '../version';
 import type { DbHandle } from '../db/client';
-import { attachments, auditEntries, checkpoints, pots, purchases } from '../db/schema';
+import { attachments } from '../db/schema';
 import { formatInstantLocal } from '../time';
 import { isSafeFileKey } from '../records/attachments';
 import { encryptBackupPayload } from './crypto';
@@ -97,14 +96,6 @@ export function sha256Hex(data: Buffer): string {
 
 export function documentsDirForDatabase(databasePath: string): string {
   return path.join(path.dirname(databasePath), 'documents');
-}
-
-function countRows(
-  db: DbHandle['db'],
-  table: typeof pots | typeof checkpoints | typeof auditEntries | typeof purchases,
-): number {
-  const row = db.select({ value: count() }).from(table).all()[0];
-  return row?.value ?? 0;
 }
 
 interface SnapshotAttachmentRow {

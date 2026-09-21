@@ -512,6 +512,9 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
         {days.map((day) => (
           <div
             key={day.date}
+            // Exposed for the browser acceptance run: one cell per date, and the
+            // cell is rendered from the same instance list as the lists below.
+            data-date={day.date}
             className={`min-h-20 rounded-lg border p-1.5 ${
               day.isToday
                 ? 'border-sky-400 bg-sky-50'

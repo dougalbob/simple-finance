@@ -1,10 +1,12 @@
 # Simple Finance — Implementation Plan
 
-**Status:** Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 complete (Sessions 1–4). PRs #2, #3 and #4
-merged 2026-09-20 (Phases 0–2b). Session 4 built Phase 3 on its session branch: schedules with
-upcoming→converted instances, income receipts, the estimate and payday-projection engines, the two
-warning tiers, the pot-level transfer watch, renewals and key-date alerts, and the E3/E5/E8/E9 test
-coverage — 154 tests green, all gates green. Discovery completed 2026-09-20.
+**Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
+merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
+suppliers/interactions are audited domain operations, the container runs unprivileged, the Unraid template
+and the GHCR publish workflow are written, and the Playwright acceptance suite is defined (it runs in CI —
+this sandbox has no browser binaries and no access to the download host). **224 Node tests green** plus the
+browser suite in `e2e/`, all local gates green. Phases 0–4b are merged to `main` (PRs #2–#8). Discovery
+completed 2026-09-20.
 This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.md` (the product spec).
 
 > All names, amounts and dates in this document are fictional placeholders. Real values live only in the
@@ -19,8 +21,8 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 | 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Complete (build; browser tooling unavailable in this sandbox) |
 | 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Complete (build on session branch; docs in same PR) |
 | 5 | Phase 4a — desktop pages + Insights v1 (first part) | Complete (build on session branch; docs in same PR) |
-| 6 | Phase 4b — desktop pages + attachments (remainder) | Planned |
-| 7 | Phase 5 — hardening & first release (v0.1.0) | Planned |
+| 6 | Phase 4b — desktop pages + attachments (remainder) | Complete (PR #8) |
+| 7 | Phase 5 — hardening & first release (v0.1.0) | Complete on session branch (2026-09-21); merge, tag and publish pending the product owner's review |
 
 > Phase 4a/4b boundary as delivered in Session 5: **4a** = Overview (dense dashboard), Purchases
 > (filters + inline edit/refund/void), Recurring Payments (read-only month calendar + schedule/renewal
@@ -157,7 +159,27 @@ truth, all gates + `npm audit --omit=dev`, PR → merge → tag → publish veri
 "Definition of ready" checklist complete; user Force Updates and runs the listed acceptance checks
 (real Cloudflare sign-in, a real till-moment mobile entry **including a camera receipt attachment**,
 checkpoint + projection sanity, a renewal/contract-end alert inside its window, restore rehearsal evidence
-covering attachments).*
+covering attachments).
+
+*Delivered in Session 6 (this session), with the decision numbers below:*
+
+- **Backup format 2** — the WAL-safe snapshot plus every attachment the snapshot references, sha256 per
+  file, an orphan report; refuses to build an archive that references a missing document (SPEC §18.2).
+- **Restore** — accepts format 1 and 2, strict member allowlist (no traversal/absolute paths/extra members),
+  per-file integrity, referenced-document verification, staged swap preserving both the previous database
+  and the previous documents directory, rollback that never deletes the only recoverable copy (SPEC §18.4).
+- **Live in-place restore** — `POST /api/restore` closes the process-wide handle, restores, reopens; the
+  Settings panel carries the typed confirmation, the same-origin guard and a 512 MB bound.
+- **Browser download path** — `Content-Disposition` filename carried into `anchor.download` with a tested
+  fallback (the v0.2.21 lesson), plus an end-to-end Playwright case.
+- **Container least privilege** — the entrypoint aligns `/data` ownership once and runs the server as
+  PUID:PGID (Unraid 99:100); the CI and publish smoke tests assert the server is not root.
+- **Unraid template + publish workflow** — `simple-finance.xml`, tag-triggered GHCR publication with a
+  pre-push smoke test (health, unprivileged, database survives container recreation) and registry-digest
+  verification.
+- **Browser acceptance suite** — `e2e/` specs driven by real selectors (mobile till moment, desktop review,
+  calendar consistency after a real due-day edit, backup download and restore through the UI); run in CI
+  (`npm run test:e2e`), never claimed from markup rendering (blueprint §9).*
 
 ## Test strategy (domain-specific, on top of blueprint §9)
 
@@ -413,6 +435,105 @@ covering attachments).*
     materialisation (an `activeFrom` in the past still yields its real, already-occurred instances).
     Regression: `tests/recurring-calendar.test.ts`.
 
+*Session 6 (2026-09-21) — Phase 5 build decisions (hardening & first release):*
+
+76. **Archive format 2 = snapshot + attachments + manifest.** `simple-finance-backup` format 2 carries
+    `db.sqlite` (the supported WAL-safe `.backup()` snapshot), `manifest.json` and `documents/<key>` for every
+    attachment the **snapshot** references in state `stored`. The document list, row counts and sha256 values
+    are all read from the snapshot file, not from the live connection — that is the coordination point SPEC
+    §18.2 asks for, so an archive can never describe a database state it does not contain. A file that the
+    snapshot references but the disk has lost makes the backup **fail loudly** (`BackupIncompleteError`,
+    HTTP 409) rather than produce an archive that only looks complete. Unreferenced files are reported in
+    `manifest.documents.orphans` — never included, never deleted. The manifest cannot hash itself, so it is
+    the one allowlisted member that is legitimately absent from `manifest.files` (see decision 81).
+77. **Restore accepts formats 1 and 2 and verifies before it touches anything.** Order: authenticate
+    (decrypt + GCM), extract through a strict member allowlist (`db.sqlite`, `manifest.json`,
+    `documents/<uuid-like-key>`; directory entries ignored, everything else dropped), validate the manifest
+    against the Zod schema, verify size + sha256 of every listed member, reject any extracted member the
+    manifest does not list, `quick_check` the database plus expected-table probing, then verify that every
+    `stored` attachment the restored database references is actually inside the archive. Only then does the
+    swap happen.
+78. **The swap is staged on the destination filesystem with rollback that keeps the old data.** Both the
+    database (with its `-wal`/`-shm` sidecars) and the documents directory are renamed aside as
+    `.pre-restore-<stamp>` before the replacement lands; if the replacement fails, the preserved copies are
+    renamed back and any partially moved replacement is removed first, so the previous installation is
+    complete again. Nothing is ever deleted on an error path. When the archive carries no documents the
+    restored installation gets an empty documents directory rather than leftovers the restored database does
+    not reference.
+79. **Live restore closes the connection first and reopens it after.** `closeDbHandle()` → staged restore →
+    `getDbHandle()` again, with a trivial read to prove the reopened handle is usable. If anything fails the
+    handle is reopened against whatever is on disk (the restore layer preserved the previous data), so a
+    failed restore leaves a working app. Archive-authentication failures (`BackupPasswordError`,
+    `BackupFormatError`) are re-thrown unchanged so the route can say "wrong password" instead of "failed".
+    `RestoreSummary.previousPreservedAs` gives the household the manual rollback path in writing.
+80. **Route handlers guard themselves from the Request.** `/api/restore` and `/api/backup` call
+    `getCurrentUser(request.headers, loadAppConfig())`, never the `next/headers` adapter (which throws
+    outside a request scope, as the attachment route proved in this session's tests). Both POST handlers
+    additionally require a same-origin request: `Sec-Fetch-Site: cross-site` is refused, `Origin: null` is
+    refused, and a mismatched origin is refused (forwarded host allowed, which is how Cloudflare's tunnel
+    presents the app). Server actions keep the framework's CSRF protection; route handlers do not get it for
+    free, which is exactly why this is explicit.
+81. **Attachment pipeline is one module.** `src/lib/records/attachments.ts` owns content sniffing
+    (PDF `%PDF-`, JPEG `FF D8 FF`, the full PNG signature — extension and browser MIME are ignored),
+    the 10 MB limit (plan OQ12), the strict server-generated key pattern
+    (`uuid.{png|jpg|pdf}`), display-name sanitising (basename of a Windows-style path too; control
+    characters, quotes, slashes and the Windows-reserved set replaced), storage writes with `wx`, the row +
+    `attachment.store` audit entry in one transaction, and the read path used by the serving route. The
+    upload action, the viewer, the backup engine and the restore path all import it, so they cannot drift.
+    Rejected uploads write nothing at all — the purchase is untouched and a retry is a clean retry.
+82. **A new archive password must be at least 12 characters; restoring accepts any non-empty password.**
+    scrypt slows a brute-force attack, but it cannot rescue a one-character passphrase protecting the only
+    copy of the household's data. The asymmetric rule keeps pre-Phase-5 archives recoverable. The typed
+    destructive confirmation (`RESTORE`) is validated server-side too — the UI's confirmation is assistance,
+    not authority — and uploads are bounded at 512 MB on the declared length *and* the received file.
+83. **Download naming never depends on the browser's guess.** `filenameFromContentDisposition` supports the
+    quoted and unquoted forms plus RFC 5987 `filename*=`, refuses anything that is not a plain file name
+    (paths, traversal, control characters, >200 chars), and `chooseDownloadFilename` falls back to the
+    versioned contract name generated locally in Europe/London. This is the v0.2.21 lesson implemented as a
+    contract and tested at the layer that failed, with the end-to-end button path covered by
+    `e2e/backup.spec.ts`.
+84. **Supplier references and interactions became domain operations.** They were written straight into the
+    tables by the form actions (no validation, no actor on the audit trail). Now
+    `src/lib/records/supplier-details.ts` owns them: trimmed and length-capped text, the five documented
+    channels, `isValidLocalDate` on follow-up dates, `SupplierNotFoundError` for unknown suppliers, the
+    supplier must exist, and `supplier.reference` / `supplier.interaction` audit entries written in the same
+    transaction. `upcomingSupplierFollowUps(db, today)` is the query the Contracts page uses. The contact
+    card gained an editor (version-guarded, `supplier.contact` audit) — it existed in the domain since
+    Phase 2a but nothing called it.
+85. **Container runs unprivileged by default (closes the Phase 5 security-review item, decision 32).** The
+    image ships `gosu`; the entrypoint sources `/data/.env`, creates `documents/` and `logging/`, aligns
+    `/data` ownership **once** (only when the root does not already match PUID/PGID — files the app writes
+    itself need no fixing), fixes `/app/.next` so Next's runtime cache is writable, applies migrations as the
+    unprivileged user, and `exec`s the server as `PUID:PGID` (Unraid defaults 99:100). `PUID=0` keeps the old
+    root behaviour deliberately. Both the CI and the publish smoke tests assert `/proc/1/status` reports uid
+    99, so the guarantee is tested rather than documented.
+86. **Security review record (blueprint §4 checklist, Phase 5).** Every page and every API route verifies the
+    Access assertion independently (`getCurrentUser`) — the attachment viewer, backup and restore included;
+    the dev identity bypass is computed false whenever `NODE_ENV=production`; the public health endpoint
+    returns `{status:'ok'}` and nothing else; both mutating route handlers have the same-origin guard
+    (decision 80); money and document responses are `no-store`/`private, no-store`; production builds set
+    `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy: same-origin`,
+    `same-origin` opener policy, `X-Robots-Tag: noindex` and HSTS (dev builds deliberately omit them so the
+    operator's hosted preview is not framed-out); no secrets, real names or figures exist anywhere in the
+    repository; `npm audit --omit=dev` reports 0 vulnerabilities (4 moderate remain in the dev-only
+    drizzle-kit/esbuild chain — accepted, because the suggested "fix" downgrades drizzle-kit to 0.18.1).
+87. **Playwright is a real, CI-executed gate now.** `playwright.config.ts` starts `scripts/e2e-server.mts`,
+    which seeds a fictional household into a git-ignored `.e2e-data` directory through the domain modules and
+    runs `next dev` on port 3100 with the dev identity bypass. Projects: `mobile` (Pixel 7) for the till
+    moment, `desktop` for review, `backup` for the download/restore path. **This sandbox cannot install
+    browser binaries** (the download host is blocked; no system browser either) — the suite therefore runs in
+    the CI `browser` job, and no local browser run is claimed (decision 54 stands, now with a harness behind
+    it). The calendar grid exposes `data-date` per cell so the acceptance run can assert that the month view
+    and the instance list agree after a real due-day edit.
+88. **Unraid template and publication.** `simple-finance.xml` (repo root, so Unraid's TemplateURL can point
+    at `main`) maps `/data` → `/mnt/user/appdata/simple-finance`, defaults PUID/PGID to 99/100, documents a
+    free host port (never inheriting 3005) and exposes `AUTH_*` as optional advanced variables that
+    `/data/.env` overrides. The publish workflow is tag-triggered (`v*.*.*`, or a manual dispatch with the
+    tag): it refuses non-semver refs, asserts `package.json` and `src/lib/version.ts` match the tag, builds
+    and **smoke-tests before pushing** (health, uid 99, database created, database survives container
+    recreation), then pushes `vX.Y.Z`, `latest` and `sha-<short>`, and finally verifies the registry manifest
+    digest matches the built image. Merging a PR publishes nothing.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -443,11 +564,24 @@ covering attachments).*
   panels and entry forms; E3/E5/E8/E9 and DST boundary coverage; **154 tests green**, all gates green
   (`npm ci --ignore-scripts` in-sandbox; plain `npm ci` in CI), migration `0002_phase3_schedules`. No tag and
   no publish this session — **v0.1.0** remains the end-of-Phase-5 release.
+- **Phase 4b merged 2026-09-21 (PR #8, Session 6 on branch `arena/01a0c181-simple-finance`)** — Suppliers
+  page with references and the interaction log, Contracts & Renewals page, the `attachments` migration
+  (`0003_phase4b_documents`) and the first upload/view path; 182 tests green.
+- **Phase 5 built 2026-09-21 on branch `arena/01a0c193-simple-finance` (this session, commit `6dbeafe` plus
+  the container/deployment work above it)** — backup format 2 with documents, verified restore and live
+  in-place restore, the shared attachment pipeline, audited supplier operations, unprivileged container,
+  Unraid template, GHCR publish workflow, Playwright acceptance suite. **224 Node tests green**, format and
+  typecheck green, production build green, `npm audit --omit=dev` 0 vulnerabilities. **No tag and no
+  publish yet**: the first release is still **v0.1.0**, to be tagged on the merged commit after the product
+  owner's review, with the publish workflow verifying the GHCR image before the household Force Updates
+  Unraid. **No browser run has been executed yet** — Playwright cannot install its browser in this sandbox
+  (decision 87); the suite runs in the CI `browser` job and its result must be recorded before the tag.
 
 ## File map (current)
 
 ```
-README.md                     — operating truth (Phase 0+1+2a+2b+3+4a status, local run, gates, sandbox note)
+README.md                     — operating truth (Phase 0–4b merged, Phase 5 built; install, Cloudflare,
+                                backup/restore, Unraid update, recovery checklist, gates, sandbox notes)
 AGENT_APP_BLUEPRINT.md        — engineering/delivery contract (from Estate Organiser lessons; user-provided)
 docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E9
 docs/IMPLEMENTATION_PLAN.md   — this file (now includes the session map)
@@ -484,7 +618,26 @@ src/lib/records/insights.ts   — Phase 4a pure Insights v1 engine (SPEC §16): 
 src/lib/records/insights-view.ts — Phase 4a DB assembly for the four insight views (runs the lazy due pass;
                                 transfers/receipts excluded by construction)
 src/lib/records/entry-view.ts — shared QuickEntryData builder (mobile home + desktop overview, one code path)
-src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
+src/lib/backup/crypto.ts      — AES-256-GCM + scrypt frame (`SFBA` v1), reviewed primitives only
+src/lib/backup/filename.ts    — filename contract (Europe/London, same instant) + Content-Disposition parsing
+                                and the local fallback name (v0.2.21 lesson)
+src/lib/backup/backup.ts      — format 2 backup: snapshot + referenced documents + sha256 manifest, orphan
+                                report, `inspectDocuments` (read-only health, never deletes)
+src/lib/backup/restore.ts     — staged restore (formats 1 and 2): member allowlist, per-file integrity,
+                                referenced-document verification, swap with rollback preserving both copies
+src/lib/backup/live-restore.ts — close handle → restore → reopen (the in-place path the UI calls)
+src/lib/backup/download.ts    — browser download path (client-only): header filename into anchor.download,
+                                tested fallback; `chooseDownloadFilename` is unit-tested
+src/lib/backup/policy.ts      — shared constants: 12-character create password, RESTORE word, 512 MB bound
+src/lib/auth/origin.ts        — same-origin guard for mutating route handlers (blueprint §4.7)
+src/lib/records/attachments.ts — the one attachment pipeline: content sniffing, 10 MB, key pattern, display-name
+                                sanitising, store + audit, read path (used by action, route, backup, restore)
+src/lib/records/supplier-details.ts — reference pairs + interaction log as audited domain operations,
+                                `upcomingSupplierFollowUps` for the contracts page
+src/app/api/restore/route.ts  — live in-place restore endpoint (confirmed, bounded, same-origin, authenticated)
+src/app/api/attachments/[fileKey]/route.ts — authenticated private serving (nosniff, no-store)
+src/components/backup-panel.tsx — Settings backup & restore UI (download + typed-confirmation restore)
+src/components/supplier-forms.tsx — contact card editor, reference form, interaction form
 src/app/                      — layout + site nav (version badge), home page (mobile-first), unauthorized page,
                                 server actions (incl. Phase 4a edit/refund/void/transfer/pot/category/rename/
                                 warning-lead actions), and the Phase 4a pages: /overview, /purchases, /recurring
@@ -502,8 +655,17 @@ src/components/schedule-forms.tsx — Phase 4a: ScheduleEditForm (composite targ
 src/components/settings-forms.tsx — Phase 4a: TargetRenameForm, PotEditForm, CategoryTreeEditor, WarningLeadsForm
 src/components/site-nav.tsx     — app chrome: menu pages + version badge (desktop AND mobile)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
-docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
-Dockerfile                    — multi-stage production image
+scripts/e2e-server.mts        — Playwright webServer: isolated `.e2e-data` seed (fictional) + `next dev`
+e2e/{home,desktop,backup}.spec.ts — browser acceptance specs (mobile till moment, desktop review incl. the
+                                calendar-consistency check, backup download + UI restore)
+playwright.config.ts          — Playwright projects (mobile/desktop/backup) and the webServer wiring
+docker-entrypoint.sh          — .env → dirs → one-time chown → migrations → exec server as PUID:PGID
+Dockerfile                    — multi-stage production image (gosu, unprivileged default 99:100)
+simple-finance.xml            — Unraid container template (appdata, free host port, PUID/PGID, AUTH_*)
+.github/workflows/ci.yml      — gates + browser acceptance + docker smoke (asserts uid 99)
+.github/workflows/publish.yml — tag-triggered GHCR publication with pre-push smoke test and digest check
+docs/assets/simple-finance-icon.{svg,png} — app/template icon (generated placeholder, fictional)
+.env.example                  — placeholders incl. DOCUMENTS_DIR and the container PUID/PGID notes
 .env.example                  — placeholder configuration (real values only in the private install)
 tests/*.test.ts               — 182 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
                                 current-user fail-closed, db slice, backup/restore round-trip (3 migrations), route, migrate
@@ -550,7 +712,18 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
 - **Backup archive growth** with photos: per-file size limits, honest README guidance on download cadence
   and archive size, no implied offsite automation.
 - **Phone camera variability** (capture support, formats, HEIC): manual acceptance on the users' real
-  devices is part of Phase 5 exit; OQ9 fallback documented.
+  devices is part of Phase 5 exit; OQ9 fallback documented. The attach control offers
+  `capture="environment"` and accepts PNG/JPEG/PDF (OQ9 default).
+- **Restore is a two-object swap, not one transaction** (decision 78): the database and the documents
+  directory are renamed in sequence. Between the two renames a crash leaves the new database with the
+  preserved documents directory — the app still starts, and the previous copies remain on disk under
+  `.pre-restore-<stamp>` for a manual fix. Recovery instructions belong in the README (next session may
+  extend them); the alternative (a copy-then-swap of everything) trades a rare, recoverable window for
+  needing twice the disk.
+- **First browser run is still owed**: the Playwright suite is written against real selectors and its
+  server-rendered expectations were checked against a running dev server, but selectors can still drift
+  from rendered behaviour. Until the CI `browser` job is green, no browser evidence exists (blueprint §9:
+  never claim a browser run from markup rendering).
 - **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
   checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item
   (decision 24).
