@@ -19,7 +19,11 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  // The `github` reporter turns each failure into an annotation, so a failed CI
+  // run is diagnosable from the API without downloading job logs.
+  reporter: process.env.CI
+    ? [['list'], ['github'], ['html', { open: 'never' }]]
+    : [['list'], ['html', { open: 'never' }]],
   timeout: 120_000,
   expect: { timeout: 15_000 },
   use: {
