@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build production image
         run: docker build -t simple-finance:ci .
-      - name: Smoke test (start, health, unprivileged, recreate with volume)
+      - name: Smoke test (start, health, unprivileged, volume, bind-mount ownership)
         run: |
           set -eu
           AUTH_ENV="-e AUTH_ISSUER=https://example.cloudflareaccess.com -e AUTH_AUDIENCE=dummy-audience -e AUTH_ALLOWED_EMAILS=alex@example.com,sam@example.com"
@@ -83,3 +83,28 @@ jobs:
           echo "database persisted across container recreation"
           docker rm -f sf-run2
           docker volume rm sf-smoke-data
+
+          # Regression for the v0.1.1 field bug: a BIND MOUNT (Unraid's appdata
+          # folder) whose root is already PUID:PGID while documents/ is still
+          # root-owned. The entrypoint used to gate its recursive chown on the
+          # mount root alone, so documents/ was never repaired and the first
+          # receipt upload died with EACCES. A named volume cannot reproduce
+          # this: it inherits the image's already-correct /data ownership.
+          mkdir -p /tmp/sf-bind/documents
+          sudo chown -R 99:100 /tmp/sf-bind
+          sudo chown -R 0:0 /tmp/sf-bind/documents
+          docker run -d --name sf-run3 -p 3000:3000 -v /tmp/sf-bind:/data $AUTH_ENV simple-finance:ci
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          echo "bind mount with a root-owned documents/: healthy"
+          DOCS_OWNER="$(docker exec sf-run3 stat -c %u:%g /data/documents)"
+          test "$DOCS_OWNER" = "99:100" || { echo "documents/ is $DOCS_OWNER, expected 99:100" >&2; exit 1; }
+          echo "documents/ repaired to 99:100"
+          # ...and the server user can really write a receipt into it.
+          docker exec -u 99:100 sf-run3 sh -c 'touch /data/documents/.ci-write-probe && rm -f /data/documents/.ci-write-probe'
+          echo "documents/ writable by uid 99"
+          docker rm -f sf-run3
+          sudo rm -rf /tmp/sf-bind

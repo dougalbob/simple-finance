@@ -1017,7 +1017,10 @@ export async function voidPurchaseAction(
   if (user === null) return NOT_SIGNED_IN;
   const parsed = voidRecordEntrySchema.safeParse({
     recordId: numberOrNull(formData.get('recordId')),
-    expectedVersion: numberOrNull(formData.get('version')),
+    // `VoidForm` names its hidden field `expectedVersion` (record-forms.tsx) —
+    // reading `version` here silently produced a null and every void failed
+    // with "Invalid input: expected number, received null".
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
     reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
   });
   if (!parsed.success) {
@@ -1100,7 +1103,8 @@ export async function voidTransferAction(
   if (user === null) return NOT_SIGNED_IN;
   const parsed = voidRecordEntrySchema.safeParse({
     recordId: numberOrNull(formData.get('recordId')),
-    expectedVersion: numberOrNull(formData.get('version')),
+    // Same contract as voidPurchaseAction: the field is `expectedVersion`.
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
     reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
   });
   if (!parsed.success) {
