@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { APP_VERSION } from '../src/lib/version';
+
+// The filename contract follows the released version; deriving it here keeps
+// a version bump from silently invalidating this suite (it broke at v0.1.1).
+const VERSION_PATTERN = APP_VERSION.replaceAll('.', '\\.');
 
 /**
  * The real client download path (the blueprint's v0.2.21 lesson): the browser
@@ -28,12 +33,14 @@ test.describe('backup and restore in a browser', () => {
     // The filename contract, carried by the client path rather than inherited
     // from response headers (blob URLs do not inherit them).
     expect(download.suggestedFilename()).toMatch(
-      /^simple-finance-backup-v0\.1\.0-\d{4}-\d{2}-\d{2}-\d{6}\.simple-finance-backup$/,
+      new RegExp(
+        `^simple-finance-backup-v${VERSION_PATTERN}-\\d{4}-\\d{2}-\\d{2}-\\d{6}\\.simple-finance-backup$`,
+      ),
     );
 
     // The UI says what was saved and repeats that the passphrase is not kept.
     await expect(downloadSection(page).getByRole('status')).toContainText(
-      /Saved simple-finance-backup-v0\.1\.0/,
+      new RegExp(`Saved simple-finance-backup-v${VERSION_PATTERN}`),
     );
 
     // The bytes are a real, encrypted archive — not a plaintext SQLite file.

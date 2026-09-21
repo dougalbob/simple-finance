@@ -30,6 +30,19 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   /**
+   * Receipt uploads travel through a server action (`uploadAttachmentAction`),
+   * and Next's default 1 MB action body limit rejected real camera photos with
+   * an opaque 500 before the attachment pipeline's own 10 MB rule
+   * (MAX_ATTACHMENT_BYTES, plan OQ12) could answer politely. 12 MB = the app's
+   * 10 MB attachment limit plus multipart framing and the rest of the form,
+   * so the pipeline's clear "too big" message is the one the household sees.
+   */
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '12mb',
+    },
+  },
+  /**
    * Development-only: the browser acceptance run and the operator's hosted
    * preview load the dev server through a proxy host, not localhost. This list
    * is ignored by `next build`/`next start`; production behind Cloudflare

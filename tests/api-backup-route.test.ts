@@ -6,6 +6,7 @@ import { restoreEncryptedBackup } from '../src/lib/backup/restore';
 import { closeDbHandle, getDbHandle } from '../src/lib/db/client';
 import { loadAppConfig } from '../src/lib/config';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
+import { APP_VERSION } from '../src/lib/version';
 import { makeTempDir } from './helpers';
 
 /**
@@ -78,7 +79,14 @@ describe('POST /api/backup (route handler)', () => {
     assert.equal(response.headers.get('cache-control'), 'no-store');
 
     const disposition = response.headers.get('content-disposition') ?? '';
-    assert.match(disposition, /^attachment; filename="simple-finance-backup-v0\.1\.0-/);
+    // Tied to the version module, not a literal — a version bump must not
+    // break the filename-contract assertion (it broke once at v0.1.1).
+    assert.match(
+      disposition,
+      new RegExp(
+        `^attachment; filename="simple-finance-backup-v${APP_VERSION.replaceAll('.', '\\.')}-`,
+      ),
+    );
     const filename = /filename="([^"]+)"/.exec(disposition)?.[1];
     assert.ok(filename !== undefined);
 
