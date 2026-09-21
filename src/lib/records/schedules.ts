@@ -257,7 +257,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
     return row;
   });
 
-  syncScheduleInstances(db, updated, now);
+  syncScheduleInstances(db, updated, now, { regenerateFromToday: true }); // a cadence change moves the NEXT instance (SPEC §11.1), no backfill
   return updated;
 }
 
@@ -428,7 +428,21 @@ export function nextDueDateAfter(schedule: Schedule, afterDate: string): string 
  *
  * Returns the number of rows inserted.
  */
-export function syncScheduleInstances(db: Db, schedule: Schedule, nowArg?: Date): number {
+/**
+ * @param options.regenerateFromToday When true (schedule EDITS), the
+ *   upcoming set is regenerated from the schedule's CURRENT cadence
+ *   starting today — so a changed due day moves the next instance
+ *   (SPEC §11.1 "applies from the next instance onward") and no past
+ *   dates are backfilled under the new cadence. Creation and the daily
+ *   pass keep history-based materialization (an activeFrom in the past
+ *   still yields its real, already-occurred instances).
+ */
+export function syncScheduleInstances(
+  db: Db,
+  schedule: Schedule,
+  nowArg?: Date,
+  options: { regenerateFromToday?: boolean } = {},
+): number {
   const now = nowArg ?? new Date();
   const today = toLocalDateString(now);
   const upper = scheduleUpperBound(schedule, today);
@@ -461,6 +475,49 @@ export function syncScheduleInstances(db: Db, schedule: Schedule, nowArg?: Date)
     .all()
     .map((row) => row.dueDate)
     .sort();
+
+  if (options.regenerateFromToday === true) {
+    // A cadence change must reach the next instance: generate the whole
+    // remaining window from the CURRENT fields. Dates strictly before
+    // today are never materialised on an edit — the old cadence already
+    // ran (or never ran) there, and backfilling would invent history.
+    const startForNew = today > lower ? today : lower;
+    const desired =
+      upper === null || startForNew > upper ? [] : dueDatesBetween(schedule, startForNew, upper);
+    const existingSet = new Set(existing);
+    const desiredSet = new Set(desired);
+    const toInsert = desired.filter((date) => !existingSet.has(date));
+    const toDelete = existing.filter((date) => !desiredSet.has(date));
+    if (toInsert.length === 0 && toDelete.length === 0) return 0;
+    return db.transaction((tx) => {
+      if (toDelete.length > 0) {
+        tx.delete(scheduleInstances)
+          .where(
+            and(
+              eq(scheduleInstances.scheduleId, schedule.id),
+              inArray(scheduleInstances.dueDate, toDelete),
+            ),
+          )
+          .run();
+      }
+      for (const dueDate of toInsert) {
+        tx.insert(scheduleInstances)
+          .values({ scheduleId: schedule.id, dueDate })
+          .onConflictDoNothing()
+          .run();
+      }
+      recordAudit(tx, {
+        actor: SCHEDULE_ACTOR,
+        action: 'schedule.sync',
+        entity: 'schedule',
+        entityId: schedule.id,
+        summary: `Resynced instances for “${schedule.name}” after edit: +${toInsert.length} upcoming, −${toDelete.length}`,
+        after: { toInsert, toDelete },
+        now,
+      });
+      return toInsert.length;
+    });
+  }
 
   // The desired set = what already exists inside the window plus new due
   // dates AFTER the last existing instance. Generating only the tail keeps

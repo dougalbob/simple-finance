@@ -1,0 +1,408 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { currentUserFromRequest } from '@/lib/auth/next';
+import { getDbHandle } from '@/lib/db/client';
+import { formatPence } from '@/lib/money';
+import {
+  getHonestyLoopView,
+  getMonthComparisonView,
+  getPersonalMonthView,
+  getVehicleCostsView,
+} from '@/lib/records/insights-view';
+import { addDaysLocal } from '@/lib/records/dates';
+import { toLocalDateString } from '@/lib/time';
+
+export const dynamic = 'force-dynamic';
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+interface MonthRef {
+  year: number;
+  month: number; // 1–12
+}
+
+const monthParam = (ref: MonthRef) => `${ref.year}-${String(ref.month).padStart(2, '0')}`;
+const monthTitle = (ref: MonthRef) => `${MONTH_NAMES[ref.month - 1]} ${ref.year}`;
+
+function parseMonthParam(raw: string | undefined, fallback: MonthRef): MonthRef {
+  if (raw === undefined) return fallback;
+  const match = /^(\d{4})-(\d{2})$/.exec(raw);
+  if (match === null) return fallback;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12 || year < 2000 || year > 2100) return fallback;
+  return { year, month };
+}
+
+function shiftMonth(ref: MonthRef, delta: number): MonthRef {
+  const index = ref.year * 12 + (ref.month - 1) + delta;
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+}
+
+/**
+ * Insights v1 (SPEC §16): the four panels. Every figure comes from the pure
+ * insights engine via the DB assembly layer — the UI only formats and lays
+ * out, so the numbers here reconcile with the tested engines by construction.
+ */
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const user = await currentUserFromRequest();
+  if (user === null) redirect('/unauthorized');
+
+  const { db } = getDbHandle();
+  const now = new Date();
+  const today = toLocalDateString(now);
+  const params = await searchParams;
+
+  const thisMonth = { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) };
+  const comparison = getMonthComparisonView(db, now);
+  const personal = getPersonalMonthView(db, parseMonthParam(params.month, thisMonth), now);
+  const vehicles = getVehicleCostsView(db, now);
+  const loop = getHonestyLoopView(db, now);
+
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
+      <header className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Insights</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+          Where the money actually went
+        </h1>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+          Recorded spending only — transfers never appear here (they move money between your own
+          pots), and income is not spending. Figures reconcile with the purchase history exactly.
+        </p>
+      </header>
+
+      <div className="space-y-6">
+        <section
+          aria-labelledby="panel-month-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="panel-month-heading" className="text-xl font-semibold">
+              {comparison.current.label}
+              {comparison.currentInProgress ? ' (in progress)' : ''} vs {comparison.previous.label}
+            </h2>
+            <span className="text-xs text-slate-500">
+              {comparison.previous.summary.from} → {comparison.current.summary.to}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">{comparison.current.label}</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {formatPence(comparison.current.summary.totalPence)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">{comparison.previous.label} (complete)</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {formatPence(comparison.previous.summary.totalPence)}
+              </p>
+            </div>
+          </div>
+          {comparison.byParent.length > 0 ? (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="py-1.5 pr-4">Category</th>
+                    <th className="py-1.5 pr-4 text-right">{comparison.current.label}</th>
+                    <th className="py-1.5 pr-4 text-right">{comparison.previous.label}</th>
+                    <th className="py-1.5 text-right">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparison.byParent.map((row) => (
+                    <tr key={row.parent} className="border-t border-slate-100">
+                      <td className="py-1.5 pr-4 font-medium">{row.parent}</td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums">
+                        {formatPence(row.currentPence)}
+                      </td>
+                      <td className="py-1.5 pr-4 text-right tabular-nums">
+                        {formatPence(row.previousPence)}
+                      </td>
+                      <td
+                        className={`py-1.5 text-right font-medium tabular-nums ${
+                          row.deltaPence > 0
+                            ? 'text-red-700'
+                            : row.deltaPence < 0
+                              ? 'text-emerald-700'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        {row.deltaPence === 0
+                          ? '±0'
+                          : `${row.deltaPence > 0 ? '+' : '−'}${formatPence(Math.abs(row.deltaPence))}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">No spending recorded in either month yet.</p>
+          )}
+        </section>
+
+        <section
+          aria-labelledby="panel-persons-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="panel-persons-heading" className="text-xl font-semibold">
+              By person — {personal.label}
+            </h2>
+            <div className="flex items-center gap-1">
+              <Link
+                href={`/insights?month=${monthParam(shiftMonth(personal.month, -1))}`}
+                className="rounded border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                ← Prev
+              </Link>
+              <Link
+                href={`/insights?month=${monthParam(shiftMonth(personal.month, 1))}`}
+                className="rounded border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Next →
+              </Link>
+            </div>
+          </div>
+          <p className="mb-3 text-xs text-slate-500">
+            Only lines explicitly marked “for {personal.people.length > 1 ? 'a person' : 'someone'}”
+            are attributed. Household spending is never attributed to whoever happened to pay.
+          </p>
+          {personal.people.length === 0 ? (
+            <p className="text-sm text-slate-500">No people in the household yet.</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {personal.people.map((person) => (
+                <div key={person.personId} className="rounded-lg bg-slate-50 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="font-semibold">{person.person}</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {formatPence(person.totalPence)}
+                    </p>
+                  </div>
+                  {person.byParent.length === 0 ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Nothing marked for {person.person} this month.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {person.byParent.map((row) => (
+                        <li key={row.parent} className="flex items-baseline justify-between gap-2">
+                          <span className="text-slate-600">
+                            {row.parent}
+                            {row.children.length > 0
+                              ? ` (${row.children.map((child) => child.child).join(', ')})`
+                              : ''}
+                          </span>
+                          <span className="tabular-nums">{formatPence(row.amountPence)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          aria-labelledby="panel-vehicles-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 id="panel-vehicles-heading" className="text-xl font-semibold">
+              Vehicle running costs
+            </h2>
+            <span className="text-xs text-slate-500">
+              fuel, insurance, maintenance, road tax, parking
+            </span>
+          </div>
+          {vehicles.length === 0 ? (
+            <p className="text-sm text-slate-500">No vehicles in the household yet.</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {vehicles.map((vehicle) => (
+                <div key={vehicle.vehicleId} className="rounded-lg bg-slate-50 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="font-semibold">{vehicle.label}</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {formatPence(vehicle.rolling12Pence)}
+                      <span className="ml-1 text-xs font-normal text-slate-500">
+                        last 12 months
+                      </span>
+                    </p>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    this month {formatPence(vehicle.monthPence)} (in progress) · previous month{' '}
+                    {formatPence(vehicle.previousMonthPence)} · window since {vehicle.rolling12From}
+                  </p>
+                  {vehicle.byChild.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {vehicle.byChild.map((row) => (
+                        <li
+                          key={`${row.parent}-${row.child}`}
+                          className="flex items-baseline justify-between gap-2"
+                        >
+                          <span className="text-slate-600">{row.child}</span>
+                          <span className="tabular-nums">{formatPence(row.amountPence)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          aria-labelledby="panel-honesty-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 id="panel-honesty-heading" className="text-xl font-semibold">
+              Are your configured figures honest?
+            </h2>
+            <Link href="/settings" className="text-sm font-medium text-sky-700 hover:underline">
+              Adjust in Settings →
+            </Link>
+          </div>
+          <p className="mb-4 text-xs text-slate-500">
+            Complete weeks and months only — the in-progress period never skews the average. If the
+            configured figure is far from what actually happens, the projection will be too.
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 p-3">
+              <h3 className="text-sm font-semibold">Groceries — {loop.groceries.parent}</h3>
+              <p className="text-xs text-slate-500">
+                last {loop.groceries.weeks.length} complete weeks (Mon–Sun)
+              </p>
+              <HonestyComparison
+                configuredLabel="weekly"
+                configuredPence={loop.groceries.configuredPence}
+                averagePence={loop.groceries.averageWeeklyPence}
+                driftPence={loop.groceries.driftPence}
+              />
+              <ul className="mt-3 space-y-1">
+                {loop.groceries.weeks.map((week) => (
+                  <li
+                    key={week.weekStart}
+                    className="flex items-baseline justify-between gap-2 text-xs"
+                  >
+                    <span className="text-slate-600">week of {week.weekStart}</span>
+                    <span className="tabular-nums">{formatPence(week.actualPence)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-3">
+              <h3 className="text-sm font-semibold">Fuel</h3>
+              <p className="text-xs text-slate-500">
+                last {loop.fuel[0]?.months.length ?? 3} complete months, per vehicle
+              </p>
+              <div className="mt-3 space-y-4">
+                {loop.fuel.map((vehicle) => (
+                  <div key={vehicle.vehicleId}>
+                    <p className="text-sm font-medium">{vehicle.label}</p>
+                    <HonestyComparison
+                      configuredLabel="monthly"
+                      configuredPence={vehicle.configuredPence}
+                      averagePence={vehicle.averageMonthlyPence}
+                      driftPence={vehicle.driftPence}
+                    />
+                    <ul className="mt-2 space-y-1">
+                      {vehicle.months.map((month) => (
+                        <li
+                          key={month.month}
+                          className="flex items-baseline justify-between gap-2 text-xs"
+                        >
+                          <span className="text-slate-600">{month.month}</span>
+                          <span className="tabular-nums">{formatPence(month.actualPence)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {loop.fuel.length === 0 ? (
+                  <p className="text-sm text-slate-500">No vehicles to compare yet.</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function HonestyComparison({
+  configuredLabel,
+  configuredPence,
+  averagePence,
+  driftPence,
+}: {
+  configuredLabel: string;
+  configuredPence: number | null;
+  averagePence: number;
+  driftPence: number | null;
+}) {
+  return (
+    <div className="mt-2">
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded bg-white px-3 py-2 ring-1 ring-slate-200">
+          <p className="text-xs text-slate-500">Configured {configuredLabel}</p>
+          <p className="font-semibold tabular-nums">
+            {configuredPence === null ? 'not set' : formatPence(configuredPence)}
+          </p>
+        </div>
+        <div className="rounded bg-white px-3 py-2 ring-1 ring-slate-200">
+          <p className="text-xs text-slate-500">Actual average {configuredLabel}</p>
+          <p className="font-semibold tabular-nums">{formatPence(averagePence)}</p>
+        </div>
+      </div>
+      {driftPence === null ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Set the configured figure in Settings to see the drift.
+        </p>
+      ) : (
+        <p
+          className={`mt-2 rounded px-3 py-2 text-sm font-medium ${
+            driftPence > 0
+              ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200'
+              : 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200'
+          }`}
+        >
+          {driftPence === 0
+            ? 'Your configured figure matches recent actuals exactly.'
+            : driftPence > 0
+              ? `You are spending about ${formatPence(driftPence)} more per ${configuredLabel} than the ${formatPence(
+                  configuredPence ?? 0,
+                )} you configured. Consider raising the figure — or cutting back.`
+              : `You are spending about ${formatPence(Math.abs(driftPence))} less per ${configuredLabel} than the ${formatPence(
+                  configuredPence ?? 0,
+                )} you configured. The projection is being pessimistic.`}
+        </p>
+      )}
+    </div>
+  );
+}

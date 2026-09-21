@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lte, ne } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
 import {
@@ -549,16 +549,21 @@ export interface PurchaseFilters {
   dateFrom?: string;
   dateTo?: string;
   includeVoided?: boolean;
+  /** Tag filters (SPEC §15.2 Purchases page): converted schedule records, refunds, voided history. */
+  scheduleOnly?: boolean;
+  refundsOnly?: boolean;
+  voidedOnly?: boolean;
   /** Default 200, capped at 1000 — household scale, no keyset games. */
   limit?: number;
 }
 
 /**
- * Purchase history with the review-table filters (SPEC §15.2 Purchases page
- * lands in Phase 4; the query shape is fixed here so the UI cannot drift).
- * Voided records are excluded unless explicitly requested. Line-level
- * filters (category/target) match purchases; a matched purchase returns with
- * all of its lines, receipt-style.
+ * Purchase history with the review-table filters (SPEC §15.2 Purchases
+ * page, Phase 4a): date range, pot, supplier, category, target, paid-by
+ * person and the "from schedule" / refund / voided tags. Voided records are
+ * excluded unless explicitly requested (or the voided tag is active).
+ * Line-level filters (category/target) match purchases; a matched purchase
+ * returns with all of its lines, receipt-style.
  */
 export function listPurchases(db: Db | DbTx, filters: PurchaseFilters = {}): PurchaseWithLines[] {
   if (filters.dateFrom !== undefined && !isValidLocalDate(filters.dateFrom)) {
@@ -606,13 +611,21 @@ export function listPurchases(db: Db | DbTx, filters: PurchaseFilters = {}): Pur
   if (filters.paidByPersonId !== undefined) {
     conditions.push(eq(purchases.paidByPersonId, filters.paidByPersonId));
   }
+  if (filters.scheduleOnly === true) {
+    conditions.push(isNotNull(purchases.scheduleInstanceId));
+  }
+  if (filters.refundsOnly === true) {
+    conditions.push(isNotNull(purchases.refundOfPurchaseId));
+  }
   if (filters.dateFrom !== undefined) {
     conditions.push(gte(purchases.occurredDate, filters.dateFrom));
   }
   if (filters.dateTo !== undefined) {
     conditions.push(lte(purchases.occurredDate, filters.dateTo));
   }
-  if (filters.includeVoided !== true) {
+  if (filters.voidedOnly === true) {
+    conditions.push(isNotNull(purchases.voidedAt));
+  } else if (filters.includeVoided !== true) {
     conditions.push(isNull(purchases.voidedAt));
   }
   const limit = Math.min(Math.max(filters.limit ?? 200, 1), 1000);
