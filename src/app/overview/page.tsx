@@ -183,7 +183,7 @@ export default async function OverviewPage() {
                       </span>
                     </div>
                     {purchase.voidedAt === null ? (
-                      <p className="mt-1.5">
+                      <div className="mt-1.5">
                         <details className="inline-block">
                           <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
                             Edit / void / refund
@@ -212,7 +212,7 @@ export default async function OverviewPage() {
                             />
                           </div>
                         </details>
-                      </p>
+                      </div>
                     ) : null}
                   </li>
                 ))}
