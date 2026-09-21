@@ -11,6 +11,8 @@ const NAV_ITEMS = [
   { href: '/pots', label: 'Accounts & Pots' },
   { href: '/insights', label: 'Insights' },
   { href: '/settings', label: 'Settings' },
+  { href: '/suppliers', label: 'Suppliers' },
+  { href: '/contracts', label: 'Contracts & Renewals' },
 ];
 
 /**
