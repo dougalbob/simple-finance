@@ -18,12 +18,16 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 | 2 | Phase 2a — core money records: schema + pure domain modules, E1/E2/E4/E6/E7 | Complete (PR #3) |
 | 3 | Phase 2b — mobile entry flows (Add Purchase / Add Fuel / Update Balance) + Playwright | Complete (build; browser tooling unavailable in this sandbox) |
 | 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Complete (build on session branch; docs in same PR) |
-| 5 | Phase 4a — desktop pages + Insights v1 (first part) | Planned |
+| 5 | Phase 4a — desktop pages + Insights v1 (first part) | Complete (build on session branch; docs in same PR) |
 | 6 | Phase 4b — desktop pages + attachments (remainder) | Planned |
 | 7 | Phase 5 — hardening & first release (v0.1.0) | Planned |
 
-> The Phase 4a/4b boundary above is the working split; confirm the exact page allocation with the product
-> owner when Session 5 starts rather than re-opening the seven-session shape.
+> Phase 4a/4b boundary as delivered in Session 5: **4a** = Overview (dense dashboard), Purchases
+> (filters + inline edit/refund/void), Recurring Payments (read-only month calendar + schedule/renewal
+> edits), Accounts & Pots (edits + checkpoint history), Insights panels 1–4 (incl. the projection
+> honesty loop), Settings (names, pots, category tree editor, projection figures, warning leads),
+> version display in the nav. **4b** = Suppliers page, Contracts & Renewals page + its Overview panel,
+> receipt/invoice attachments (SPEC §23), scenario E9.
 
 ## Project profile (blueprint §2)
 
@@ -139,6 +143,9 @@ panels 1–4), Settings (category tree editor, projection figures, thresholds, l
 Version display.
 *Exit: desktop and mobile primary paths checked; calendar consistent with lists after schedule edits;
 insights figures reconcile with the pure engines in tests.*
+Session 5 delivered the first half (decisions 63–75); the calendar-consistency exit criterion is pinned by
+`tests/recurring-calendar.test.ts` and the insights-reconciliation criterion by
+`tests/insights-view.test.ts`.
 
 **Phase 5 — Hardening & first release (v0.1.0).** Full backup/restore per blueprint §6 and SPEC §18
 (encryption, filename contract incl. blob-download filename lesson, EXDEV staging, failure recovery,
@@ -337,11 +344,74 @@ covering attachments).*
    29 Feb → 28 Feb in non-leap years (OQ13). Key-date windows are inclusive: an alert shows from exactly
    `leadDays` days before (E9's 21st-day boundary, tested).
 62. **Phase 3 UI scope:** compact home panels — money estimate (household + per-pot, honest
-   "not a bank balance" labels + last-checkpoint times), projection breakdown with tier banner, pot-watch
-   nudges and a collapsible day-by-day table, due-this-week, key dates, and entry forms for
-   schedules/renewals/projection figures (new server actions + Zod schemas following the Phase 2b
-   conventions). The dense desktop pages (month calendar, Insights, Settings) remain Phase 4 per the
-   session map — the mobile surface is the primary Phase 3 deliverable.
+    "not a bank balance" labels + last-checkpoint times), projection breakdown with tier banner, pot-watch
+    nudges and a collapsible day-by-day table, due-this-week, key dates, and entry forms for
+    schedules/renewals/projection figures (new server actions + Zod schemas following the Phase 2b
+    conventions). The dense desktop pages (month calendar, Insights, Settings) remain Phase 4 per the
+    session map — the mobile surface is the primary Phase 3 deliverable.
+63. **Insights engine split (Session 5):** pure engine `src/lib/records/insights.ts` consumes flat typed
+    rows (`SpendingLineInput`: occurredDate, categoryId, parent/child names, target kind/id, signed
+    pence) — same shape the estimate engine uses, framework-free, integer pence only. DB assembly
+    `src/lib/records/insights-view.ts` runs the lazy due pass first (converted schedule purchases are
+    ordinary spending and belong in the month), then joins allocations ⋈ purchases (non-void) ⋈
+    categories. **Transfers never reach the engine** (SPEC §10 — they move money between your own pots)
+    and receipts never do (income is not spending); the join over `allocations` enforces both by
+    construction. No arithmetic lives in the view layer, so the UI and the tests share one code path.
+64. **Panel 1 months:** full calendar months; the current month carries an "in progress" flag while
+    `today < last day of month` (DST-safe local dates). The Overview's "month so far" bars use a separate
+    month-to-date summary (first of month → today) from the same view.
+65. **Panel 2 attribution:** only lines with an explicit `person` target are attributed; **household
+    allocations are never attributed to whoever happened to pay**; zero-activity people are still listed.
+66. **Panel 3 window:** vehicle rolling 12 = first day of (current month − 11) → today, per vehicle,
+    by child category (fuel/insurance/maintenance/road tax/parking); zero-activity vehicles listed.
+67. **Panel 4 honesty loop (complete periods only):** groceries = last 8 complete Monday–Sunday weeks;
+    fuel per vehicle = last 3 complete calendar months. Averages via `roundHalfUpDivide` (integer, once at
+    period level); `drift = average − configured`, `null` when the figure is unconfigured. The partial
+    current week/month never enters the average, so a 3-day week never mixes with a 7-day one (tested
+    across the UK spring-forward, 2026-03-29).
+68. **Pot edits (Settings):** `editPot` accepts label/kind/overdraft limit/warning threshold with the
+    version guard + `pot.edit` audit; label collapses whitespace (≤60 chars); blank limit/threshold
+    clears; **a threshold requires a limit and must sit at or below it** (`InvalidPotInputError`).
+69. **Purchase filters (Purchases page):** `PurchaseFilters` gains `scheduleOnly` / `refundsOnly` /
+    `voidedOnly` (isNotNull on `scheduleInstanceId` / `refundOfPurchaseId` / `voidedAt`); `voidedOnly`
+    overrides the default voided exclusion. Line-level category/target filters match the purchase and
+    return all its lines receipt-style.
+70. **Recurring calendar is server-rendered from the instance list:** the month grid (Mon-first, 42
+    cells, `?month=YYYY-MM`) renders exactly `listInstances(db, {from, through})` for the month window —
+    one query, one row per cell — so the calendar and the lists below it are consistent **by
+    construction**, not by synchronisation. Day details in `<details>`; each instance links to its
+    schedule's edit form (`#schedule-edit-<id>`). The page states the read-only boundary in plain
+    language: **app date changes never move bank instructions** — direct debits/standing orders are
+    agreed with the bank; the app only changes which records it will make.
+71. **Edit/refund/void forms:** `PurchaseEditForm` = full line replacement (line editor + hidden
+    `linesJson` carrying integer pence; blank date/note = unchanged). `RefundForm` prefills the
+    original's lines as **positive magnitudes**; `addRefundAction` flips the signs
+    (`-total`, `-abs(line)`) before `createRefund` (decision 37's negative-purchase refund). A generic
+    `VoidForm(recordId, expectedVersion, reason)` serves purchase and transfer rows with the same
+    reason rules; voids never delete (decision 6).
+72. **Revalidation + dynamism:** every new action revalidates `['/', '/overview', '/purchases',
+    '/recurring', '/pots', '/insights', '/settings']`; all six new pages export
+    `dynamic = 'force-dynamic'` (single-user household app — no caching of money figures).
+73. **Settings sections:** household renames (person/vehicle, `renameTargetAction`), per-pot edit
+    (68), the **category tree editor** (`categoryEntrySchema` ops add-parent/add-child/rename/retire,
+    one shared `saveCategoryAction`; parents can't be retired while history points at them — retire
+    children instead), `ProjectionSettingsForm` (slim props `{weeklyGroceriesPence, monthlyFuelPence}`,
+    reused by home + recurring + settings), warning leads (`warningLeadsEntrySchema`, 0–365 days each),
+    and the payday pointer (projection view's income schedule + link into Recurring).
+74. **Overview density (SPEC §15.2):** money row + tier banner, projection panel with the
+    "what's in this forecast" day-by-day `<details>` (shared component with the home page), due this
+    week, key dates, month-to-date by-parent bars with last-month comparison, vehicle rolling-12, and
+    the review list with inline edit/refund/void. Quick entry is embedded via the shared
+    `buildEntryData(db, now)` (`src/lib/records/entry-view.ts`) — the mobile home and the desktop
+    overview use one code path; the home page's inline builder was removed.
+75. **Due-day edits move the next instance (Phase 3 bug fixed in Session 5):** the old
+    `syncScheduleInstances` kept already-materialised upcoming instances, so changing a due day never
+    reached any materialised instance — contradicting SPEC §11.1 "applies from the next instance
+    onward". `editSchedule` now passes `{ regenerateFromToday: true }`: the upcoming set is regenerated
+    from the schedule's **current** cadence starting today (no backfill of past dates under the new
+    cadence — that would invent history). Creation and the daily pass keep history-based
+    materialisation (an `activeFrom` in the past still yields its real, already-occurred instances).
+    Regression: `tests/recurring-calendar.test.ts`.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
@@ -377,7 +447,7 @@ covering attachments).*
 ## File map (current)
 
 ```
-README.md                     — operating truth (Phase 0+1+2a+2b+3 status, local run, gates, sandbox note)
+README.md                     — operating truth (Phase 0+1+2a+2b+3+4a status, local run, gates, sandbox note)
 AGENT_APP_BLUEPRINT.md        — engineering/delivery contract (from Estate Organiser lessons; user-provided)
 docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E9
 docs/IMPLEMENTATION_PLAN.md   — this file (now includes the session map)
@@ -406,22 +476,36 @@ src/lib/records/keydates.ts   — Phase 3 pure key-date engine (SPEC §22): incl
 src/lib/records/{schedules,receipts,renewals,settings,money-view}.ts — Phase 3 domain + read-side assembly: schedule
                                 lifecycle (sync/convert/self-heal), income records, renewal auto-advance, typed settings,
                                 and the DB-backed money/projection/key-date views that run the lazy due pass first
-src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads and Phase 3
-                                schedule/cancel/renewal/settings payloads
+src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads, Phase 3
+                                schedule/cancel/renewal/settings payloads and Phase 4a edit/refund/void/transfer/
+                                pot/category/rename/warning-lead payloads
+src/lib/records/insights.ts   — Phase 4a pure Insights v1 engine (SPEC §16): month comparison, per-person
+                                attribution, vehicle rolling-12, honesty loop (complete periods only)
+src/lib/records/insights-view.ts — Phase 4a DB assembly for the four insight views (runs the lazy due pass;
+                                transfers/receipts excluded by construction)
+src/lib/records/entry-view.ts — shared QuickEntryData builder (mobile home + desktop overview, one code path)
 src/lib/backup/{crypto,filename,backup,restore}.ts — encryption framing, filename contract, backup, isolated restore
-src/app/                      — layout, home page (money/projection/due/key-date panels + quick entry + review),
-                                unauthorized page, server actions (incl. Phase 3 schedule/renewal/settings actions)
+src/app/                      — layout + site nav (version badge), home page (mobile-first), unauthorized page,
+                                server actions (incl. Phase 4a edit/refund/void/transfer/pot/category/rename/
+                                warning-lead actions), and the Phase 4a pages: /overview, /purchases, /recurring
+                                (month calendar), /pots, /insights, /settings — all force-dynamic
 src/app/api/health/route.ts   — public health endpoint (no diagnostics)
 src/app/api/backup/route.ts   — authenticated encrypted backup download (POST)
 src/components/pot-forms.tsx  — client forms (Add pot / checkpoint)
 src/components/quick-entry.tsx — mobile Add Purchase / Add Fuel / Update Balance, split helper, chips, duplicate notice
 src/components/household-setup.tsx — authenticated initial people/vehicle labels (household data is never seeded)
 src/components/recurring.tsx  — Phase 3 client forms: Add/Cancel schedule, Add renewal, projection figures
+                                (slim props, decision 73)
+src/components/record-forms.tsx — Phase 4a: line editor, PurchaseEditForm, RefundForm, generic VoidForm,
+                                TransferForm, RecentEntryActions (edit/refund/void switcher)
+src/components/schedule-forms.tsx — Phase 4a: ScheduleEditForm (composite target picker), RenewalEditForm
+src/components/settings-forms.tsx — Phase 4a: TargetRenameForm, PotEditForm, CategoryTreeEditor, WarningLeadsForm
+src/components/site-nav.tsx     — app chrome: menu pages + version badge (desktop AND mobile)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
 docker-entrypoint.sh          — dirs → trusted .env → migrations → exec next start
 Dockerfile                    — multi-stage production image
 .env.example                  — placeholder configuration (real values only in the private install)
-tests/*.test.ts               — 154 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
+tests/*.test.ts               — 182 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
                                 current-user fail-closed, db slice, backup/restore round-trip (3 migrations), route, migrate
                                 script, version, splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
                                 purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void)
@@ -434,6 +518,17 @@ tests/renewals.test.ts        — Phase 3 E9: inclusive 21-day window, annual au
 tests/money-view.test.ts      — Phase 3 E8 end-to-end over the DB: estimates, payday selection, penny-exact projection,
                                 due-this-week, settings round-trip
 tests/entry-validation.test.ts — Phase 2b Zod boundary tests for split/purchase, fuel and checkpoint payloads
+tests/insights.test.ts        — Phase 4a pure-engine tests: month boundaries (DST spring-forward), per-person
+                                attribution (household never attributed), vehicle rolling-12 window, honesty-loop
+                                complete weeks/months + half-up rounding
+tests/insights-view.test.ts   — Phase 4a exit criterion: every insight figure reconciles with an independent
+                                sum over listPurchases + categories; transfers asserted to have no effect;
+                                converted schedule purchases counted exactly once
+tests/recurring-calendar.test.ts — Phase 4a exit criterion: calendar/instance consistency after schedule
+                                edits + cancellations (incl. due-day edit moving the next instance), month-end
+                                clamping, grid construction
+tests/settings-domain.test.ts — Phase 4a: pot edit rules (overdraft context, version guard), category tree
+                                operations (retire/assign-block), target renames, warning leads
 tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a+ tests
 .github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```

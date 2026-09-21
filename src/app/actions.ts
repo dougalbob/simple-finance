@@ -16,42 +16,94 @@ import {
 import {
   addCheckpoint,
   createPot,
+  editPot,
   InvalidCheckpointInputError,
+  InvalidPotInputError,
   PotNotFoundError,
 } from '@/lib/records/pots';
-import { createPerson, listPeople } from '@/lib/records/people';
-import { createPurchase } from '@/lib/records/purchases';
-import { voidPurchase } from '@/lib/records/purchases';
-import { findChildCategory } from '@/lib/records/categories';
-import { createVehicle } from '@/lib/records/vehicles';
+import {
+  createPerson,
+  DuplicatePersonLabelError,
+  InvalidPersonLabelError,
+  listPeople,
+  renamePerson,
+} from '@/lib/records/people';
+import {
+  createPurchase,
+  createRefund,
+  editPurchase,
+  InvalidPurchaseInputError,
+  PurchaseNotFoundError,
+  RefundLinkError,
+  voidPurchase,
+  VoidBlockedError,
+} from '@/lib/records/purchases';
+import {
+  CategoryAlreadyRetiredError,
+  CategoryLevelError,
+  CategoryNotFoundError,
+  createChildCategory,
+  createParentCategory,
+  DuplicateCategoryNameError,
+  InvalidCategoryNameError,
+  renameCategory,
+  retireCategory,
+  findChildCategory,
+} from '@/lib/records/categories';
+import {
+  createVehicle,
+  DuplicateVehicleLabelError,
+  InvalidVehicleLabelError,
+  renameVehicle,
+} from '@/lib/records/vehicles';
+import {
+  createTransfer,
+  InvalidTransferInputError,
+  TransferNotFoundError,
+  voidTransfer,
+} from '@/lib/records/transfers';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from '@/lib/records/errors';
 import {
   cancelScheduleEntrySchema,
+  categoryEntrySchema,
   checkpointEntrySchema,
+  editPotEntrySchema,
+  editPurchaseEntrySchema,
+  editRenewalEntrySchema,
+  editScheduleEntrySchema,
   fuelEntrySchema,
   potIdSchema,
   potKindSchema,
   potLabelSchema,
   projectionSettingsEntrySchema,
   purchaseEntrySchema,
+  refundEntrySchema,
+  renameTargetEntrySchema,
   renewalEntrySchema,
   scheduleEntrySchema,
+  transferEntrySchema,
+  voidRecordEntrySchema,
+  warningLeadsEntrySchema,
 } from '@/lib/validation';
 import {
   cancelSchedule,
   createSchedule,
+  editSchedule,
   ScheduleCancelledError,
   ScheduleNotFoundError,
   InvalidScheduleInputError,
 } from '@/lib/records/schedules';
 import {
   createRenewal,
+  editRenewal,
   InvalidRenewalInputError,
   RenewalNotFoundError,
 } from '@/lib/records/renewals';
 import {
   InvalidSettingValueError,
+  setContractEndWarningLeadDays,
   setMonthlyFuelPence,
+  setRenewalWarningLeadDays,
   setWeeklyGroceriesPence,
 } from '@/lib/records/settings';
 
@@ -615,4 +667,598 @@ function parseCompositeTarget(raw: FormDataEntryValue | null): {
   const dash = value.indexOf('-');
   if (dash === -1) return { targetKind: 'household', targetId: null };
   return { targetKind: value.slice(0, dash), targetId: Number(value.slice(dash + 1)) || null };
+}
+
+/**
+ * Phase 4a server actions (desktop review pages, docs/SPEC.md §15.2):
+ * purchase edit/void/refund, schedule/renewal corrections, transfers, pot
+ * context, household labels, the category tree editor and the key-date
+ * leads. Same conventions as every earlier action: authenticated, Zod at
+ * the boundary, domain authority, audit in-transaction.
+ */
+
+/** Every page that renders a corrected record (Phase 4a pages + mobile home). */
+const PAGE_PATHS = [
+  '/',
+  '/overview',
+  '/purchases',
+  '/recurring',
+  '/pots',
+  '/insights',
+  '/settings',
+];
+
+function revalidatePages(): void {
+  for (const page of PAGE_PATHS) revalidatePath(page);
+}
+
+export async function editPurchaseAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  let lines: unknown;
+  try {
+    lines = JSON.parse(
+      typeof formData.get('linesJson') === 'string' ? String(formData.get('linesJson')) : 'null',
+    );
+  } catch {
+    return { status: 'error', message: 'The split lines were not readable. Please try again.' };
+  }
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = editPurchaseEntrySchema.safeParse({
+    purchaseId: numberOrNull(formData.get('purchaseId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    supplierName: textOrNull(formData.get('supplierName')),
+    potId: numberOrNull(formData.get('potId')),
+    totalPence: amount,
+    paidByPersonId: numberOrNull(formData.get('paidByPersonId')),
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+    lines,
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the purchase fields.') };
+  }
+
+  try {
+    const { purchase } = editPurchase(getDbHandle().db, {
+      id: parsed.data.purchaseId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: {
+        supplierName: parsed.data.supplierName,
+        potId: parsed.data.potId,
+        totalPence: parsed.data.totalPence,
+        paidByPersonId: parsed.data.paidByPersonId,
+        // Blank = unchanged (a correction should not silently re-date the record).
+        ...(parsed.data.occurredDate === null ? {} : { occurredDate: parsed.data.occurredDate }),
+        note: parsed.data.note,
+        lines: parsed.data.lines,
+      },
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Entry #${purchase.id} saved: ${formatPence(Math.abs(purchase.totalPence))}.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidPurchaseInputError ||
+      err instanceof PurchaseNotFoundError ||
+      err instanceof RecordVoidedError ||
+      err instanceof VersionConflictError ||
+      err instanceof RefundLinkError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The entry could not be saved. Please try again.' };
+  }
+}
+
+export async function addRefundAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  let lines: unknown;
+  try {
+    lines = JSON.parse(
+      typeof formData.get('linesJson') === 'string' ? String(formData.get('linesJson')) : 'null',
+    );
+  } catch {
+    return { status: 'error', message: 'The refund lines were not readable. Please try again.' };
+  }
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = refundEntrySchema.safeParse({
+    refundOfPurchaseId: numberOrNull(formData.get('refundOfPurchaseId')),
+    totalPence: amount,
+    potId: numberOrNull(formData.get('potId')),
+    supplierName: textOrNull(formData.get('supplierName')),
+    paidByPersonId: numberOrNull(formData.get('paidByPersonId')),
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+    lines,
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the refund fields.') };
+  }
+
+  try {
+    // The form types positive magnitudes; the domain takes the negative
+    // record (refunds are negative records, SPEC §9.5).
+    const result = createRefund(getDbHandle().db, {
+      refundOfPurchaseId: parsed.data.refundOfPurchaseId,
+      totalPence: -parsed.data.totalPence,
+      potId: parsed.data.potId,
+      supplierName: parsed.data.supplierName,
+      paidByPersonId: parsed.data.paidByPersonId,
+      occurredDate: parsed.data.occurredDate ?? undefined,
+      note: parsed.data.note,
+      lines: parsed.data.lines.map((line) => ({
+        amountPence: -Math.abs(line.amountPence),
+        categoryId: line.categoryId,
+        targetKind: line.targetKind,
+        targetId: line.targetId,
+      })),
+      actor: user.email,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Refund of ${formatPence(Math.abs(result.purchase.totalPence))} saved against entry #${parsed.data.refundOfPurchaseId}.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidPurchaseInputError ||
+      err instanceof PurchaseNotFoundError ||
+      err instanceof RefundLinkError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The refund could not be saved. Please try again.' };
+  }
+}
+
+export async function voidPurchaseAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = voidRecordEntrySchema.safeParse({
+    recordId: numberOrNull(formData.get('recordId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The void link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    voidPurchase(getDbHandle().db, {
+      id: parsed.data.recordId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      reason: parsed.data.reason,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Entry #${parsed.data.recordId} voided. The saved history is retained.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof AlreadyVoidError ||
+      err instanceof VersionConflictError ||
+      err instanceof RecordVoidedError ||
+      err instanceof VoidBlockedError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'That entry could not be voided. Refresh and try again.' };
+  }
+}
+
+export async function addTransferAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = transferEntrySchema.safeParse({
+    fromPotId: numberOrNull(formData.get('fromPotId')),
+    toPotId: numberOrNull(formData.get('toPotId')),
+    amountPence: amount,
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the transfer fields.') };
+  }
+  try {
+    const transfer = createTransfer(getDbHandle().db, {
+      fromPotId: parsed.data.fromPotId,
+      toPotId: parsed.data.toPotId,
+      amountPence: parsed.data.amountPence,
+      occurredDate: parsed.data.occurredDate ?? undefined,
+      note: parsed.data.note,
+      actor: user.email,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Transfer of ${formatPence(transfer.amountPence)} recorded — spending is untouched.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidTransferInputError || err instanceof PotNotFoundError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The transfer could not be saved. Please try again.' };
+  }
+}
+
+export async function voidTransferAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = voidRecordEntrySchema.safeParse({
+    recordId: numberOrNull(formData.get('recordId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The void link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    voidTransfer(getDbHandle().db, {
+      id: parsed.data.recordId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      reason: parsed.data.reason,
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Transfer #${parsed.data.recordId} voided. History kept.` };
+  } catch (err) {
+    if (
+      err instanceof AlreadyVoidError ||
+      err instanceof VersionConflictError ||
+      err instanceof RecordVoidedError ||
+      err instanceof TransferNotFoundError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return {
+      status: 'error',
+      message: 'That transfer could not be voided. Refresh and try again.',
+    };
+  }
+}
+
+export async function editScheduleAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = editScheduleEntrySchema.safeParse({
+    scheduleId: numberOrNull(formData.get('scheduleId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    name: typeof formData.get('name') === 'string' ? formData.get('name') : '',
+    frequency: textOrNull(formData.get('frequency')) ?? 'monthly',
+    dueDayOfMonth: numberOrNull(formData.get('dueDayOfMonth')) ?? 0,
+    dueMonth: numberOrNull(formData.get('dueMonth')),
+    amountPence: amount,
+    potId: numberOrNull(formData.get('potId')),
+    categoryId: numberOrNull(formData.get('categoryId')),
+    ...parseCompositeTarget(formData.get('target')),
+    contractEndsOn: textOrNull(formData.get('contractEndsOn')),
+    activeUntil: textOrNull(formData.get('activeUntil')),
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the schedule fields.') };
+  }
+  try {
+    const schedule = editSchedule(getDbHandle().db, {
+      id: parsed.data.scheduleId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: {
+        name: parsed.data.name,
+        frequency: parsed.data.frequency,
+        dueDayOfMonth: parsed.data.dueDayOfMonth,
+        dueMonth: parsed.data.dueMonth,
+        amountPence: parsed.data.amountPence,
+        potId: parsed.data.potId,
+        categoryId: parsed.data.categoryId,
+        targetKind: parsed.data.targetKind,
+        targetId: parsed.data.targetId,
+        contractEndsOn: parsed.data.contractEndsOn,
+        activeUntil: parsed.data.activeUntil,
+      },
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `“${schedule.name}” saved — the change applies from the next instance; converted history is untouched.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidScheduleInputError ||
+      err instanceof ScheduleNotFoundError ||
+      err instanceof ScheduleCancelledError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The schedule could not be saved. Please try again.' };
+  }
+}
+
+export async function editRenewalAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = editRenewalEntrySchema.safeParse({
+    renewalId: numberOrNull(formData.get('renewalId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    label: typeof formData.get('label') === 'string' ? formData.get('label') : '',
+    nextRenewalDate: textOrNull(formData.get('nextRenewalDate')) ?? '',
+    warnDaysBefore: numberOrNull(formData.get('warnDaysBefore')) ?? 21,
+    repeatsAnnually:
+      formData.get('repeatsAnnually') === 'on' || formData.get('repeatsAnnually') === 'true',
+    supplierId: numberOrNull(formData.get('supplierId')),
+    ...parseCompositeTarget(formData.get('target')),
+    notes: typeof formData.get('notes') === 'string' ? formData.get('notes') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the renewal fields.') };
+  }
+  try {
+    const renewal = editRenewal(getDbHandle().db, {
+      id: parsed.data.renewalId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: {
+        label: parsed.data.label,
+        nextRenewalDate: parsed.data.nextRenewalDate,
+        warnDaysBefore: parsed.data.warnDaysBefore,
+        repeatsAnnually: parsed.data.repeatsAnnually,
+        supplierId: parsed.data.supplierId,
+        targetKind: parsed.data.targetKind,
+        targetId: parsed.data.targetId,
+        notes: parsed.data.notes,
+      },
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Renewal “${renewal.label}” saved for ${renewal.nextRenewalDate}.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidRenewalInputError ||
+      err instanceof RenewalNotFoundError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The renewal could not be saved. Please try again.' };
+  }
+}
+
+export async function editPotAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const limitRaw = formData.get('overdraftLimit');
+  const limit =
+    limitRaw === null || String(limitRaw).trim() === '' ? null : parsePence(String(limitRaw));
+  const thresholdRaw = formData.get('warningThreshold');
+  const threshold =
+    thresholdRaw === null || String(thresholdRaw).trim() === ''
+      ? null
+      : parsePence(String(thresholdRaw));
+  const parsed = editPotEntrySchema.safeParse({
+    potId: numberOrNull(formData.get('potId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    label: typeof formData.get('label') === 'string' ? formData.get('label') : '',
+    kind: textOrNull(formData.get('kind')) ?? 'bank',
+    overdraftLimitPence: limit,
+    warningThresholdPence: threshold,
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the pot fields.') };
+  }
+  try {
+    const pot = editPot(getDbHandle().db, {
+      id: parsed.data.potId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: {
+        label: parsed.data.label,
+        kind: parsed.data.kind,
+        overdraftLimitPence: parsed.data.overdraftLimitPence,
+        warningThresholdPence: parsed.data.warningThresholdPence,
+      },
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Pot “${pot.label}” saved.` };
+  } catch (err) {
+    if (
+      err instanceof InvalidPotInputError ||
+      err instanceof PotNotFoundError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The pot could not be saved. Please try again.' };
+  }
+}
+
+export async function renameTargetAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = renameTargetEntrySchema.safeParse({
+    kind: textOrNull(formData.get('kind')) ?? 'person',
+    targetId: numberOrNull(formData.get('targetId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    label: typeof formData.get('label') === 'string' ? formData.get('label') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the name fields.') };
+  }
+  try {
+    const db = getDbHandle().db;
+    if (parsed.data.kind === 'person') {
+      renamePerson(db, {
+        id: parsed.data.targetId,
+        expectedVersion: parsed.data.expectedVersion,
+        label: parsed.data.label,
+        actor: user.email,
+      });
+    } else {
+      renameVehicle(db, {
+        id: parsed.data.targetId,
+        expectedVersion: parsed.data.expectedVersion,
+        label: parsed.data.label,
+        actor: user.email,
+      });
+    }
+    revalidatePages();
+    return { status: 'ok', message: `Renamed to “${parsed.data.label}”.` };
+  } catch (err) {
+    if (
+      err instanceof InvalidPersonLabelError ||
+      err instanceof DuplicatePersonLabelError ||
+      err instanceof InvalidVehicleLabelError ||
+      err instanceof DuplicateVehicleLabelError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The name could not be saved. Please try again.' };
+  }
+}
+
+export async function saveCategoryAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = categoryEntrySchema.safeParse({
+    op: textOrNull(formData.get('op')) ?? 'add-parent',
+    parentId: numberOrNull(formData.get('parentId')),
+    categoryId: numberOrNull(formData.get('categoryId')),
+    expectedVersion: numberOrNull(formData.get('version')),
+    name: typeof formData.get('name') === 'string' ? formData.get('name') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the category fields.') };
+  }
+  try {
+    const db = getDbHandle().db;
+    const { op } = parsed.data;
+    if (op === 'add-parent') {
+      const category = createParentCategory(db, { name: parsed.data.name, actor: user.email });
+      return { status: 'ok', message: `Category “${category.name}” added.` };
+    }
+    if (op === 'add-child') {
+      const category = createChildCategory(db, {
+        parentId: parsed.data.parentId as number,
+        name: parsed.data.name,
+        actor: user.email,
+      });
+      return { status: 'ok', message: `Category “${category.name}” added.` };
+    }
+    if (op === 'rename') {
+      const category = renameCategory(db, {
+        id: parsed.data.categoryId as number,
+        expectedVersion: parsed.data.expectedVersion as number,
+        name: parsed.data.name,
+        actor: user.email,
+      });
+      return { status: 'ok', message: `Category renamed to “${category.name}”.` };
+    }
+    const category = retireCategory(db, {
+      id: parsed.data.categoryId as number,
+      expectedVersion: parsed.data.expectedVersion as number,
+      actor: user.email,
+    });
+    return {
+      status: 'ok',
+      message: `“${category.name}” retired — it can no longer be assigned, and its history is preserved.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidCategoryNameError ||
+      err instanceof DuplicateCategoryNameError ||
+      err instanceof CategoryLevelError ||
+      err instanceof CategoryNotFoundError ||
+      err instanceof CategoryAlreadyRetiredError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The category could not be saved. Please try again.' };
+  }
+}
+
+export async function saveWarningLeadsAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = warningLeadsEntrySchema.safeParse({
+    renewalLeadDays: numberOrNull(formData.get('renewalLeadDays')) ?? 21,
+    contractEndLeadDays: numberOrNull(formData.get('contractEndLeadDays')) ?? 21,
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'Warning leads are whole days between 0 and 365.'),
+    };
+  }
+  try {
+    const db = getDbHandle().db;
+    setRenewalWarningLeadDays(db, parsed.data.renewalLeadDays, user.email);
+    setContractEndWarningLeadDays(db, parsed.data.contractEndLeadDays, user.email);
+    revalidatePages();
+    return { status: 'ok', message: 'Warning leads saved — key-date windows update immediately.' };
+  } catch (err) {
+    if (err instanceof InvalidSettingValueError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The leads could not be saved. Please try again.' };
+  }
 }

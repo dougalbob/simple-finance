@@ -346,7 +346,14 @@ export function AddRenewalForm({ data }: { data: RecurringData }) {
   );
 }
 
-export function ProjectionSettingsForm({ data }: { data: RecurringData }) {
+/** Slim props (decision 73): the settings page reuses this form without
+ *  assembling the full recurring dataset. */
+export interface ProjectionSettingsData {
+  weeklyGroceriesPence: number | null;
+  monthlyFuelPence: Array<{ vehicleId: number; label: string; pence: number | null }>;
+}
+
+export function ProjectionSettingsForm({ data }: { data: ProjectionSettingsData }) {
   const [state, formAction, pending] = useActionState(
     saveProjectionSettingsAction,
     initialActionState,
@@ -360,12 +367,12 @@ export function ProjectionSettingsForm({ data }: { data: RecurringData }) {
           <input
             name="weeklyGroceries"
             inputMode="decimal"
-            defaultValue={toPounds(data.projectionSettings.weeklyGroceriesPence)}
+            defaultValue={toPounds(data.weeklyGroceriesPence)}
             placeholder="e.g. 90.00"
             className={inputClass}
           />
         </label>
-        {data.projectionSettings.monthlyFuelPence.map((vehicle) => (
+        {data.monthlyFuelPence.map((vehicle) => (
           <label key={vehicle.vehicleId} className={labelClass}>
             Monthly fuel — {vehicle.label}
             <input

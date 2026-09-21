@@ -1,3 +1,4 @@
+import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { auditEntries } from './db/schema';
 
@@ -31,4 +32,26 @@ export function recordAudit(tx: DbTx, input: AuditEntryInput): void {
       createdAt: input.now,
     })
     .run();
+}
+
+export type AuditEntry = typeof auditEntries.$inferSelect;
+
+/**
+ * The retained history for one entity (the "audit trail visible" on the
+ * Purchases page, SPEC §9.5 / §15.2): newest first, read-only.
+ */
+export function listAuditForEntity(
+  db: DbTx,
+  entity: string,
+  entityId: number | string,
+  limit = 20,
+): AuditEntry[] {
+  const top = Math.min(Math.max(limit, 1), 100);
+  return db
+    .select()
+    .from(auditEntries)
+    .where(and(eq(auditEntries.entity, entity), eq(auditEntries.entityId, String(entityId))))
+    .orderBy(desc(auditEntries.createdAt), desc(auditEntries.id))
+    .limit(top)
+    .all();
 }

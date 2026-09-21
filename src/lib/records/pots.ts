@@ -4,6 +4,7 @@ import type { Db } from '../db/client';
 import { checkpoints, pots } from '../db/schema';
 import { formatPence, isValidPenceAmount } from '../money';
 import { InvalidOccurredError, resolveOccurred } from './occurred';
+import { VersionConflictError } from './errors';
 
 /**
  * Domain functions for pots and balance checkpoints (SPEC §4–§5).
@@ -167,6 +168,127 @@ export function addCheckpoint(db: Db, input: AddCheckpointInput): Checkpoint {
   });
 }
 
+export interface EditPotPatch {
+  label?: string;
+  kind?: PotKind;
+  /** undefined = unchanged; null = no authorised overdraft. */
+  overdraftLimitPence?: number | null;
+  /** undefined = unchanged; null = no warning threshold. */
+  warningThresholdPence?: number | null;
+}
+
+export interface EditPotInput {
+  id: number;
+  expectedVersion: number;
+  actor: string;
+  now?: Date;
+  patch: EditPotPatch;
+}
+
+export class InvalidPotInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidPotInputError';
+  }
+}
+
+/**
+ * Correct a pot's context (Settings page, SPEC §15.2): label, type and the
+ * overdraft context (authorised limit + warning threshold, SPEC §4, §8).
+ * Version-guarded and audited like every other shared edit; the threshold
+ * must sit inside the limit — a threshold with no limit is a threshold for
+ * nothing.
+ */
+export function editPot(db: Db, input: EditPotInput): Pot {
+  const now = input.now ?? new Date();
+  const patch = input.patch;
+  return db.transaction((tx) => {
+    const current = tx.select().from(pots).where(eq(pots.id, input.id)).get();
+    if (current === undefined) throw new PotNotFoundError(input.id);
+    if (current.version !== input.expectedVersion) {
+      throw new VersionConflictError('pot', input.id, input.expectedVersion, current.version);
+    }
+    const label = patch.label === undefined ? current.label : checkedPotLabel(patch.label);
+    const kind: PotKind =
+      patch.kind === undefined ? current.kind : (checkedPotKind(patch.kind) as PotKind);
+    const limit =
+      patch.overdraftLimitPence === undefined
+        ? current.overdraftLimitPence
+        : patch.overdraftLimitPence;
+    const threshold =
+      patch.warningThresholdPence === undefined
+        ? current.warningThresholdPence
+        : patch.warningThresholdPence;
+    assertOverdraftContext(label, limit, threshold);
+    const updated = tx
+      .update(pots)
+      .set({
+        label,
+        kind,
+        overdraftLimitPence: limit,
+        warningThresholdPence: threshold,
+        updatedAt: now,
+        version: current.version + 1,
+      })
+      .where(eq(pots.id, current.id))
+      .returning()
+      .get();
+    if (updated === undefined) throw new Error('update pot returned no row');
+    recordAudit(tx, {
+      actor: input.actor,
+      action: 'pot.edit',
+      entity: 'pot',
+      entityId: current.id,
+      summary: `Edited pot “${current.label}” → “${label}” (${kind})`,
+      before: current,
+      after: updated,
+      now,
+    });
+    return updated;
+  });
+}
+
+function checkedPotLabel(raw: string): string {
+  const label = raw.trim().replace(/\s+/g, ' ');
+  if (label === '') throw new InvalidPotInputError('Give the pot a name.');
+  if (label.length > 60) {
+    throw new InvalidPotInputError('Keep the name to 60 characters or fewer.');
+  }
+  return label;
+}
+
+function checkedPotKind(raw: string): string {
+  if (raw !== 'bank' && raw !== 'cash') {
+    throw new InvalidPotInputError('Choose either bank or cash.');
+  }
+  return raw;
+}
+
+function assertOverdraftContext(
+  label: string,
+  limit: number | null,
+  threshold: number | null,
+): void {
+  const check = (value: number | null, what: string) => {
+    if (value === null) return;
+    if (!isValidPenceAmount(value) || value <= 0) {
+      throw new InvalidPotInputError(`The ${what} must be a positive amount like 800.00.`);
+    }
+  };
+  check(limit, 'overdraft limit');
+  check(threshold, 'warning threshold');
+  if (threshold !== null && limit === null) {
+    throw new InvalidPotInputError(
+      `Set the authorised overdraft limit on “${label}” first — the warning threshold must sit inside a limit (SPEC §8).`,
+    );
+  }
+  if (threshold !== null && limit !== null && threshold > limit) {
+    throw new InvalidPotInputError(
+      'The warning threshold must sit inside the authorised overdraft limit — it is the point to warn, the limit is the edge.',
+    );
+  }
+}
+
 export function listPots(db: Db): Pot[] {
   return db
     .select()
@@ -206,6 +328,20 @@ function checkedCheckpointNote(raw: string | null | undefined): string | null {
 
 export interface CheckpointWithPotLabel extends Checkpoint {
   potLabel: string;
+}
+
+/**
+ * The checkpoint timeline for one pot (Accounts & Pots page, SPEC §15.2):
+ * newest first, immutable history — every reported balance ever recorded.
+ */
+export function checkpointsForPot(db: Db, potId: number, limit = 30): Checkpoint[] {
+  return db
+    .select()
+    .from(checkpoints)
+    .where(eq(checkpoints.potId, potId))
+    .orderBy(desc(checkpoints.effectiveAt), desc(checkpoints.id))
+    .limit(Math.min(Math.max(limit, 1), 200))
+    .all();
 }
 
 export function recentCheckpoints(db: Db, limit = 10): CheckpointWithPotLabel[] {

@@ -6,11 +6,12 @@ by payday?\"* Built for a single household behind Cloudflare Access, deployed to
 
 ## Current status
 
-**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 complete (Sessions 1–4; Phases 1–2b merged
-via PR #4) — core money records, mobile quick-entry, schedules with auto-conversion, the estimate and
-payday-projection engines and the two-tier warnings are running; no release published yet.** Phases 4–5
-(desktop pages, Insights, attachments, hardening/v0.1.0) remain planned and sequenced — see the
-**session map** in `docs/IMPLEMENTATION_PLAN.md`.
+**Stage: Phase 0 + Phase 1 + Phase 2a + Phase 2b + Phase 3 + Phase 4a complete (Sessions 1–5; Phases 1–2b
+merged via PR #4) — core money records, mobile quick-entry, schedules with auto-conversion, the estimate
+and payday-projection engines, the two-tier warnings, the desktop pages and Insights v1 are running; no
+release published yet.** Phase 4b (Suppliers, Contracts & Renewals, attachments) and Phase 5
+(hardening/v0.1.0) remain planned and sequenced — see the **session map** in
+`docs/IMPLEMENTATION_PLAN.md`.
 
 | Implemented & merged | Status |
 |---|---|
@@ -22,13 +23,14 @@ payday-projection engines and the two-tier warnings are running; no release publ
 | Unauthorised / wrong-audience requests rejected on pages and API routes | ✅ tested at unit and live-server level |
 | Core money records (Phase 2a): people, vehicles, category tree seeded per SPEC §12, suppliers + contact cards, purchases with exact-total splits, refunds as linked negatives, transfers, void/edit with audit + optimistic concurrency, checkpoint effective-date rule | ✅ integration tested incl. E1, E2, E4, E6, E7 on isolated databases (111 tests total including Phase 2b boundary tests) |
 | Mobile entry (Phase 2b): Add Purchase with exact splits/remainder helper, Add Fuel, Update Balance with date-only backdating, supplier recents/inline add/near-duplicate prompt, derived category memory chip, visible pot/paid-by/target defaults, non-blocking duplicate review/void, single in-flight submission guard | ✅ server actions use Zod + domain validation; production build green |
-| Money engines (Phase 3): per-pot + household "available now" estimates with the conservative date-only comparison rule; payday-to-payday projection with period-level half-up day-to-day figures, outgoings-before-receipts ordering, two-tier warnings and the pot-level "plan a transfer" watch; schedules (DD/SO/income) with unique upcoming→converted instances, lazy midnight conversion that self-heals across crashes, clamp-to-month-end due days, effective-date cancellation; renewals with per-item leads and annual auto-advance (29 Feb → 28 Feb); key-date alerts incl. contract ends ("rolled / awaiting review") | ✅ pure engines + domain tested to the penny incl. E3, E5, E8, E9 and DST sweeps (2026-10-25 / 2026-03-29); home page shows money, projection, due-this-week, key dates and entry forms (154 tests total) |
+| Money engines (Phase 3): per-pot + household "available now" estimates with the conservative date-only comparison rule; payday-to-payday projection with period-level half-up day-to-day figures, outgoings-before-receipts ordering, two-tier warnings and the pot-level "plan a transfer" watch; schedules (DD/SO/income) with unique upcoming→converted instances, lazy midnight conversion that self-heals across crashes, clamp-to-month-end due days, effective-date cancellation; renewals with per-item leads and annual auto-advance (29 Feb → 28 Feb); key-date alerts incl. contract ends ("rolled / awaiting review") | ✅ pure engines + domain tested to the penny incl. E3, E5, E8, E9 and DST sweeps (2026-10-25 / 2026-03-29); home page shows money, projection, due-this-week, key dates and entry forms |
+| Desktop pages + Insights v1 (Phase 4a): dense Overview (money, projection with the "what's in this forecast" day-by-day, due this week, key dates, month-to-date bars, vehicle rolling-12, review list with inline edit/refund/void); Purchases (filters, receipt-style table, inline edit/refund/void); Recurring Payments with the read-only month calendar (server-rendered from the instance list, so calendar and lists stay consistent after edits/cancels; app date changes never move bank instructions); Accounts & Pots (edits, checkpoint history); Insights panels 1–4 (month comparison, per-person attribution, vehicle running costs, the projection honesty loop over complete weeks/months only); Settings (renames, pots, category tree editor, projection figures, warning leads); version badge in the nav | ✅ pure insights engine + DB assembly (transfers/receipts excluded by construction); due-day edits now move the next instance (SPEC §11.1 regression); every figure reconciles with the engines in tests (182 tests total) |
 
-**Not yet built (per plan):** desktop pages (dense Recurring Payments month calendar, Insights,
-Settings), Insights + the projection honesty loop, attachments, live in-place restore, GHCR publication,
-Unraid template. Nothing has been deployed; the first release will be **v0.1.0** at the end of Phase 5.
-The home page now shows the money estimate and payday projection alongside the mobile-first entry flows;
-both are clearly labelled as estimates/projections — never a bank balance, never a bank connection.
+**Not yet built (per plan):** Suppliers page, Contracts & Renewals page + its Overview panel,
+receipt/invoice attachments (SPEC §23), live in-place restore, GHCR publication, Unraid template. Nothing
+has been deployed; the first release will be **v0.1.0** at the end of Phase 5. The desktop pages and the
+mobile home share the pure engines and the quick-entry/review components; every money figure is labelled
+as an estimate or projection — never a bank balance, never a bank connection.
 
 | Document | Purpose |
 |---|---|
@@ -79,7 +81,7 @@ Gates (same commands CI runs):
 ```sh
 npm run format:check
 npm run typecheck
-npm test                              # 154 tests (Phase 1 + 2a domain + 2b boundary + Phase 3 engines/lifecycle)
+npm test                              # 182 tests (Phase 1 + 2a domain + 2b boundary + Phase 3 engines/lifecycle + 4a insights/pages)
 NEXT_TELEMETRY_DISABLED=1 npm run build
 npm audit --omit=dev                  # 0 vulnerabilities at time of writing
 npm run db:migrate                    # apply migrations explicitly (dev does it automatically)
@@ -102,4 +104,5 @@ See `docs/SPEC.md` §19.
 ## Version
 
 **v0.1.0 (pre-release, unreleased).** No image published, no deployment. First planned release: **v0.1.0**
-at the end of Phase 5. The running app displays its version unobtrusively in the footer.
+at the end of Phase 5. The running app displays its version as a small badge in the site navigation
+(desktop and mobile).

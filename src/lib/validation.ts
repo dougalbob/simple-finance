@@ -230,3 +230,230 @@ export const projectionSettingsEntrySchema = z.object({
   weeklyGroceriesPence: nonNegativePenceSchema.nullable(),
   monthlyFuelPence: z.record(z.string(), nonNegativePenceSchema.nullable()).default({}),
 });
+
+/* ------------------------------------------------------------------ */
+/* Phase 4a — desktop review pages (SPEC §15.2, §16)                   */
+/* ------------------------------------------------------------------ */
+
+/** Version-guarded void of a correctable record (purchase or transfer). */
+export const voidRecordEntrySchema = z.object({
+  recordId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  reason: nullableText(280, 'Void reason'),
+});
+
+/**
+ * Inline edit of a purchase (Purchases page, SPEC §15.2): the full record
+ * including its allocation lines — the same exact-total rule as entry
+ * (the domain re-enforces Σ lines = total inside its transaction).
+ */
+export const editPurchaseEntrySchema = z.object({
+  purchaseId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  supplierName: nullableText(120, 'Supplier name'),
+  potId: positiveIdSchema,
+  totalPence: positivePenceSchema,
+  paidByPersonId: positiveIdSchema.nullable().default(null),
+  occurredDate: localDateSchema.nullable().default(null),
+  note: nullableText(280, 'Note'),
+  lines: z.array(entryAllocationLineSchema).min(1, 'Add at least one allocation line.'),
+});
+
+/**
+ * Refund entry (SPEC §9.5): total is typed as a positive magnitude and the
+ * server hands the domain the negative record. Lines must (category,
+ * target)-match the original and total the refund exactly — the domain
+ * re-validates both, plus the cumulative-refund cap.
+ */
+export const refundEntrySchema = z.object({
+  refundOfPurchaseId: positiveIdSchema,
+  totalPence: positivePenceSchema,
+  potId: positiveIdSchema,
+  supplierName: nullableText(120, 'Supplier name'),
+  paidByPersonId: positiveIdSchema.nullable().default(null),
+  occurredDate: localDateSchema.nullable().default(null),
+  note: nullableText(280, 'Note'),
+  lines: z.array(entryAllocationLineSchema).min(1, 'A refund needs at least one line.'),
+});
+
+/**
+ * Schedule correction (SPEC §11.1): applies from the next instance onward;
+ * converted history is never rewritten. The kind is immutable (a direct
+ * debit does not become income) — the domain edit path does not accept it.
+ */
+export const editScheduleEntrySchema = z
+  .object({
+    scheduleId: positiveIdSchema,
+    expectedVersion: positiveIdSchema,
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Give the schedule a name')
+      .max(60, 'Keep the name to 60 characters or fewer'),
+    frequency: z.enum(['monthly', 'annual']),
+    dueDayOfMonth: z.number().int('Whole day').min(1, 'Day 1–31').max(31, 'Day 1–31'),
+    dueMonth: positiveIdSchema
+      .refine((v) => v >= 1 && v <= 12, 'Month 1–12')
+      .nullable()
+      .default(null),
+    amountPence: positivePenceSchema,
+    potId: positiveIdSchema,
+    categoryId: positiveIdSchema.nullable().default(null),
+    targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
+    targetId: positiveIdSchema.nullable().default(null),
+    contractEndsOn: localDateSchema.nullable().default(null),
+    activeUntil: localDateSchema.nullable().default(null),
+  })
+  .superRefine((value, context) => {
+    if (value.frequency === 'annual' && value.dueMonth === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['dueMonth'],
+        message: 'Annual schedules need a due month.',
+      });
+    }
+    if (value.targetKind === 'household' && value.targetId !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetId'],
+        message: 'A household schedule has no person or vehicle target.',
+      });
+    }
+    if (value.targetKind !== 'household' && value.targetId === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targetId'],
+        message: 'Choose the person or vehicle this schedule is for.',
+      });
+    }
+  });
+
+/** Renewal correction (SPEC §22.2 — visible, editable, audited). */
+export const editRenewalEntrySchema = z.object({
+  renewalId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Give the renewal a label')
+    .max(60, 'Keep the label to 60 characters or fewer'),
+  nextRenewalDate: localDateSchema,
+  warnDaysBefore: z
+    .number()
+    .int('Whole days')
+    .min(0, '0 days or more')
+    .max(365, '365 days or fewer'),
+  repeatsAnnually: z.boolean(),
+  supplierId: positiveIdSchema.nullable().default(null),
+  targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
+  targetId: positiveIdSchema.nullable().default(null),
+  notes: nullableText(280, 'Notes'),
+});
+
+/** Pot-to-pot transfer record (SPEC §10 — never spending). */
+export const transferEntrySchema = z.object({
+  fromPotId: positiveIdSchema,
+  toPotId: positiveIdSchema,
+  amountPence: positivePenceSchema,
+  occurredDate: localDateSchema.nullable().default(null),
+  note: nullableText(280, 'Note'),
+});
+
+/**
+ * Pot context edit (Settings page, SPEC §15.2): label, type and the
+ * overdraft context. Blanks clear the optional figures; the threshold-
+ * inside-limit rule is the domain's to enforce (SPEC §8).
+ */
+export const editPotEntrySchema = z.object({
+  potId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Give the pot a name')
+    .max(60, 'Keep the name to 60 characters or fewer'),
+  kind: z.enum(['bank', 'cash']),
+  overdraftLimitPence: nonNegativePenceSchema.nullable(),
+  warningThresholdPence: nonNegativePenceSchema.nullable(),
+});
+
+/** Household label rename (Settings page): person or vehicle, version-guarded. */
+export const renameTargetEntrySchema = z.object({
+  kind: z.enum(['person', 'vehicle']),
+  targetId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Give it a name')
+    .max(60, 'Keep the name to 60 characters or fewer'),
+});
+
+/**
+ * Category tree editor operations (Settings page, SPEC §12): add a parent
+ * or a child, rename a node (parent or child), retire a child (parents stay
+ * while history points at them). The domain enforces two levels, sibling
+ * name uniqueness and retire rules.
+ */
+export const categoryEntrySchema = z
+  .object({
+    op: z.enum(['add-parent', 'add-child', 'rename', 'retire']),
+    parentId: positiveIdSchema.nullable().default(null),
+    categoryId: positiveIdSchema.nullable().default(null),
+    expectedVersion: positiveIdSchema.nullable().default(null),
+    name: z.string().trim().max(60, 'Keep the name to 60 characters or fewer').default(''),
+  })
+  .superRefine((value, context) => {
+    if (value.op === 'add-parent' && value.name === '') {
+      context.addIssue({ code: 'custom', path: ['name'], message: 'Give the parent a name.' });
+    }
+    if (value.op === 'add-child') {
+      if (value.parentId === null) {
+        context.addIssue({ code: 'custom', path: ['parentId'], message: 'Choose the parent.' });
+      }
+      if (value.name === '') {
+        context.addIssue({ code: 'custom', path: ['name'], message: 'Give the child a name.' });
+      }
+    }
+    if (value.op === 'rename') {
+      if (value.categoryId === null) {
+        context.addIssue({ code: 'custom', path: ['categoryId'], message: 'Choose the category.' });
+      }
+      if (value.expectedVersion === null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['expectedVersion'],
+          message: 'The rename link is incomplete — refresh.',
+        });
+      }
+      if (value.name === '') {
+        context.addIssue({ code: 'custom', path: ['name'], message: 'Give the category a name.' });
+      }
+    }
+    if (value.op === 'retire') {
+      if (value.categoryId === null) {
+        context.addIssue({ code: 'custom', path: ['categoryId'], message: 'Choose the category.' });
+      }
+      if (value.expectedVersion === null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['expectedVersion'],
+          message: 'The retire link is incomplete — refresh.',
+        });
+      }
+    }
+  });
+
+/** Default warning leads for key dates (SPEC §22, decision 23). */
+export const warningLeadsEntrySchema = z.object({
+  renewalLeadDays: z
+    .number()
+    .int('Whole days')
+    .min(0, '0 days or more')
+    .max(365, '365 days or fewer'),
+  contractEndLeadDays: z
+    .number()
+    .int('Whole days')
+    .min(0, '0 days or more')
+    .max(365, '365 days or fewer'),
+});
