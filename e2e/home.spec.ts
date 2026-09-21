@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { APP_RELEASE_STAGE, APP_VERSION } from '../src/lib/version';
 
 /**
  * Mobile acceptance path (blueprint §12: "desktop and mobile primary paths are
@@ -10,7 +11,9 @@ test.describe('mobile quick entry', () => {
     await page.goto('/');
 
     // The app identifies itself: the version badge is part of the release check.
-    await expect(page.getByRole('main').getByText('v0.1.0 · pre-release')).toBeVisible();
+    await expect(
+      page.getByRole('main').getByText(`v${APP_VERSION} · ${APP_RELEASE_STAGE}`),
+    ).toBeVisible();
 
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await expect(entry).toBeVisible();

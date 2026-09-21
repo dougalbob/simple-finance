@@ -10,6 +10,7 @@ import {
 } from '@/components/recurring';
 import { QuickEntry } from '@/components/quick-entry';
 import { currentUserFromRequest } from '@/lib/auth/next';
+import { APP_RELEASE_STAGE, APP_VERSION } from '@/lib/version';
 import { getDbHandle } from '@/lib/db/client';
 import { formatPence } from '@/lib/money';
 import { categoryTree } from '@/lib/records/categories';
@@ -97,7 +98,7 @@ export default async function HomePage() {
           </p>
         </div>
         <p className="rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
-          v0.1.0 · pre-release
+          v{APP_VERSION} · {APP_RELEASE_STAGE}
         </p>
       </header>
 
