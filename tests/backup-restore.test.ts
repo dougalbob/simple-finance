@@ -8,6 +8,7 @@ import { restoreEncryptedBackup, RestoreError } from '../src/lib/backup/restore'
 import { openDatabase } from '../src/lib/db/client';
 import { applyMigrations } from '../src/lib/db/migrate';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
+import { APP_VERSION } from '../src/lib/version';
 import { makeTempDir } from './helpers';
 
 const PASSWORD = 'correct-horse-battery-staple';
@@ -58,9 +59,13 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
         password: PASSWORD,
         now: new Date('2026-09-20T20:30:12Z'),
       });
+      // Tied to the version module, not a literal — a version bump must not
+      // break the filename-contract assertion (it broke once at v0.1.1).
       assert.match(
         backup.filename,
-        /^simple-finance-backup-v0\.1\.0-\d{4}-\d{2}-\d{2}-\d{6}\.simple-finance-backup$/,
+        new RegExp(
+          `^simple-finance-backup-v${APP_VERSION.replaceAll('.', '\\.')}-\\d{4}-\\d{2}-\\d{2}-\\d{6}\\.simple-finance-backup$`,
+        ),
       );
       assert.equal(backup.manifest.counts.pots, 1);
       assert.equal(backup.manifest.counts.checkpoints, 2);
