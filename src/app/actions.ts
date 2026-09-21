@@ -903,7 +903,8 @@ export async function editPurchaseAction(
 
 function parseEditableLines(
   formData: FormData,
-): | { success: true; lines: ReturnType<typeof editPurchaseEntrySchema.parse>['lines'] }
+):
+  | { success: true; lines: ReturnType<typeof editPurchaseEntrySchema.parse>['lines'] }
   | { success: false; message: string } {
   let rawLines: unknown;
   try {

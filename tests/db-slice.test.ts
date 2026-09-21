@@ -195,7 +195,11 @@ describe('pots & checkpoints on an isolated database', () => {
       const replacement = openDatabase(replacementPath);
       try {
         applyMigrations(replacement.db);
-        createPot(replacement.db, { label: 'After restore', kind: 'bank', actor: 'dev@example.com' });
+        createPot(replacement.db, {
+          label: 'After restore',
+          kind: 'bank',
+          actor: 'dev@example.com',
+        });
         replacement.raw.pragma('wal_checkpoint(TRUNCATE)');
       } finally {
         replacement.raw.close();
