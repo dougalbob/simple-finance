@@ -73,7 +73,8 @@ test.describe('backup and restore in a browser', () => {
     await entry.getByRole('button', { name: 'Save purchase' }).click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
     await page.goto('/purchases');
-    await expect(page.getByText('After The Backup').first()).toBeVisible();
+    const results = page.locator('section[aria-labelledby="results-heading"]');
+    await expect(results.getByText('After The Backup').first()).toBeVisible();
 
     // ...then put the archive back over the running installation.
     await page.goto('/settings');
@@ -88,7 +89,7 @@ test.describe('backup and restore in a browser', () => {
 
     // The app is reading the restored data.
     await page.goto('/purchases');
-    await expect(page.getByText('After The Backup')).toHaveCount(0);
-    await expect(page.getByText('Corner Foods').first()).toBeVisible();
+    await expect(results.locator('tbody tr', { hasText: 'After The Backup' })).toHaveCount(0);
+    await expect(results.getByText('Corner Foods').first()).toBeVisible();
   });
 });

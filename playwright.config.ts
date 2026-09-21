@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const E2E_PORT = Number(process.env.E2E_PORT ?? 3100);
+const E2E_BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${E2E_PORT}`;
+
 /**
  * Browser acceptance run (blueprint §9: "use real browser tests for interaction
  * where possible"). The sandbox this was written in has no browser binaries and
@@ -27,7 +30,7 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   use: {
-    baseURL: 'http://127.0.0.1:3100',
+    baseURL: E2E_BASE_URL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // A phone-ish default; desktop specs override the viewport.
@@ -52,7 +55,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node --import tsx scripts/e2e-server.mts',
-    url: 'http://127.0.0.1:3100/api/health',
+    url: `${E2E_BASE_URL}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     stdout: 'pipe',

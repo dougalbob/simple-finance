@@ -259,17 +259,14 @@ export const voidRecordEntrySchema = z.object({
 });
 
 /**
- * Inline edit of a purchase (Purchases page, SPEC §15.2): the full record
- * including its allocation lines — the same exact-total rule as entry
- * (the domain re-enforces Σ lines = total inside its transaction).
+ * Inline edit of a purchase (Purchases page, SPEC §15.2): the editable fields
+ * this form owns (date, note and full replacement allocation lines). The
+ * action derives the total from those lines and leaves the supplier / pot /
+ * payer unchanged.
  */
 export const editPurchaseEntrySchema = z.object({
   purchaseId: positiveIdSchema,
   expectedVersion: positiveIdSchema,
-  supplierName: nullableText(120, 'Supplier name'),
-  potId: positiveIdSchema,
-  totalPence: positivePenceSchema,
-  paidByPersonId: positiveIdSchema.nullable().default(null),
   occurredDate: localDateSchema.nullable().default(null),
   note: nullableText(280, 'Note'),
   lines: z.array(entryAllocationLineSchema).min(1, 'Add at least one allocation line.'),

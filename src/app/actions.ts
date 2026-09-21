@@ -853,24 +853,14 @@ export async function editPurchaseAction(
   const user = await currentUserFromRequest();
   if (user === null) return NOT_SIGNED_IN;
 
-  let lines: unknown;
-  try {
-    lines = JSON.parse(
-      typeof formData.get('linesJson') === 'string' ? String(formData.get('linesJson')) : 'null',
-    );
-  } catch {
-    return { status: 'error', message: 'The split lines were not readable. Please try again.' };
+  const editableLines = parseEditableLines(formData);
+  if (!editableLines.success) {
+    return { status: 'error', message: editableLines.message };
   }
-  const amount = parsePence(
-    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
-  );
+  const lines = editableLines.lines;
   const parsed = editPurchaseEntrySchema.safeParse({
     purchaseId: numberOrNull(formData.get('purchaseId')),
-    expectedVersion: numberOrNull(formData.get('version')),
-    supplierName: textOrNull(formData.get('supplierName')),
-    potId: numberOrNull(formData.get('potId')),
-    totalPence: amount,
-    paidByPersonId: numberOrNull(formData.get('paidByPersonId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
     occurredDate: textOrNull(formData.get('occurredDate')),
     note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
     lines,
@@ -885,10 +875,7 @@ export async function editPurchaseAction(
       expectedVersion: parsed.data.expectedVersion,
       actor: user.email,
       patch: {
-        supplierName: parsed.data.supplierName,
-        potId: parsed.data.potId,
-        totalPence: parsed.data.totalPence,
-        paidByPersonId: parsed.data.paidByPersonId,
+        totalPence: parsed.data.lines.reduce((sum, line) => sum + line.amountPence, 0),
         // Blank = unchanged (a correction should not silently re-date the record).
         ...(parsed.data.occurredDate === null ? {} : { occurredDate: parsed.data.occurredDate }),
         note: parsed.data.note,
@@ -912,6 +899,45 @@ export async function editPurchaseAction(
     }
     return { status: 'error', message: 'The entry could not be saved. Please try again.' };
   }
+}
+
+function parseEditableLines(
+  formData: FormData,
+): | { success: true; lines: ReturnType<typeof editPurchaseEntrySchema.parse>['lines'] }
+  | { success: false; message: string } {
+  let rawLines: unknown;
+  try {
+    rawLines = JSON.parse(
+      typeof formData.get('linesJson') === 'string' ? String(formData.get('linesJson')) : 'null',
+    );
+  } catch {
+    return { success: false, message: 'The split lines were not readable. Please try again.' };
+  }
+  if (!Array.isArray(rawLines)) {
+    return { success: false, message: 'The split lines were not readable. Please try again.' };
+  }
+  const lines: ReturnType<typeof editPurchaseEntrySchema.parse>['lines'] = [];
+  for (const [index, line] of rawLines.entries()) {
+    if (typeof line !== 'object' || line === null) {
+      return { success: false, message: 'The split lines were not readable. Please try again.' };
+    }
+    const record = line as Record<string, unknown>;
+    const amountPence = parsePence(typeof record.amount === 'string' ? record.amount : '');
+    if (amountPence === null) {
+      return { success: false, message: `Line ${index + 1}: enter an amount like 12.50.` };
+    }
+    lines.push({
+      amountPence,
+      categoryId:
+        typeof record.categoryId === 'number' ? record.categoryId : Number(record.categoryId),
+      targetKind: record.targetKind as 'household' | 'person' | 'vehicle',
+      targetId:
+        record.targetId === null || record.targetId === undefined || record.targetId === ''
+          ? null
+          : Number(record.targetId),
+    });
+  }
+  return { success: true, lines };
 }
 
 export async function addRefundAction(

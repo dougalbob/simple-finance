@@ -10,7 +10,7 @@ test.describe('mobile quick entry', () => {
     await page.goto('/');
 
     // The app identifies itself: the version badge is part of the release check.
-    await expect(page.getByText('v0.1.0 · pre-release')).toBeVisible();
+    await expect(page.getByRole('main').getByText('v0.1.0 · pre-release')).toBeVisible();
 
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await expect(entry).toBeVisible();
@@ -32,7 +32,8 @@ test.describe('mobile quick entry', () => {
 
     // The record is really stored: it is there on a fresh request.
     await page.goto('/purchases');
-    await expect(page.getByText('Playwright Paints').first()).toBeVisible();
+    const results = page.locator('section[aria-labelledby="results-heading"]');
+    await expect(results.locator('tbody tr', { hasText: 'Playwright Paints' })).toHaveCount(1);
   });
 
   test('records a balance checkpoint, labelled as a checkpoint', async ({ page }) => {

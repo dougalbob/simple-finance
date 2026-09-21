@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { closeDbHandle, openDatabase, type DbHandle } from '../src/lib/db/client';
@@ -175,6 +176,45 @@ describe('pots & checkpoints on an isolated database', () => {
       const handleB = getDbHandle(loadAppConfig({ NODE_ENV: 'test', DATA_DIR: dirB }));
       const labelsInB = listPots(handleB.db).map((pot) => pot.label);
       assert.deepEqual(labelsInB, []);
+    } finally {
+      closeDbHandle();
+    }
+  });
+
+  it('the shared handle reopens when the database file is replaced in place', async () => {
+    const dir = await makeTempDir('sf-live-swap-');
+    closeDbHandle();
+    try {
+      const { getDbHandle } = await import('../src/lib/db/client');
+      const { loadAppConfig } = await import('../src/lib/config');
+      const config = loadAppConfig({ NODE_ENV: 'test', DATA_DIR: dir });
+      const live = getDbHandle(config);
+      createPot(live.db, { label: 'Before restore', kind: 'cash', actor: 'dev@example.com' });
+
+      const replacementPath = path.join(dir, 'replacement.sqlite');
+      const replacement = openDatabase(replacementPath);
+      try {
+        applyMigrations(replacement.db);
+        createPot(replacement.db, { label: 'After restore', kind: 'bank', actor: 'dev@example.com' });
+        replacement.raw.pragma('wal_checkpoint(TRUNCATE)');
+      } finally {
+        replacement.raw.close();
+      }
+
+      fs.renameSync(config.databasePath, `${config.databasePath}.before-restore`);
+      for (const suffix of ['-wal', '-shm']) {
+        const current = `${config.databasePath}${suffix}`;
+        if (fs.existsSync(current)) {
+          fs.renameSync(current, `${current}.before-restore`);
+        }
+      }
+      fs.renameSync(replacementPath, config.databasePath);
+
+      const reopened = getDbHandle(config);
+      assert.deepEqual(
+        listPots(reopened.db).map((pot) => pot.label),
+        ['After restore'],
+      );
     } finally {
       closeDbHandle();
     }

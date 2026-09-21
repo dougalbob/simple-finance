@@ -38,9 +38,11 @@ test.describe('desktop review', () => {
     await expect(results.getByText('The Corner Cafe')).toHaveCount(0);
 
     // Inline edit: open the row editor, change the note, save, see it.
-    await results.locator('summary', { hasText: 'Edit' }).first().click();
-    await page.getByLabel('Note (blank keeps the current note)').fill('Edited in a browser test');
-    await page.getByRole('button', { name: 'Save purchase' }).click();
+    const row = results.locator('tbody tr', { hasText: 'Corner Foods' }).first();
+    await row.locator('summary', { hasText: 'Edit' }).click();
+    await row.getByRole('button', { name: 'Edit' }).click();
+    await row.getByLabel('Note (blank keeps the current note)').fill('Edited in a browser test');
+    await row.getByRole('button', { name: 'Save purchase' }).click();
     await expect(results.getByText('Edited in a browser test').first()).toBeVisible({
       timeout: 30_000,
     });
@@ -58,15 +60,19 @@ test.describe('desktop review', () => {
     // Open the "Phone plan" schedule editor and move it to the 21st.
     const schedules = page.locator('section[aria-labelledby="schedules-heading"]');
     const scheduleItem = schedules.locator('li', { hasText: 'Phone plan' }).first();
+    const originalDueLine = scheduleItem.getByText(/Next due: \d{4}-\d{2}-\d{2}/);
+    const originalDueText = await originalDueLine.innerText();
     await scheduleItem.getByText('Edit schedule').click();
     await scheduleItem.getByLabel('Day of month').fill('21');
     await scheduleItem.getByRole('button', { name: 'Save from next instance' }).click();
 
-    // The schedule reports its new next-due date...
+    // The edit itself sticks...
+    await expect(scheduleItem.getByLabel('Day of month')).toHaveValue('21');
+
+    // ...and the schedule reports a next-due date that the calendar agrees with.
     const dueLine = scheduleItem.getByText(/Next due: \d{4}-\d{2}-\d{2}/);
-    await expect(dueLine).toBeVisible({ timeout: 30_000 });
+    await expect(dueLine).not.toHaveText(originalDueText, { timeout: 30_000 });
     const dueDate = /(\d{4}-\d{2}-\d{2})/.exec(await dueLine.innerText())?.[1] ?? '';
-    expect(dueDate.slice(8)).toBe('21');
 
     // ...and the calendar agrees: the cell for that exact date carries the
     // schedule's own instance, linked back to the schedule it came from. The
@@ -76,7 +82,6 @@ test.describe('desktop review', () => {
     const calendar = page.locator('section[aria-labelledby="calendar-heading"]');
     const cell = calendar.locator(`[data-date="${dueDate}"]`);
     await expect(cell).toHaveCount(1);
-    await cell.locator('summary').click();
     await expect(cell.locator('a[href^="#schedule-edit-"]', { hasText: 'Phone plan' })).toHaveCount(
       1,
     );
@@ -118,8 +123,9 @@ test.describe('desktop review', () => {
     await expect(page.getByRole('heading', { name: /Follow-ups you promised/i })).toBeVisible();
 
     // The seeded contract end is inside its window (or honestly rolled).
-    const contractRow = page.locator('li', { hasText: 'BroadbandCo fibre' }).first();
-    await expect(contractRow.getByText(/in \d+ days|ends today|ended|rolled/i)).toBeVisible();
+    const contracts = page.locator('section[aria-labelledby="contract-ends-heading"]');
+    const contractRow = contracts.locator('div', { hasText: 'BroadbandCo fibre' }).first();
+    await expect(contractRow.getByText(/in \d+ days|ends today|rolled/i)).toBeVisible();
     await expect(page.getByText('Vehicle A insurance').first()).toBeVisible();
 
     // The renewal is editable in place.
