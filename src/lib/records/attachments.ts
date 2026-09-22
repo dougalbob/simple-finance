@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { and, asc, eq } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
@@ -16,7 +16,10 @@ import { attachments, purchases } from '../db/schema';
  * - the size limit is enforced here, server-side (SPEC §23, plan OQ12: 10 MB);
  * - storage keys are server-generated under `<dataDir>/documents/` and must
  *   match a strict pattern before anything touches the filesystem — that same
- *   pattern is what makes an archive member safe to restore (SPEC §18.4).
+ *   pattern is what makes an archive member safe to restore (SPEC §18.4);
+ * - removal flips `state` to `deleted` and audits it, and only then unlinks
+ *   the file (SPEC §23.4). The other way around would make the next backup
+ *   fail closed if the process died in between.
  */
 
 /** Per-file limit (plan OQ12). Enforced on upload and on restore. */
@@ -44,6 +47,18 @@ export class AttachmentInputError extends Error {
     super(message);
     this.name = 'AttachmentInputError';
   }
+}
+
+/** The id does not match a row. A second delete of a row that exists is not this. */
+export class AttachmentNotFoundError extends Error {
+  constructor(message = 'That receipt no longer exists.') {
+    super(message);
+    this.name = 'AttachmentNotFoundError';
+  }
+}
+
+function attachmentSizeLabel(sizeBytes: number): string {
+  return `${(sizeBytes / 1024).toFixed(0)} KB`;
 }
 
 export function isSafeFileKey(fileKey: string): boolean {
@@ -183,7 +198,7 @@ export async function storeAttachment(input: StoreAttachmentInput): Promise<Stor
       action: 'attachment.store',
       entity: 'purchase',
       entityId: input.purchaseId,
-      summary: `Attached ${originalName} (${(input.bytes.length / 1024).toFixed(0)} KB, ${mime})`,
+      summary: `Attached ${originalName} (${attachmentSizeLabel(input.bytes.length)}, ${mime})`,
       after: { fileKey, originalName, mime, sizeBytes: input.bytes.length, sha256 },
       now,
     });
@@ -191,6 +206,107 @@ export async function storeAttachment(input: StoreAttachmentInput): Promise<Stor
   });
 
   return { id, fileKey, originalName, mime, sizeBytes: input.bytes.length, sha256 };
+}
+
+export interface DeleteAttachmentInput {
+  db: Db;
+  id: number;
+  actor: string;
+  /** `<dataDir>/documents` — from AppConfig, never from a request (SPEC §18.1). */
+  documentsDir: string;
+  now?: Date;
+}
+
+export interface DeleteAttachmentResult {
+  /** True when this call flipped a `stored` row to `deleted`. */
+  deleted: boolean;
+  /**
+   * True when the file is gone (unlinked, or already absent). False only when
+   * the row was marked deleted but the bytes could not be removed — an orphan,
+   * which the backup report is designed to surface. Irrelevant when `deleted`
+   * is false.
+   */
+  fileRemoved: boolean;
+  originalName: string | null;
+}
+
+/**
+ * Remove one receipt (SPEC §23.4). The client supplies an id, never a storage
+ * key. The row is marked `deleted` and audited in one transaction; the file
+ * is unlinked only after that commit. A second call is a no-op (the
+ * `state = 'stored'` guard matches nothing, so there is no second audit entry
+ * and no second unlink).
+ *
+ * An unlink failure does not roll the database back. The row is already
+ * `deleted`, so later backups do not fail closed on a missing file; a leftover
+ * file is an orphan, which is the designed report.
+ */
+export async function deleteAttachment(
+  input: DeleteAttachmentInput,
+): Promise<DeleteAttachmentResult> {
+  const row = input.db.select().from(attachments).where(eq(attachments.id, input.id)).get();
+  if (row === undefined) throw new AttachmentNotFoundError();
+
+  const now = input.now ?? new Date();
+  const flipped = input.db.transaction((tx: DbTx) => {
+    const updated = tx
+      .update(attachments)
+      .set({ state: 'deleted' })
+      .where(and(eq(attachments.id, row.id), eq(attachments.state, 'stored')))
+      .returning({ id: attachments.id })
+      .all();
+    if (updated.length === 0) return false;
+    recordAudit(tx, {
+      actor: input.actor,
+      action: 'attachment.delete',
+      entity: 'purchase',
+      entityId: row.purchaseId,
+      summary: `Removed ${row.originalName} (${attachmentSizeLabel(row.sizeBytes)}, ${row.mime})`,
+      before: {
+        fileKey: row.fileKey,
+        originalName: row.originalName,
+        mime: row.mime,
+        sizeBytes: row.sizeBytes,
+        sha256: row.sha256,
+      },
+      now,
+    });
+    return true;
+  });
+
+  if (!flipped) {
+    return { deleted: false, fileRemoved: true, originalName: row.originalName };
+  }
+  return {
+    deleted: true,
+    fileRemoved: await unlinkStoredFile(input.documentsDir, row.fileKey),
+    originalName: row.originalName,
+  };
+}
+
+/**
+ * Unlink a file this module minted. Anything that is not a safe storage key
+ * is refused here — deletion must not grow a second path that accepts or
+ * builds a key (SPEC §23.4). `ENOENT` is success: the file is already gone.
+ */
+async function unlinkStoredFile(documentsDir: string, fileKey: string): Promise<boolean> {
+  if (!isSafeFileKey(fileKey)) {
+    console.error(
+      '[attachments] receipt row marked deleted but its storage key is not a safe file key; leaving the filesystem untouched',
+    );
+    return false;
+  }
+  try {
+    await unlink(path.join(documentsDir, fileKey));
+    return true;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return true;
+    console.error(
+      `[attachments] receipt ${fileKey} is deleted in the database but the file could not be removed (${code ?? 'unknown'}). It will show up in the orphan report.`,
+    );
+    return false;
+  }
 }
 
 /** Stored attachments of one purchase, oldest first (the receipt order). */

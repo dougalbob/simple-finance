@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { RecentEntryActions } from '@/components/record-forms';
 import { AttachmentForm } from '@/components/attachment-form';
+import { listAuditForEntity, type AuditEntry } from '@/lib/audit';
 import { formatPence } from '@/lib/money';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
@@ -104,8 +105,9 @@ export default async function PurchasesPage({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Purchases</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Every recorded purchase</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Filter, review and correct entries. Voids and refunds are kept in the history — nothing is
-          ever deleted.
+          Filter, review and correct entries. Voids and refunds are kept in the history — a purchase
+          record is never deleted. A receipt can be removed; that removal is in the history, and an
+          older backup is the only way to get the file back.
         </p>
       </header>
 
@@ -173,6 +175,7 @@ export default async function PurchasesPage({
                       targetId: line.targetId,
                     }))}
                     attachments={listStoredAttachments(db, purchase.id)}
+                    history={listAuditForEntity(db, 'purchase', purchase.id)}
                     fromSchedule={purchase.scheduleInstanceId !== null}
                     isRefund={purchase.refundOfPurchaseId !== null}
                     voidedAt={purchase.voidedAt}
@@ -231,6 +234,7 @@ interface PurchaseRowProps {
   note: string;
   version: number;
   attachments: StoredAttachment[];
+  history: AuditEntry[];
   people: Array<{ id: number; label: string }>;
   vehicles: Array<{ id: number; label: string }>;
   categories: Array<{ id: number; parentName: string; childName: string }>;
@@ -265,6 +269,25 @@ function PurchaseRow(props: PurchaseRowProps) {
         </span>
         {props.note !== '' ? <p className="mt-0.5 text-xs text-slate-500">{props.note}</p> : null}
         <AttachmentForm purchaseId={props.purchaseId} attachments={props.attachments} />
+        <details className="mt-1">
+          <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800">
+            History
+          </summary>
+          {props.history.length === 0 ? (
+            <p className="mt-1 text-xs text-slate-500">No history recorded.</p>
+          ) : (
+            <ul className="mt-1 space-y-1" aria-label={`History for purchase ${props.purchaseId}`}>
+              {props.history.map((entry) => (
+                <li key={entry.id} className="text-xs text-slate-600">
+                  <span className="font-medium text-slate-700">{entry.summary}</span>
+                  <span className="block text-slate-500">
+                    {entry.actor} · {formatInstantLocal(entry.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
       </td>
       <td className="px-3 py-2.5">
         <ul className="space-y-0.5">

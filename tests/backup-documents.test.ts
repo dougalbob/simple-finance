@@ -3,7 +3,14 @@ import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { createEncryptedBackup, BackupIncompleteError } from '../src/lib/backup/backup';
+import { eq } from 'drizzle-orm';
+import {
+  createEncryptedBackup,
+  BackupIncompleteError,
+  inspectDocuments,
+} from '../src/lib/backup/backup';
+import { openDatabase } from '../src/lib/db/client';
+import { attachments } from '../src/lib/db/schema';
 import { restoreEncryptedBackup, RestoreError } from '../src/lib/backup/restore';
 import {
   BackupFormatError,
@@ -12,7 +19,7 @@ import {
   encryptBackupPayload,
 } from '../src/lib/backup/crypto';
 import { documentsDirForDatabase } from '../src/lib/backup/backup';
-import { storeAttachment } from '../src/lib/records/attachments';
+import { deleteAttachment, storeAttachment } from '../src/lib/records/attachments';
 import { createPurchase } from '../src/lib/records/purchases';
 import { createHouseholdFixture } from './household';
 import { makeTempDir } from './helpers';
@@ -219,6 +226,108 @@ describe('backup covers attachments (format 2)', () => {
       assert.ok(existsSync(targetDocuments), 'the directory itself exists for future uploads');
     } finally {
       plain.close();
+    }
+  });
+});
+
+describe('removing a receipt does not compromise backup or restore', () => {
+  it('keeps a pre-delete archive complete and a post-delete archive clean', async () => {
+    const { fx, documentsDir, stored } = await seededWithReceipts();
+    try {
+      const before = await createEncryptedBackup({
+        handle: fx.handle,
+        password: PASSWORD,
+        documentsDir,
+        now: new Date('2026-09-20T20:30:12Z'),
+      });
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: stored.id,
+        actor: ACTOR,
+        documentsDir,
+        now: new Date('2026-09-20T21:00:00Z'),
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(removed.fileRemoved, true);
+      assert.equal(existsSync(path.join(documentsDir, stored.fileKey)), false);
+
+      // The live installation can still be backed up: a deleted row is not a
+      // stored reference, so a missing file is not BackupIncompleteError.
+      const after = await createEncryptedBackup({
+        handle: fx.handle,
+        password: PASSWORD,
+        documentsDir,
+        now: new Date('2026-09-20T21:05:00Z'),
+      });
+      assert.equal(
+        after.manifest.files.some((file) => file.path === `documents/${stored.fileKey}`),
+        false,
+      );
+      assert.equal(after.manifest.documents.orphans.includes(stored.fileKey), false);
+      assert.equal(after.manifest.documents.included, 0);
+      assert.equal(after.manifest.documents.skippedUnstored, 1);
+      assert.equal(
+        after.manifest.counts.attachments,
+        1,
+        'the deleted row is still in the database',
+      );
+
+      const afterDir = await makeTempDir('sf-restore-after-delete-');
+      const afterDb = path.join(afterDir, 'simple-finance.sqlite');
+      const afterDocuments = path.join(afterDir, 'documents');
+      const afterSummary = await restoreEncryptedBackup({
+        archive: after.bytes,
+        password: PASSWORD,
+        targetDatabasePath: afterDb,
+        targetDocumentsDir: afterDocuments,
+      });
+      assert.equal(afterSummary.documentsRestored, 0);
+      assert.equal(existsSync(path.join(afterDocuments, stored.fileKey)), false);
+      const afterHandle = openDatabase(afterDb);
+      try {
+        const row = afterHandle.db
+          .select()
+          .from(attachments)
+          .where(eq(attachments.fileKey, stored.fileKey))
+          .get();
+        assert.equal(row?.state, 'deleted');
+        const status = await inspectDocuments(afterHandle);
+        assert.deepEqual(status.missing, []);
+        assert.deepEqual(status.orphans, []);
+      } finally {
+        afterHandle.raw.close();
+      }
+
+      // An archive taken before the removal still restores that receipt.
+      // Restoring it into a different directory proves the two archives do
+      // not contaminate each other.
+      const beforeDir = await makeTempDir('sf-restore-before-delete-');
+      const beforeDb = path.join(beforeDir, 'simple-finance.sqlite');
+      const beforeDocuments = path.join(beforeDir, 'documents');
+      const beforeSummary = await restoreEncryptedBackup({
+        archive: before.bytes,
+        password: PASSWORD,
+        targetDatabasePath: beforeDb,
+        targetDocumentsDir: beforeDocuments,
+      });
+      assert.equal(beforeSummary.documentsRestored, 1);
+      assert.deepEqual(await fs.readFile(path.join(beforeDocuments, stored.fileKey)), PNG_BYTES);
+      const beforeHandle = openDatabase(beforeDb);
+      try {
+        const row = beforeHandle.db
+          .select()
+          .from(attachments)
+          .where(eq(attachments.fileKey, stored.fileKey))
+          .get();
+        assert.equal(row?.state, 'stored');
+        const status = await inspectDocuments(beforeHandle);
+        assert.deepEqual(status.missing, []);
+        assert.deepEqual(status.orphans, []);
+      } finally {
+        beforeHandle.raw.close();
+      }
+    } finally {
+      fx.close();
     }
   });
 });

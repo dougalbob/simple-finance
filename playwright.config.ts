@@ -48,6 +48,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project: testMatch is per-project, so a new spec file is not picked
+      // up by mobile/desktop/backup. Runs before backup so a restore in that
+      // project cannot hide a missing receipt-removal control.
+      name: 'attachments',
+      testMatch: /attachments\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

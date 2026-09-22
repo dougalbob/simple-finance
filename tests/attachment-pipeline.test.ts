@@ -7,14 +7,16 @@ import { eq } from 'drizzle-orm';
 import { GET } from '../src/app/api/attachments/[fileKey]/route';
 import { closeDbHandle, getDbHandle } from '../src/lib/db/client';
 import { loadAppConfig } from '../src/lib/config';
-import { auditEntries, attachments } from '../src/lib/db/schema';
+import { attachments, auditEntries, purchases } from '../src/lib/db/schema';
 import { findChildCategory } from '../src/lib/records/categories';
 import { createPerson } from '../src/lib/records/people';
 import { createPot } from '../src/lib/records/pots';
 import { createPurchase } from '../src/lib/records/purchases';
 import {
   AttachmentInputError,
+  AttachmentNotFoundError,
   MAX_ATTACHMENT_BYTES,
+  deleteAttachment,
   isSafeFileKey,
   listStoredAttachments,
   readAttachmentBytes,
@@ -263,6 +265,201 @@ describe('GET /api/attachments/[fileKey]', () => {
       assert.equal((await callRoute(stored.fileKey)).status, 404);
     } finally {
       process.env.AUTH_DEV_BYPASS = 'false';
+    }
+  });
+});
+
+describe('removing an attachment', () => {
+  it('marks the row deleted, audits the purchase, then unlinks the file', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      const purchaseId = purchaseIn(fx.db, fx);
+      const stored = await storeAttachment({
+        db: fx.db,
+        purchaseId,
+        originalName: 'weekly shop receipt.png',
+        bytes: PNG_BYTES,
+        actor: 'alex@example.com',
+        documentsDir,
+        now: new Date('2026-09-19T12:05:00Z'),
+      });
+      const other = await storeAttachment({
+        db: fx.db,
+        purchaseId,
+        originalName: 'other.png',
+        bytes: PNG_BYTES,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: stored.id,
+        actor: 'sam@example.com',
+        documentsDir,
+        now: new Date('2026-09-19T18:00:00Z'),
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(removed.fileRemoved, true);
+      assert.equal(removed.originalName, 'weekly shop receipt.png');
+      assert.equal(existsSync(path.join(documentsDir, stored.fileKey)), false);
+      assert.equal(
+        listStoredAttachments(fx.db, purchaseId)
+          .map((row) => row.id)
+          .join(','),
+        String(other.id),
+      );
+      assert.ok(existsSync(path.join(documentsDir, other.fileKey)));
+
+      const row = fx.db.select().from(attachments).where(eq(attachments.id, stored.id)).get();
+      assert.equal(row?.state, 'deleted');
+      const purchase = fx.db.select().from(purchases).where(eq(purchases.id, purchaseId)).get();
+      assert.equal(
+        purchase?.voidedAt ?? null,
+        null,
+        'removing a receipt does not void the purchase',
+      );
+
+      const audit = fx.db
+        .select()
+        .from(auditEntries)
+        .where(eq(auditEntries.action, 'attachment.delete'))
+        .all();
+      assert.equal(audit.length, 1);
+      assert.equal(audit[0]!.actor, 'sam@example.com');
+      assert.equal(audit[0]!.entity, 'purchase');
+      assert.equal(audit[0]!.entityId, String(purchaseId));
+      assert.match(audit[0]!.summary, /^Removed weekly shop receipt\.png \(.+, image\/png\)$/);
+      const before = JSON.parse(audit[0]!.before ?? '{}') as { fileKey?: string; sha256?: string };
+      assert.equal(before.fileKey, stored.fileKey);
+      assert.equal(before.sha256, stored.sha256);
+
+      const again = await deleteAttachment({
+        db: fx.db,
+        id: stored.id,
+        actor: 'sam@example.com',
+        documentsDir,
+      });
+      assert.equal(again.deleted, false);
+      assert.equal(
+        fx.db.select().from(auditEntries).where(eq(auditEntries.action, 'attachment.delete')).all()
+          .length,
+        1,
+        'a second delete writes no second audit entry',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('treats an already-missing file as success and does not roll the row back', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      const stored = await storeAttachment({
+        db: fx.db,
+        purchaseId: purchaseIn(fx.db, fx),
+        originalName: 'receipt.png',
+        bytes: PNG_BYTES,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      await fs.rm(path.join(documentsDir, stored.fileKey));
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: stored.id,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(removed.fileRemoved, true);
+      assert.equal(
+        fx.db.select().from(attachments).where(eq(attachments.id, stored.id)).get()?.state,
+        'deleted',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('keeps the deleted row when the file cannot be unlinked', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      const stored = await storeAttachment({
+        db: fx.db,
+        purchaseId: purchaseIn(fx.db, fx),
+        originalName: 'receipt.png',
+        bytes: PNG_BYTES,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      const filePath = path.join(documentsDir, stored.fileKey);
+      await fs.rm(filePath);
+      await fs.mkdir(filePath);
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: stored.id,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(removed.fileRemoved, false);
+      assert.equal(
+        fx.db.select().from(attachments).where(eq(attachments.id, stored.id)).get()?.state,
+        'deleted',
+        'an unlink failure must not roll the state flip back',
+      );
+      assert.equal(existsSync(filePath), true);
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('refuses an unknown id and will not unlink through an unsafe storage key', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      await assert.rejects(
+        () =>
+          deleteAttachment({
+            db: fx.db,
+            id: 9999,
+            actor: 'alex@example.com',
+            documentsDir,
+          }),
+        AttachmentNotFoundError,
+      );
+
+      const outside = path.join(path.dirname(documentsDir), 'do-not-touch.png');
+      await fs.writeFile(outside, PNG_BYTES);
+      const inserted = fx.db
+        .insert(attachments)
+        .values({
+          purchaseId: purchaseIn(fx.db, fx),
+          fileKey: '../do-not-touch.png',
+          originalName: 'bad.png',
+          mime: 'image/png',
+          sizeBytes: PNG_BYTES.length,
+          sha256: 'ab',
+          state: 'stored',
+          createdBy: 'alex@example.com',
+          createdAt: new Date('2026-09-19T12:02:00Z'),
+        })
+        .returning()
+        .get();
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: inserted.id,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(removed.fileRemoved, false);
+      assert.ok(existsSync(outside), 'an unsafe key must not be used as a filesystem path');
+    } finally {
+      fx.close();
     }
   });
 });

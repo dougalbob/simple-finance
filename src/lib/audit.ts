@@ -41,7 +41,7 @@ export type AuditEntry = typeof auditEntries.$inferSelect;
  * Purchases page, SPEC §9.5 / §15.2): newest first, read-only.
  */
 export function listAuditForEntity(
-  db: DbTx,
+  db: Pick<Db, 'select'>,
   entity: string,
   entityId: number | string,
   limit = 20,

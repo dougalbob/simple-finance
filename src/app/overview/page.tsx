@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { AttachmentForm } from '@/components/attachment-form';
 import { QuickEntry } from '@/components/quick-entry';
 import { AddCheckpointForm, CreatePotForm } from '@/components/pot-forms';
 import { RecentEntryActions, VoidForm, TransferForm } from '@/components/record-forms';
@@ -17,6 +18,7 @@ import {
   getKeyDateAlerts,
 } from '@/lib/records/money-view';
 import { keyDateMessage } from '@/lib/records/keydates';
+import { listStoredAttachments } from '@/lib/records/attachments';
 import { listPeople } from '@/lib/records/people';
 import { listPots, recentCheckpoints } from '@/lib/records/pots';
 import { listPurchases } from '@/lib/records/purchases';
@@ -214,6 +216,10 @@ export default async function OverviewPage() {
                         </details>
                       </div>
                     ) : null}
+                    <AttachmentForm
+                      purchaseId={purchase.id}
+                      attachments={listStoredAttachments(db, purchase.id)}
+                    />
                   </li>
                 ))}
               </ul>
