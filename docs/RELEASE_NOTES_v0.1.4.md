@@ -1,19 +1,20 @@
 # Simple Finance v0.1.4
 
 **Release date:** 2026-09-22
-The image publishes only when the lower-case tag `v0.1.4` is pushed. Merging the pull request does not
-publish by itself.
+**Published:** yes — annotated tag `v0.1.4` on `7197666`, publish run green, `v0.1.4` / `latest` /
+`sha-7197666` all on one digest. Force Update now brings this release.
 **Type:** small feature. No schema change, no migration, no configuration change, no change to the backup
 archive format (still format 2).
-**Previous published image:** v0.1.2. Do not rewrite `docs/RELEASE_NOTES_v0.1.2.md` and do not retag v0.1.2.
+**Previous published image:** v0.1.3. If nobody Force Updated for v0.1.3, your install is on v0.1.2 and this
+update brings both. Do not rewrite `docs/RELEASE_NOTES_v0.1.2.md` and do not retag v0.1.2.
 
 ## What to do in Unraid
 
 1. Take a backup first (Settings → Backup & restore). No migration runs, so nothing is rewritten — a current
    archive is still the right starting point, and it is the only way back if you later remove a receipt you
    wanted to keep.
-2. Docker → the Simple Finance container → **Force Update** (pulls `ghcr.io/dougalbob/simple-finance:latest`
-   once `v0.1.4` has been tagged). Until that tag exists, Force Update still gives you v0.1.2.
+2. Docker → the Simple Finance container → **Force Update** (pulls `ghcr.io/dougalbob/simple-finance:latest`,
+   which is the v0.1.4 image). If you have not updated for v0.1.3 yet, this one update takes you to v0.1.4.
 3. Start it and read the log. Expect the migration step, then `starting Simple Finance on port 3000 as 99:100`.
 4. Confirm the version badge in the navigation reads **v0.1.4 · pre-release**.
 

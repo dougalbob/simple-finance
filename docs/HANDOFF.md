@@ -82,15 +82,45 @@ These were recorded in session 7 and were left alone on purpose.
 
 ---
 
-## 5. How to release v0.1.4
+## 5. v0.1.4 — published (2026-09-22)
 
-Not tagged. Not published. The published image is still v0.1.2 until the product owner merges and tags.
+**Done.** Annotated tag `v0.1.4` → `7197666` (`main`, the PR #14 merge). Publish run
+[35715570724](https://github.com/dougalbob/simple-finance/actions/runs/35715570724) was green: metadata
+check, build, smoke test (health, uid 99, database created and surviving recreation), push, registry tags
+resolve. GHCR now carries `v0.1.4`, `latest` and `sha-7197666` on one digest,
+`sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343`, replacing the v0.1.3 digest
+`sha256:4744ecf9…` that `latest` previously pointed at. The GitHub release `v0.1.4` is marked Latest.
+
+What went wrong on the way, so it is not repeated: **two tags existed that no image could ever come from.**
+`v0.1.4` was first cut on `7db0fcc` (the PR #13 merge, where `package.json` still said `0.1.3`) and `v0.1.5`
+on `7197666` (where it says `0.1.4`). Both runs stopped at `Verify the version metadata matches the tag`.
+A tag is a claim about the tree it points at, not about the version you intend to reach, so cut the tag
+*after* the metadata bump has landed on `main` and run the two `test` lines locally first. Neither failed tag
+had published anything, so re-pointing `v0.1.4` was allowed — that is never true of a tag with an image behind
+it (`v0.1.2`, `v0.1.3`), and the unused `v0.1.5` release was deleted rather than left advertising a version
+with no build.
+
+### For the next release
 
 1. Review the diff. No real receipts, no household figures.
 2. Merge with a **merge commit**. A squash would make a later `sha-<short>` image tag untraceable.
-3. Wait for CI on `main`: gates, browser (the new `attachments` project must be in that run), docker.
-4. Annotated tag `v0.1.4` on the merged commit. The publish workflow refuses a capital `V` and refuses a tag that does not match `package.json`.
-5. Confirm GHCR has `v0.1.4`, `latest` and `sha-<short>` on one digest.
-6. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.4.md`. Take a backup first. Removing a receipt afterwards cannot be undone except from an older archive.
+3. Wait for CI on `main`: gates, browser (the `attachments` project must be in that run), docker.
+4. Bump `package.json`, `src/lib/version.ts`, `package-lock.json` (both fields), the `simple-finance.xml`
+   blurb and the docs *before* tagging — the publish workflow refuses a tag that does not match
+   `package.json`, and refuses a capital `V`.
+5. Annotated tag `vX.Y.Z` on the merged commit at the tip of `main`, then push only that tag. Run the gate
+   yourself first, so the tag cannot fail it:
 
-If review changes the code after the tag is pushed, cut v0.1.5. Do not move `v0.1.4`, and do not move `v0.1.2`.
+   ```bash
+   VERSION=vX.Y.Z
+   test "v$(node -p "require('./package.json').version")" = "$VERSION" && echo "package.json ok"
+   test "v$(node -p "require('fs').readFileSync('src/lib/version.ts','utf8').match(/APP_VERSION = '([^']+)'/)[1]")" = "$VERSION" && echo "version.ts ok"
+   ```
+
+   If the tag must be corrected afterwards, deleting it drops the release that points at it — recreate both.
+   A force-push of the tag still fires the workflow (`git push --force origin refs/tags/vX.Y.Z`), and
+   **Actions → Publish → Run workflow** with a tag that exists is the documented manual path.
+6. Confirm GHCR has the release tag, `latest` and `sha-<short>` on one digest, and that the digest differs
+   from the previous release's.
+7. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v<version>.md`. Take a backup first.
+   Removing a receipt afterwards cannot be undone except from an older archive.
