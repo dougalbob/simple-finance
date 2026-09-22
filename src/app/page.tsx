@@ -523,6 +523,7 @@ function RecurringSection({
                             ? `every year, month ${schedule.dueMonth ?? '?'} day ${schedule.dueDayOfMonth}`
                             : `day ${schedule.dueDayOfMonth} each month`}{' '}
                           · {schedule.potLabel}
+                          {schedule.supplierName !== null ? ` · ${schedule.supplierName}` : ''}
                         </span>
                       </span>
                       <span className="font-semibold tabular-nums">
@@ -654,8 +655,14 @@ function buildRecurringData(
     version: schedule.version,
     cancelledEffectiveOn: schedule.cancelledEffectiveOn,
     contractEndsOn: schedule.contractEndsOn,
+    supplierId: schedule.supplierId,
+    supplierName: null as string | null,
   }));
   const supplierNames = new Map(supplierRows.map((supplier) => [supplier.id, supplier.name]));
+  for (const entry of schedules) {
+    entry.supplierName =
+      entry.supplierId === null ? null : (supplierNames.get(entry.supplierId) ?? null);
+  }
   const vehicleLabels = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle.label]));
   const renewals = listRenewals(db).map((renewal) => ({
     id: renewal.id,

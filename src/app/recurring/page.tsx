@@ -183,6 +183,11 @@ export default async function RecurringPage({
       version: schedule.version,
       cancelledEffectiveOn: schedule.cancelledEffectiveOn,
       contractEndsOn: schedule.contractEndsOn,
+      supplierId: schedule.supplierId,
+      supplierName:
+        schedule.supplierId === null
+          ? null
+          : (suppliers.find((s) => s.id === schedule.supplierId)?.name ?? null),
     })),
     renewals: renewals.map((renewal) => ({
       id: renewal.id,
@@ -320,6 +325,9 @@ export default async function RecurringPage({
                             ? ` · every year, ${MONTH_NAMES[(schedule.dueMonth ?? 1) - 1]}`
                             : ` · monthly`}{' '}
                           · {potNames.get(schedule.potId) ?? 'Pot'}
+                          {schedule.supplierId !== null
+                            ? ` · ${suppliers.find((s) => s.id === schedule.supplierId)?.name ?? 'supplier'}`
+                            : ''}
                         </span>
                       </span>
                       <span className="text-sm font-semibold tabular-nums">
@@ -336,6 +344,14 @@ export default async function RecurringPage({
                       {schedule.contractEndsOn !== null
                         ? ` · contract ends ${schedule.contractEndsOn} (informational)`
                         : ''}
+                      {schedule.supplierId !== null ? (
+                        <>
+                          {' · '}
+                          <Link href="/suppliers" className="text-sky-700 hover:underline">
+                            Supplier card
+                          </Link>
+                        </>
+                      ) : null}
                     </p>
                     {schedule.cancelledAt === null ? (
                       <details className="mt-1.5">
@@ -347,6 +363,7 @@ export default async function RecurringPage({
                             scheduleId={schedule.id}
                             version={schedule.version}
                             name={schedule.name}
+                            kind={schedule.kind}
                             frequency={schedule.frequency}
                             dueDayOfMonth={schedule.dueDayOfMonth}
                             dueMonth={schedule.dueMonth}
@@ -357,6 +374,8 @@ export default async function RecurringPage({
                             potOptions={pots.map((pot) => ({ id: pot.id, label: pot.label }))}
                             categoryId={schedule.categoryId}
                             categoryOptions={categoryOptions}
+                            supplierId={schedule.supplierId}
+                            supplierOptions={suppliers.map((s) => ({ id: s.id, label: s.name }))}
                             targetKind={schedule.targetKind}
                             targetId={schedule.targetId}
                             people={recurringData.people}
@@ -382,6 +401,12 @@ export default async function RecurringPage({
                             version: schedule.version,
                             cancelledEffectiveOn: schedule.cancelledEffectiveOn,
                             contractEndsOn: schedule.contractEndsOn,
+                            supplierId: schedule.supplierId,
+                            supplierName:
+                              schedule.supplierId === null
+                                ? null
+                                : (suppliers.find((s) => s.id === schedule.supplierId)?.name ??
+                                  null),
                           } as RecurringData['schedules'][number])
                         }
                         today={today}

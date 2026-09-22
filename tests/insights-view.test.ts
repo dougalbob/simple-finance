@@ -297,6 +297,7 @@ describe('insights-view: converted schedule purchases count as spending', () => 
         amountPence: 8455,
         potId: pots.main.id,
         categoryId: groceries,
+        supplierName: 'Northern Power Co',
         targetKind: 'household',
         activeFrom: '2026-09-01',
         actor: 'alex@example.com',

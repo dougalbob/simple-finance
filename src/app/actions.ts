@@ -9,6 +9,7 @@ import {
 } from '@/lib/records/supplier-details';
 import {
   InvalidSupplierContactError,
+  InvalidSupplierNameError,
   SupplierNotFoundError,
   updateSupplierContact,
 } from '@/lib/records/suppliers';
@@ -697,10 +698,12 @@ export async function addScheduleAction(
     const { schedule } = createSchedule(getDbHandle().db, {
       ...parsed.data,
       categoryId: parsed.data.kind === 'receipt' ? null : parsed.data.categoryId,
+      supplierId: parsed.data.kind === 'receipt' ? null : parsed.data.supplierId,
+      supplierName: parsed.data.kind === 'receipt' ? null : parsed.data.supplierName,
       activeFrom: parsed.data.activeFrom,
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `Schedule “${schedule.name}” added — it will convert automatically on its due date.`,
@@ -709,7 +712,9 @@ export async function addScheduleAction(
     if (
       err instanceof InvalidScheduleInputError ||
       err instanceof ScheduleNotFoundError ||
-      err instanceof ScheduleCancelledError
+      err instanceof ScheduleCancelledError ||
+      err instanceof SupplierNotFoundError ||
+      err instanceof InvalidSupplierNameError
     ) {
       return { status: 'error', message: err.message };
     }
@@ -741,7 +746,7 @@ export async function cancelScheduleAction(
       effectiveOn: parsed.data.effectiveOn ?? '',
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `“${result.name}” cancelled from ${parsed.data.effectiveOn} — converted history is kept.`,
@@ -783,7 +788,7 @@ export async function addRenewalAction(
       ...parsed.data,
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `Renewal “${renewal.label}” added for ${renewal.nextRenewalDate}.`,
@@ -861,6 +866,8 @@ function parseScheduleForm(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
+    supplierId: numberOrNull(formData.get('supplierId')),
+    supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
     activeFrom: textOrNull(formData.get('activeFrom')) ?? toLocalDateString(now),
@@ -894,6 +901,8 @@ const PAGE_PATHS = [
   '/overview',
   '/purchases',
   '/recurring',
+  '/contracts',
+  '/suppliers',
   '/pots',
   '/insights',
   '/settings',
@@ -1214,6 +1223,8 @@ export async function editScheduleAction(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
+    supplierId: numberOrNull(formData.get('supplierId')),
+    supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
     activeUntil: textOrNull(formData.get('activeUntil')),
@@ -1234,6 +1245,8 @@ export async function editScheduleAction(
         amountPence: parsed.data.amountPence,
         potId: parsed.data.potId,
         categoryId: parsed.data.categoryId,
+        supplierId: parsed.data.supplierId,
+        supplierName: parsed.data.supplierName,
         targetKind: parsed.data.targetKind,
         targetId: parsed.data.targetId,
         contractEndsOn: parsed.data.contractEndsOn,
@@ -1250,7 +1263,9 @@ export async function editScheduleAction(
       err instanceof InvalidScheduleInputError ||
       err instanceof ScheduleNotFoundError ||
       err instanceof ScheduleCancelledError ||
-      err instanceof VersionConflictError
+      err instanceof VersionConflictError ||
+      err instanceof SupplierNotFoundError ||
+      err instanceof InvalidSupplierNameError
     ) {
       return { status: 'error', message: err.message };
     }

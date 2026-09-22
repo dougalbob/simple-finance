@@ -44,6 +44,7 @@ describe('money view: E8 end to end over the database', () => {
         dueDayOfMonth: dueDay,
         amountPence,
         potId: pots.main.id,
+        supplierName: 'Northern Power Co',
         categoryId,
         targetKind: 'household',
         activeFrom: '2026-09-01',

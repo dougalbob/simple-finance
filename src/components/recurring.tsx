@@ -41,6 +41,8 @@ export interface RecurringScheduleOption {
   version: number;
   cancelledEffectiveOn: string | null;
   contractEndsOn: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
 }
 
 export interface RecurringData {
@@ -95,18 +97,21 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
   const [state, formAction, pending] = useActionState(addScheduleAction, initialActionState);
   const [kind, setKind] = useState<'dd' | 'so' | 'receipt'>('dd');
   const [frequency, setFrequency] = useState<'monthly' | 'annual'>('monthly');
+  /** '' = pick existing; '__new__' = type a new name; for SO also allow no supplier. */
+  const [supplierMode, setSupplierMode] = useState<string>('');
   const isReceipt = kind === 'receipt';
+  const needsSupplier = kind === 'dd' || kind === 'so';
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>
-          Name
+          Schedule name
           <input
             name="name"
             required
             maxLength={60}
-            placeholder="e.g. Energy Co direct debit"
+            placeholder="e.g. Electricity bill"
             className={inputClass}
           />
         </label>
@@ -126,7 +131,11 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
             name="kind"
             className={inputClass}
             value={kind}
-            onChange={(event) => setKind(event.target.value as 'dd' | 'so' | 'receipt')}
+            onChange={(event) => {
+              const next = event.target.value as 'dd' | 'so' | 'receipt';
+              setKind(next);
+              if (next === 'receipt') setSupplierMode('');
+            }}
           >
             <option value="dd">Direct debit</option>
             <option value="so">Standing order</option>
@@ -196,6 +205,52 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
               ))}
             </select>
           </label>
+        ) : null}
+        {needsSupplier ? (
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <label className={labelClass}>
+              Supplier
+              <select
+                name={supplierMode === '__new__' ? undefined : 'supplierId'}
+                required={kind === 'dd'}
+                className={inputClass}
+                value={supplierMode}
+                onChange={(event) => setSupplierMode(event.target.value)}
+              >
+                <option value="" disabled={kind === 'dd'}>
+                  {kind === 'dd' ? 'Choose a supplier…' : 'No supplier / household transfer'}
+                </option>
+                {data.suppliers.map((supplier) => (
+                  <option key={supplier.id} value={String(supplier.id)}>
+                    {supplier.name}
+                  </option>
+                ))}
+                <option value="__new__">Add a new supplier…</option>
+              </select>
+            </label>
+            {supplierMode === '__new__' ? (
+              <label className={labelClass}>
+                New supplier name
+                <input
+                  name="supplierName"
+                  required
+                  maxLength={120}
+                  placeholder="e.g. Northern Power Co"
+                  className={inputClass}
+                />
+                <span className="mt-1 block text-xs text-slate-500">
+                  Creates the same supplier record used on Purchases, Renewals and Suppliers. Add
+                  contact details there afterwards.
+                </span>
+              </label>
+            ) : null}
+            {kind === 'so' && supplierMode === '' ? (
+              <p className="text-xs text-slate-500">
+                Standing orders that are household transfers need no supplier. Supplier payments
+                should pick one so converted purchases land on the right card.
+              </p>
+            ) : null}
+          </div>
         ) : null}
         <label className={labelClass}>
           For

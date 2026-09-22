@@ -152,6 +152,7 @@ describe('renewals: E9 key-date behaviour', () => {
       amountPence: Math.round(42 * 100),
       potId: fixture.pots.main.id,
       categoryId: fixture.categoryId('Housing', 'Council Tax'),
+      supplierName: 'Northern Power Co',
       targetKind: 'household',
       contractEndsOn: '2026-11-03',
       activeFrom: '2026-09-01',

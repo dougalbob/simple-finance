@@ -209,6 +209,66 @@ test.describe('desktop review', () => {
     await expect(page.getByRole('heading', { name: /Vehicle running costs/i })).toBeVisible();
   });
 
+  test('a supplier created from Recurring is shared with Suppliers and Renewals', async ({
+    page,
+  }) => {
+    // Configuration + identity only: no receipts, purchases or real financial
+    // data. Fictional supplier name throughout.
+    test.slow();
+    const supplierName = 'Willow Energy Co';
+    const scheduleName = 'Electricity bill';
+
+    await page.goto('/recurring');
+    const schedules = page.locator('section[aria-labelledby="schedules-heading"]');
+    await schedules.getByText('Add a schedule').click();
+    const form = schedules.locator('form').filter({ has: page.getByLabel('Schedule name') });
+    await form.getByLabel('Schedule name').fill(scheduleName);
+    await form.getByLabel('Amount').fill('55.00');
+    await form.getByLabel('Type').selectOption('dd');
+    await form.getByLabel('Category (child)').selectOption({ label: 'Utilities / Energy' });
+    await form.getByLabel('Supplier').selectOption({ label: 'Add a new supplier…' });
+    await form.getByLabel('New supplier name').fill(supplierName);
+    await form.getByRole('button', { name: 'Add schedule' }).click();
+    await expect(form.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
+
+    // The new schedule lists the canonical supplier name.
+    const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
+    await expect(scheduleItem.getByText(supplierName)).toBeVisible({ timeout: 30_000 });
+
+    // It appears on the Suppliers page and contact details can be edited.
+    await page.goto('/suppliers');
+    const card = page
+      .locator('article', { has: page.getByRole('heading', { name: supplierName, exact: true }) })
+      .first();
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await card.getByText('Edit contact card').click();
+    await card.getByLabel('Phone').fill('01632 960333');
+    await card.getByRole('button', { name: 'Save contact card' }).click();
+    await expect(card.getByRole('link', { name: '01632 960333' })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    // The same supplier is selectable on a renewal.
+    await page.goto('/recurring');
+    const renewals = page.locator('section[aria-labelledby="renewals-heading"]');
+    await renewals.getByText('Add a renewal').click();
+    const renewalForm = renewals.locator('form').filter({ has: page.getByLabel('Label') });
+    await renewalForm.getByLabel('Label').fill('Electricity contract renewal');
+    const nextYear = new Date();
+    nextYear.setUTCDate(nextYear.getUTCDate() + 40);
+    const nextDate = nextYear.toISOString().slice(0, 10);
+    await renewalForm.getByLabel('Next renewal date').fill(nextDate);
+    await renewalForm.getByLabel('Supplier (optional)').selectOption({ label: supplierName });
+    await renewalForm.getByRole('button', { name: 'Add renewal' }).click();
+    await expect(renewalForm.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
+
+    const renewalItem = renewals.locator('li', { hasText: 'Electricity contract renewal' }).first();
+    await expect(renewalItem.getByText(supplierName)).toBeVisible({ timeout: 30_000 });
+    await expect(
+      schedules.locator('li', { hasText: scheduleName }).getByText(supplierName),
+    ).toBeVisible();
+  });
+
   test('a vehicle added in Settings reaches every vehicle picker', async ({ page }) => {
     // This changes only household configuration. It deliberately does not add
     // a receipt or any financial data.
