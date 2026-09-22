@@ -208,4 +208,40 @@ test.describe('desktop review', () => {
     await expect(page.getByRole('heading', { name: /configured figures honest/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Vehicle running costs/i })).toBeVisible();
   });
+
+  test('a vehicle added in Settings reaches every vehicle picker', async ({ page }) => {
+    // This changes only household configuration. It deliberately does not add
+    // a receipt or any financial data.
+    test.slow();
+    const newVehicle = 'Vehicle C';
+    await page.goto('/settings');
+    const addVehicle = page.getByRole('form', { name: 'Add vehicle' });
+    await addVehicle.getByLabel('Name').fill(newVehicle);
+    await addVehicle.getByLabel('Owner (optional)').selectOption({ label: 'Sam' });
+    await addVehicle.getByRole('button', { name: 'Add vehicle' }).click();
+    await expect(addVehicle.getByRole('status')).toContainText(/vehicle added/i, {
+      timeout: 30_000,
+    });
+
+    await page.goto('/');
+    const quickEntry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    await quickEntry.getByRole('tab', { name: 'Fuel' }).click();
+    await expect(
+      quickEntry.getByLabel('Vehicle').locator('option', { hasText: newVehicle }),
+    ).toHaveCount(1);
+
+    await page.goto('/purchases');
+    await page.getByLabel('Target type').selectOption('vehicle');
+    await expect(page.getByLabel('Target').locator('option', { hasText: newVehicle })).toHaveCount(
+      1,
+    );
+
+    await page.goto('/recurring');
+    await expect(page.locator('select[name="target"] option', { hasText: newVehicle })).toHaveCount(
+      2,
+    );
+
+    await page.goto('/insights');
+    await expect(page.getByText(newVehicle, { exact: true }).first()).toBeVisible();
+  });
 });
