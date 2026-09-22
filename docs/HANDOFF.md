@@ -23,7 +23,7 @@ This sandbox **can** run the Node suite. `npm ci --ignore-scripts` is enough: th
 
 **Hard rule:** never commit, screenshot or fixture real receipts or household financial data (SPEC §19, §23.3). Test attachments are generated fictional bytes. The new e2e spec uses a 1×1 PNG buffer, not a photograph.
 
-**Do not retag v0.1.2.** That release is published. This feature is v0.1.3. `docs/RELEASE_NOTES_v0.1.2.md` was not rewritten. Tag only after merge, lower-case `v0.1.3`, merge commit not squash (session 7 §5). Merging does not publish.
+**Do not retag v0.1.2.** That release is published. This release line is v0.1.4. `docs/RELEASE_NOTES_v0.1.2.md` was not rewritten. Tag only after merge, lower-case `v0.1.4`, merge commit not squash (session 7 §5). Merging does not publish.
 
 ---
 
@@ -37,7 +37,7 @@ Receipt removal, the open item in the session 7 handoff §3. Decision 89.
 - The chip is a `<span>` holding the view link, plus a quiet control named `Remove receipt <originalName>`. Confirmation is two clicks (`Confirm remove receipt <name>`), not `window.confirm`. No button inside an anchor.
 - Overview's recent purchases render `AttachmentForm`. Purchases shows a History disclosure from `listAuditForEntity`, formatted with `formatInstantLocal`.
 - No migration. `attachments.state` has no CHECK.
-- Version `0.1.3` in `package.json`, `src/lib/version.ts` and `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.3.md`.
+- Version `0.1.4` in `package.json`, `src/lib/version.ts` and `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.4.md`.
 
 ---
 
@@ -82,15 +82,15 @@ These were recorded in session 7 and were left alone on purpose.
 
 ---
 
-## 5. How to release v0.1.3
+## 5. How to release v0.1.4
 
 Not tagged. Not published. The published image is still v0.1.2 until the product owner merges and tags.
 
 1. Review the diff. No real receipts, no household figures.
 2. Merge with a **merge commit**. A squash would make a later `sha-<short>` image tag untraceable.
 3. Wait for CI on `main`: gates, browser (the new `attachments` project must be in that run), docker.
-4. Annotated tag `v0.1.3` on the merged commit. The publish workflow refuses a capital `V` and refuses a tag that does not match `package.json`.
-5. Confirm GHCR has `v0.1.3`, `latest` and `sha-<short>` on one digest.
-6. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.3.md`. Take a backup first. Removing a receipt afterwards cannot be undone except from an older archive.
+4. Annotated tag `v0.1.4` on the merged commit. The publish workflow refuses a capital `V` and refuses a tag that does not match `package.json`.
+5. Confirm GHCR has `v0.1.4`, `latest` and `sha-<short>` on one digest.
+6. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.4.md`. Take a backup first. Removing a receipt afterwards cannot be undone except from an older archive.
 
-If review changes the code after the tag is pushed, cut v0.1.4. Do not move `v0.1.3`, and do not move `v0.1.2`.
+If review changes the code after the tag is pushed, cut v0.1.5. Do not move `v0.1.4`, and do not move `v0.1.2`.

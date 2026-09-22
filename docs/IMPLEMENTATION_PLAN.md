@@ -5,9 +5,9 @@
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
 >
-> **Current:** v0.1.2 is the published image. This tree is **v0.1.3** — user-initiated receipt removal
-> (decision 89). Merging does not publish; the image publishes only when the lower-case tag `v0.1.3` is
-> pushed.
+> **Current:** v0.1.2 is the published image. This tree is **v0.1.4** — the receipt-removal release work
+> plus the quick-entry line-1 follow-up. Merging does not publish; the image publishes only when the
+> lower-case tag `v0.1.4` is pushed.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
