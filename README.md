@@ -10,10 +10,9 @@ miss.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
 - **Status:** Phases 0–5 are merged and released. The published image is **v0.1.2**. This tree is
-  **v0.1.3** — a household can remove an attached receipt (audited, file deleted after the database
-  records it, backup format unchanged). The image publishes when the lower-case tag `v0.1.3` is pushed;
-  merging this change does not publish. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
-  [`docs/RELEASE_NOTES_v0.1.3.md`](docs/RELEASE_NOTES_v0.1.3.md).
+  **v0.1.4** — the receipt-removal release work now includes the quick-entry line-1 follow-up. The
+  image publishes when the lower-case tag `v0.1.4` is pushed; merging this change does not publish.
+  See [`docs/HANDOFF.md`](docs/HANDOFF.md) and [`docs/RELEASE_NOTES_v0.1.4.md`](docs/RELEASE_NOTES_v0.1.4.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
   (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
@@ -156,9 +155,9 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.1.3` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+The app version is `v0.1.4` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
 release tag must agree; the publish workflow refuses to push an image when they do not. The published image
-stays v0.1.2 until `v0.1.3` is tagged.
+stays v0.1.2 until `v0.1.4` is tagged.
 
 The tag must be lower-case `vX.Y.Z`. Both the workflow's `on.push.tags` filter and its version check
 (`test "v${PKG_VERSION}" = "$VERSION"`) reject a capital `V` — which is why the `V0.1.1` tag never published an
