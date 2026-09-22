@@ -1,7 +1,10 @@
 # Simple Finance v0.1.6
 
 **Release date:** 2026-09-22
-**Published:** pending the merge and tag workflow.
+**Published:** yes — annotated tag `v0.1.6` on merge commit `6b49e9f`, publish run
+[35746395946](https://github.com/dougalbob/simple-finance/actions/runs/35746395946) green. `v0.1.6` / `latest` /
+`sha-6b49e9f` all resolve to one digest. Force Update now brings this release.
+**Image digest:** `sha256:dfdb2922328798deda99a2382264c563adf48f82ce1aa77efa5ea3c5db3aa83d`.
 **Type:** household configuration. No schema change, no migration, no change to the backup archive format
 (still format 2).
 **Previous published image:** v0.1.5. Do not rewrite `docs/RELEASE_NOTES_v0.1.5.md` and do not retag v0.1.5.
@@ -31,14 +34,14 @@ Additional vehicles can now be added from Settings after the household already h
 
 ## Image tags and digest
 
-The publish workflow puts these tags on one digest:
+The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.1.6`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<merge short SHA>`
+- `ghcr.io/dougalbob/simple-finance:sha-6b49e9f`
 
-The final published digest and merge short SHA are recorded here after the tag-triggered Publish workflow
-completes.
+Digest: `sha256:dfdb2922328798deda99a2382264c563adf48f82ce1aa77efa5ea3c5db3aa83d`.
+The previous v0.1.5 digest was `sha256:dd6d50579f52454cd6978fae504d8d687695d1b8ed5b4b65c98bdcccc5ef68ed`; it was not retagged.
 
 ## What is not in this release
 
