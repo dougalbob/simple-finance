@@ -13,9 +13,10 @@ miss.
   three field-reported bugs (receipt-upload permissions on a bind-mounted appdata folder, the broken void
   flow, and the unreadable void button) plus the receipt-upload body-limit fix that never shipped as an
   image in v0.1.1. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the exact continuation point.
-- **Docs:** [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md)
-  (engineering contract), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) (plan + decision log),
-  [`docs/HANDOFF.md`](docs/HANDOFF.md) (session handover).
+- **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
+  [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
+  (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
+  the initial build through the first release; it is historical context, not required reading for ongoing work.
 
 ## What the app will be (and won't be)
 

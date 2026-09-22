@@ -1,5 +1,10 @@
 # Simple Finance — Implementation Plan
 
+> **Reading note (2026-09-22):** `AGENT_APP_BLUEPRINT.md` supported the initial build through the first
+> release. It is historical context, not required reading for ongoing work. The continuation point is
+> `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
+> how a decision was made, not a reading list.
+
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
 suppliers/interactions are audited domain operations, the container runs unprivileged, the Unraid template

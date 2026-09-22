@@ -4,7 +4,9 @@
 **Branch:** `arena/01a0c557-simple-finance` · **Base:** `main` @ `9f5d8b5` (v0.1.1, PR #10)
 Supersedes the session 6 handoff, which is preserved in git history at `9f5d8b5`.
 
-Read in this order: `AGENT_APP_BLUEPRINT.md` → `docs/SPEC.md` → `docs/IMPLEMENTATION_PLAN.md` → this file.
+**Status after merge (corrected 2026-09-22):** PR A is merged to `main` @ `bc054c6` (PR #11, merge commit) and released as lower-case `v0.1.2` (`sha-de41979`, also `latest`). §2 and §5 below were updated to match. The open work item is still §3.
+
+Read `docs/SPEC.md` for the product, and this file before changing the app. `docs/IMPLEMENTATION_PLAN.md` is the decision log — read the decisions that touch the area you are changing. `AGENT_APP_BLUEPRINT.md` supported the initial build through the first release; it is historical context, **not required reading** for ongoing work. Do not send a later session back to it first.
 
 ---
 
@@ -51,7 +53,7 @@ Two extra findings from auditing the same code paths:
 
 ---
 
-## 2. Fixed in this session — awaiting CI confirmation
+## 2. Fixed in this session — CI confirmed
 
 ### 2.1 Void form field contract (report #4)
 
@@ -174,7 +176,13 @@ ownership, which is exactly why the bug reached production green.
 | Tailwind cascade + contrast | yes (repo's own toolchain and palette) | as tabulated above |
 | zod error reproduction | yes (repo's own schema, zod 4.6.5) | exact message reproduced |
 | `.github/workflows/ci.yml` parses | yes (`js-yaml`) | clean |
-| `npm test`, `next build`, Playwright, real Docker | **no — impossible in this sandbox** | **CI must confirm** |
+| `npm test`, `next build`, Playwright, real Docker | not in the sandbox that wrote them | **CI confirmed** — see the note under this table |
+
+Written here, these three fixes could not be executed (no native-module build of `better-sqlite3` in that sandbox, no browser, no Docker). CI has since confirmed them:
+
+- PR #11 CI ([run 35649800657](https://github.com/dougalbob/simple-finance/actions/runs/35649800657), `de41979`): gates, browser and docker jobs all passed. The docker job includes the `sf-run3` bind-mount ownership case. The browser suite at that commit is the 12 specs in `e2e/`.
+- `main` after the merge ([run 35651249748](https://github.com/dougalbob/simple-finance/actions/runs/35651249748), `bc054c6`): the same three jobs passed.
+- GHCR holds `sha-de41979`, `v0.1.2` and `latest` on one digest (created 2026-09-21T20:18:27Z). Publish run [35650005803](https://github.com/dougalbob/simple-finance/actions/runs/35650005803).
 
 ---
 
@@ -332,28 +340,28 @@ Route/e2e:
 
 ## 5. State of play and next steps
 
-**Done in this session, on this branch (PR A):**
+**PR A is merged and released** — not "on this branch". That wording was written before the merge. `main` is
+`bc054c6` (PR #11, merge commit, same style as PRs #9 and #10). The tagged commit `de41979` is an ancestor of
+`main`, so `sha-de41979` traces.
 
 1. The three fixes in §2, the CI bind-mount case and the e2e void test.
 2. Release metadata: `package.json` and `src/lib/version.ts` bumped to `0.1.2` **together**
    (`tests/version.test.ts` asserts they agree), `docs/RELEASE_NOTES_v0.1.2.md` written, and the two places
    that still advertised v0.1.0 corrected — the Unraid template's `<Description>` and the README's status and
    version sections.
-3. Release: lower-case annotated tag `v0.1.2`, which triggers `.github/workflows/publish.yml` to build, smoke
-   test and push `v0.1.2`, `latest` and `sha-<short>` to GHCR; GitHub Release created from those notes. The
-   product owner can then Force Update in Unraid.
+3. Release: lower-case annotated tag `v0.1.2` published `v0.1.2`, `latest` and `sha-de41979` to GHCR. GitHub
+   Release created from those notes. The product owner can Force Update in Unraid.
 
-**What to watch on PR A:** the CI `docker` job's new `sf-run3` bind-mount step and the `browser` job's new void
-test. Those two runs are the *only* evidence that reports #1, #3 and #4 are genuinely closed, because neither
-Docker nor a browser exists in the sandbox where they were written.
+**What was being watched on PR A is closed.** The docker job's `sf-run3` bind-mount step and the browser job's
+void test both ran green (runs linked in §2.4). Those runs are the evidence that reports #1, #3 and #4 are
+closed — Docker and a browser were not available in the sandbox where they were written.
 
-**Two release-hygiene notes:**
+**Two release-hygiene notes** (they still apply to later tags):
 
-- Merge PR A with a **merge commit**, as PRs #9 and #10 were. A squash merge would leave the tagged commit out
-  of `main`'s history and make the published `sha-<short>` tag untraceable to the branch.
-- If review changes anything after the tag was pushed, cut **v0.1.3** rather than moving `v0.1.2`: a published
-  tag must keep meaning exactly one image.
+- Merge with a **merge commit**, as PRs #9, #10 and #11 were. A squash merge would leave a tagged commit out
+  of `main`'s history and make the published `sha-<short>` tag untraceable.
+- If review changes anything after a tag is pushed, cut the next patch rather than moving the tag: a published
+  tag must keep meaning exactly one image. Do not move `v0.1.2`.
 
-**Next session (PR B):** attachment deletion, specified in §3, on a machine where `npm test` can actually run.
-Keep it separate from PR A — it is a feature with backup-integrity risk and must not ride along with three
-small fixes.
+**Next session (PR B):** attachment deletion, specified in §3. Keep it separate from the v0.1.2 fixes — it is
+a feature with backup-integrity risk and must not be rewritten into that release.

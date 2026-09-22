@@ -1,7 +1,7 @@
 # Simple Finance — Product Specification
 
 **Status:** agreed with the product owner in discovery, 2026-09-20. This is the authoritative product spec.
-**Companion documents:** `AGENT_APP_BLUEPRINT.md` (engineering/delivery contract), `docs/IMPLEMENTATION_PLAN.md` (profile, data model, phases, decision log, open questions), `docs/HANDOFF.md` (session continuation point).
+**Companion documents:** `docs/HANDOFF.md` (session continuation point — read this first for ongoing work), `docs/IMPLEMENTATION_PLAN.md` (profile, data model, phases, decision log, open questions). `AGENT_APP_BLUEPRINT.md` is the engineering contract from the initial build through the first release; it is historical context, not required reading for later changes.
 
 > **Privacy notice — applies to this entire repository.**
 > Every name, person, amount, date, account and threshold in this document is a **fictional placeholder**.
