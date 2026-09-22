@@ -31,6 +31,10 @@ test.describe('desktop review', () => {
     const results = page.locator('section[aria-labelledby="results-heading"]');
     await expect(results.getByText('Corner Foods').first()).toBeVisible();
 
+    // Desktop keeps the filter form open; the phone-only toggle stays hidden.
+    await expect(page.getByRole('button', { name: 'Show filters' })).toBeHidden();
+    await expect(page.getByLabel('Supplier')).toBeVisible();
+
     // Filter down to one supplier and confirm the table follows.
     await page.getByLabel('Supplier').selectOption({ label: 'Corner Foods' });
     await page.getByRole('button', { name: 'Apply filters' }).click();

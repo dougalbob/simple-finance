@@ -9,11 +9,11 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged and released, and **v0.1.4 is published**. `latest` on the registry is the
-  v0.1.4 build (from `main` @ `7197666`), so the household's Force Update in Unraid now brings the
-  quick-entry line-1 follow-up along with the receipt-removal work. Merging a pull request still publishes
-  nothing on its own — the lower-case tag does. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
-  [`docs/RELEASE_NOTES_v0.1.4.md`](docs/RELEASE_NOTES_v0.1.4.md).
+- **Status:** Phases 0–5 are merged and released, and **v0.1.4 is the published image**. The in-tree version
+  is **v0.1.5** (phone layout for the Purchases filters). `latest` on the registry is still the v0.1.4 build
+  until the lower-case `v0.1.5` tag is pushed after merge. Merging a pull request still publishes nothing on
+  its own — the lower-case tag does. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
+  [`docs/RELEASE_NOTES_v0.1.5.md`](docs/RELEASE_NOTES_v0.1.5.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
   (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
@@ -136,7 +136,7 @@ The same commands CI runs, all from the repository root:
 npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
 npm run format:check   # Prettier (markdown is excluded deliberately)
 npm run typecheck      # tsc --noEmit
-npm test               # Node test runner: 230 tests across 64 suites
+npm test               # Node test runner: 239 tests across 66 suites
 npm run build          # production build (Turbopack)
 npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
 npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)
