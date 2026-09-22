@@ -1,7 +1,10 @@
 # Simple Finance v0.1.7
 
 **Release date:** 2026-09-22
-**Published:** pending — filled in after the annotated tag, publish workflow and GHCR verification.
+**Published:** yes — annotated tag `v0.1.7` on merge commit `14b9a6d`, publish run
+[35764397737](https://github.com/dougalbob/simple-finance/actions/runs/35764397737) green. `v0.1.7` / `latest` /
+`sha-14b9a6d` all resolve to one digest. Force Update now brings this release.
+**Image digest:** `sha256:890271632e63dba2e1badf26c68068c3c85dc7c223e18d2864e754f03b7f2d9c`.
 **Type:** schema + domain. One additive migration (`schedules.supplier_id`). Backup archive format unchanged (still format 2).
 **Previous published image:** v0.1.6. Do not rewrite `docs/RELEASE_NOTES_v0.1.6.md` and do not retag v0.1.6.
 
@@ -30,14 +33,14 @@ Recurring direct debits and standing orders now link to the same canonical Suppl
 
 ## Image tags and digest
 
-Filled in after publish:
+The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.1.7`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<merge short SHA>`
+- `ghcr.io/dougalbob/simple-finance:sha-14b9a6d`
 
-Digest: pending.
-Previous v0.1.6 digest was `sha256:dfdb2922328798deda99a2382264c563adf48f82ce1aa77efa5ea3c5db3aa83d`; it was not retagged.
+Digest: `sha256:890271632e63dba2e1badf26c68068c3c85dc7c223e18d2864e754f03b7f2d9c`.
+The previous v0.1.6 digest was `sha256:dfdb2922328798deda99a2382264c563adf48f82ce1aa77efa5ea3c5db3aa83d`; it was not retagged.
 
 ## Schema / data notes
 
@@ -49,3 +52,7 @@ Previous v0.1.6 digest was `sha256:dfdb2922328798deda99a2382264c563adf48f82ce1aa
 
 - No changes to the published v0.1.6 image or tag.
 - No unrelated HANDOFF open items (refund version guard, upload error handling, logging/, documents mode).
+
+## Version badge
+
+Navigation should read **v0.1.7 · pre-release**.
