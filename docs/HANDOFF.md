@@ -85,24 +85,13 @@ These were recorded in session 7/8 and were left alone on purpose.
 
 ---
 
-## 5. v0.1.5 — not published until tagged
+## 5. v0.1.5 — published (2026-09-22)
 
-The in-tree version is `0.1.5`. The published image is still **v0.1.4** (`latest` = `sha-7197666`) until the
-lower-case tag `v0.1.5` is pushed after merge. Follow decision 91:
+**Done.** Annotated tag `v0.1.5` → `129ecea` (`main`, the PR #16 merge). Publish run
+[35739057844](https://github.com/dougalbob/simple-finance/actions/runs/35739057844) was green: metadata
+check, build, smoke test, push, registry tags resolve. GHCR now carries `v0.1.5`, `latest` and
+`sha-129ecea` on one digest, `sha256:dd6d50579f52454cd6978fae504d8d687695d1b8ed5b4b65c98bdcccc5ef68ed`,
+replacing the v0.1.4 digest `sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343` that
+`latest` previously pointed at. The GitHub release `v0.1.5` is marked Latest.
 
-1. Review the diff. No real receipts, no household figures.
-2. Merge with a **merge commit**. A squash would make a later `sha-<short>` image tag untraceable.
-3. Wait for CI on `main`: gates, browser, docker.
-4. Confirm `package.json` and `src/lib/version.ts` already say `0.1.5` on that merge commit, then:
-
-   ```bash
-   VERSION=v0.1.5
-   test "v$(node -p "require('./package.json').version")" = "$VERSION" && echo "package.json ok"
-   test "v$(node -p "require('fs').readFileSync('src/lib/version.ts','utf8').match(/APP_VERSION = '([^']+)'/)[1]")" = "$VERSION" && echo "version.ts ok"
-   git tag -a "$VERSION" -m "Simple Finance $VERSION"
-   git push origin "$VERSION"
-   ```
-
-5. Confirm GHCR has `v0.1.5`, `latest` and `sha-<short>` on one digest, different from v0.1.4's
-   `sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343`.
-6. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.5.md`. Take a backup first.
+The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.5.md`. Take a backup first.

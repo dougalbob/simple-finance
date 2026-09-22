@@ -5,10 +5,9 @@
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
 >
-> **Current:** v0.1.4 is the published image (`latest` = `sha-7197666`, built from `main` @ `7197666` on
-> 2026-09-22). The in-tree version is **v0.1.5** (mobile Purchases filters, decision 92) and is not published
-> until the lower-case tag is pushed after merge. Merging does not publish; the image publishes only when the
-> lower-case tag matches the version already in the tree it points at — see decision 91.
+> **Current:** v0.1.5 is the published image (`latest` = `sha-129ecea`, built from `main` @ `129ecea` on
+> 2026-09-22). Merging does not publish; the image publishes only when the lower-case tag matches the version
+> already in the tree it points at — see decision 91.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
