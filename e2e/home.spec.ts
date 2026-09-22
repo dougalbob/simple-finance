@@ -50,6 +50,191 @@ test.describe('mobile quick entry', () => {
     await expect(page.getByText(/not a bank balance/i).first()).toBeVisible();
   });
 
+  test('the amount alone fills line 1, balances the split and enables Save', async ({ page }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const line1 = entry.getByLabel('Line 1 amount');
+
+    // The till amount is typed once: Line 1 follows it, so the split is
+    // complete and Save is live without touching the line.
+    await entry.locator('input[name="amount"]').fill('85.00');
+    await expect(line1).toHaveValue('85.00');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+    await expect(entry.getByRole('button', { name: 'Save purchase' })).toBeEnabled();
+
+    // The only category control is still the split line's own, in the panel
+    // above Save — no category field crept in next to the supplier and amount.
+    await expect(entry.getByLabel(/^Category/)).toHaveCount(1);
+    await expect(entry.getByRole('heading', { name: 'Split the payment' })).toBeVisible();
+  });
+
+  test('every keystroke updates line 1 — 8 then 5 is 85.00, not 8.00', async ({ page }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+
+    // "8" is already a valid amount, so the first digit must not freeze it.
+    await amount.pressSequentially('8');
+    await expect(amount).toHaveValue('8');
+    await expect(line1).toHaveValue('8.00');
+    await amount.pressSequentially('5');
+    await expect(amount).toHaveValue('85');
+    await expect(line1).toHaveValue('85.00');
+
+    // A correction downwards follows too.
+    await amount.fill('84.50');
+    await expect(line1).toHaveValue('84.50');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+  });
+
+  test('a half-typed or deleted total never lies about line 1', async ({ page }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
+
+    await amount.fill('85');
+    await expect(line1).toHaveValue('85.00');
+
+    // "85." is not an amount yet: the last mirrored value stays put...
+    await amount.fill('85.');
+    await expect(line1).toHaveValue('85.00');
+    // ...and the exact-total rule keeps Save off (balanced needs a parsed total).
+    await expect(saveButton).toBeDisabled();
+    await expect(entry.getByText('Enter amount')).toBeVisible();
+
+    // Deleting the amount must not leave a stale mirrored line behind.
+    await amount.fill('');
+    await expect(line1).toHaveValue('');
+    // Zero is not an amount either.
+    await amount.fill('0');
+    await expect(line1).toHaveValue('');
+    await expect(saveButton).toBeDisabled();
+  });
+
+  test('editing line 1 takes it over and a later total change leaves it alone', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
+
+    await amount.fill('85');
+    await expect(line1).toHaveValue('85.00');
+
+    // Touching the line is a takeover: their value sticks from here on.
+    await line1.fill('40.00');
+    await expect(entry.getByText(/Remaining £45\.00/)).toBeVisible();
+    await expect(saveButton).toBeDisabled();
+
+    await amount.fill('90');
+    await expect(line1).toHaveValue('40.00');
+    await expect(entry.getByText(/Remaining £50\.00/)).toBeVisible();
+    await expect(saveButton).toBeDisabled();
+
+    // The exact-total rule is unchanged: matching the total by hand saves.
+    await line1.fill('90');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+    await expect(saveButton).toBeEnabled();
+  });
+
+  test('category, supplier, pot, paid by, date and note do not stop the following', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+
+    // Naming a remembered supplier writes its most-used category through the
+    // shared updateLine path, and the category dropdown uses that path too.
+    await entry.locator('input[name="supplierName"]').fill('Corner Foods');
+    await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Top-up Shops' });
+    await entry.getByLabel(/^For/).selectOption('person');
+    await entry.getByLabel(/^Person/).selectOption({ label: 'Sam' });
+    await entry.getByLabel('Pot').selectOption({ index: 2 });
+    await entry.getByLabel('Paid by').selectOption({ index: 2 });
+    await entry.getByLabel('Date').fill('2024-01-05');
+    await entry.getByLabel('Note (optional)').fill('Follows the amount');
+
+    await amount.fill('42.50');
+    await expect(line1).toHaveValue('42.50');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+  });
+
+  test('Add split leaves line 1 alone, and so does a later correction', async ({ page }) => {
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+    const line2 = entry.getByLabel('Line 2 amount');
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
+    const assignRemaining = entry.getByRole('button', { name: 'Assign remaining' });
+
+    await amount.fill('85');
+    await expect(line1).toHaveValue('85.00');
+
+    // Splitting deliberately: the new line starts empty, Line 1 is neither
+    // cleared nor shrunk, and there is nothing left to assign yet.
+    await entry.getByRole('button', { name: '+ Add split' }).click();
+    await expect(line1).toHaveValue('85.00');
+    await expect(line2).toHaveValue('');
+    await expect(assignRemaining).toHaveCount(0);
+
+    // A correction to the total must not rewrite the line either.
+    await amount.fill('60');
+    await expect(line1).toHaveValue('85.00');
+    await expect(line2).toHaveValue('');
+    await expect(saveButton).toBeDisabled();
+
+    // Hand-splitting still obeys the exact-total rule.
+    await line2.fill('40');
+    await expect(entry.getByText(/Over by £65\.00/)).toBeVisible();
+    await expect(saveButton).toBeDisabled();
+    await line1.fill('20');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+    await expect(saveButton).toBeEnabled();
+
+    // Removing the extra line does not resume the following: the typed value
+    // stays exactly as typed.
+    await entry.getByRole('button', { name: 'Remove line' }).last().click();
+    await expect(line1).toHaveValue('20');
+    await amount.fill('30');
+    await expect(line1).toHaveValue('20');
+    await expect(saveButton).toBeDisabled();
+  });
+
+  test('Add another starts the following over', async ({ page }) => {
+    test.slow(); // its own purchase, against the dev server
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const amount = entry.locator('input[name="amount"]');
+    const line1 = entry.getByLabel('Line 1 amount');
+
+    // Saved straight from the mirrored amount — Line 1 was never touched.
+    await entry.locator('input[name="supplierName"]').fill('Playwright Follower Shop');
+    await amount.fill('12.00');
+    await expect(line1).toHaveValue('12.00');
+    await entry.getByRole('button', { name: 'Save purchase' }).click();
+    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
+
+    // After the save the line is taken over (the value sticks)...
+    await line1.fill('1.00');
+    await expect(line1).toHaveValue('1.00');
+
+    // ...and "Add another" hands the following back to the amount.
+    await entry.getByRole('button', { name: 'Add another' }).click();
+    await expect(amount).toHaveValue('');
+    await expect(line1).toHaveValue('');
+    await amount.fill('7.50');
+    await expect(line1).toHaveValue('7.50');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+  });
+
   test('every page stays reachable on a phone viewport', async ({ page }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Pages' });

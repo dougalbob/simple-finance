@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { formatPence, parsePence } from '../src/lib/money';
+import { formatPence, parsePence, penceInput } from '../src/lib/money';
 
 describe('parsePence', () => {
   it('parses plain two-decimal input', () => {
@@ -62,5 +62,27 @@ describe('formatPence', () => {
   it('rejects non-integers', () => {
     assert.throws(() => formatPence(1.5));
     assert.throws(() => formatPence(Number.NaN));
+  });
+});
+
+describe('penceInput', () => {
+  it('renders the plain two-decimal field value parsePence reads back', () => {
+    assert.equal(penceInput(8500), '85.00');
+    assert.equal(penceInput(8450), '84.50');
+    assert.equal(penceInput(800), '8.00');
+    assert.equal(penceInput(5), '0.05');
+    assert.equal(penceInput(0), '0.00');
+    assert.equal(penceInput(123456), '1234.56'); // no thousands separator in a field
+  });
+
+  it('round-trips through parsePence without drift', () => {
+    for (const pence of [1, 50, 99, 100, 12345, 999999999999]) {
+      assert.equal(parsePence(penceInput(pence)), pence);
+    }
+  });
+
+  it('rejects non-integers', () => {
+    assert.throws(() => penceInput(1.5));
+    assert.throws(() => penceInput(Number.NaN));
   });
 });

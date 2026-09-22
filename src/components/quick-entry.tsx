@@ -15,7 +15,8 @@ import {
   type DuplicateNoticeState,
   type PurchaseActionState,
 } from '@/lib/action-state';
-import { formatPence, parsePence } from '@/lib/money';
+import { formatPence, parsePence, penceInput } from '@/lib/money';
+import { followedLineAmount } from '@/lib/records/quick-entry';
 
 export interface EntryCategoryOption {
   id: number;
@@ -124,6 +125,14 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
   const [occurredDate, setOccurredDate] = useState('');
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<LineDraft[]>(() => [newLine(data.defaultCategoryId, data)]);
+  /**
+   * Mobile Quick Entry (SPEC §15.1): Line 1 follows the amount typed at the
+   * till, so the household types the total once and Save can enable without
+   * retyping it on the split line. The flag turns off for good when the user
+   * takes the line over — editing the Line 1 amount, "+ Add split", or Assign
+   * remaining — and only "Add another" starts the following again.
+   */
+  const [lineFollowsTotal, setLineFollowsTotal] = useState(true);
   const submitGuard = useRef(false);
 
   useEffect(() => {
@@ -193,13 +202,43 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
     );
   }
 
+  /**
+   * The Quick Entry amount, and the mirrored Line 1. Only the Line 1 amount
+   * field takes the line over — `updateLine` is shared with category, target,
+   * pot, paid-by, date and note changes (and with `selectSupplier`'s
+   * most-used-category write), none of which may stop the following.
+   */
+  function changeTotal(value: string) {
+    setTotal(value);
+    if (!lineFollowsTotal) return;
+    const followed = followedLineAmount(value);
+    if (followed.action === 'hold') return;
+    const amount = followed.action === 'set' ? followed.amount : '';
+    setLines((current) => {
+      const first = current[0];
+      // One line only: an extra line means the user is splitting deliberately.
+      if (current.length !== 1 || first === undefined || first.amount === amount) return current;
+      return [{ ...first, amount }];
+    });
+  }
+
+  function updateLineAmount(index: number, amount: string) {
+    if (index === 0) setLineFollowsTotal(false);
+    updateLine(index, { amount });
+  }
+
   function addSplit() {
+    // "+ Add split" stops the following for good: the new line stays empty and
+    // Line 1 is neither cleared nor shrunk, even if the extra line is removed
+    // again. Only "Add another" starts it over.
+    setLineFollowsTotal(false);
     setLines((current) => [...current, newLine(data.defaultCategoryId, data)]);
   }
 
   function assignRemainder(index: number) {
     if (remaining === null || remaining <= 0) return;
-    updateLine(index, { amount: penceInput(remaining) });
+    // Assign remaining writes a line by hand; on Line 1 that is a takeover.
+    updateLineAmount(index, penceInput(remaining));
   }
 
   function guardSubmit(event: FormEvent<HTMLFormElement>) {
@@ -216,6 +255,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
     setOccurredDate('');
     setNote('');
     setLines([newLine(data.defaultCategoryId, data)]);
+    setLineFollowsTotal(true);
   }
 
   return (
@@ -266,7 +306,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
           <input
             name="amount"
             value={total}
-            onChange={(event) => setTotal(event.target.value)}
+            onChange={(event) => changeTotal(event.target.value)}
             inputMode="decimal"
             autoFocus
             required
@@ -340,7 +380,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                   Line {index + 1} amount
                   <input
                     value={line.amount}
-                    onChange={(event) => updateLine(index, { amount: event.target.value })}
+                    onChange={(event) => updateLineAmount(index, event.target.value)}
                     inputMode="decimal"
                     placeholder="0.00"
                     className={`${inputClass} mt-1`}
@@ -854,9 +894,6 @@ function editDistance(left: string, right: string): number {
     }
   }
   return row[right.length] ?? 99;
-}
-function penceInput(pence: number): string {
-  return (pence / 100).toFixed(2);
 }
 
 const inputClass =
