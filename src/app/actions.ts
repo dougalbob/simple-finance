@@ -857,6 +857,12 @@ function parseScheduleForm(
   const amount = parsePence(
     typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
   );
+  const supplierRaw =
+    typeof formData.get('supplierId') === 'string' ? String(formData.get('supplierId')).trim() : '';
+  // "__new__" means the form is creating a supplier by name — do not coerce it
+  // into a numeric id (Number('__new__') is NaN and would fail validation).
+  const supplierId =
+    supplierRaw === '' || supplierRaw === '__new__' ? null : numberOrNull(supplierRaw);
   const data: Record<string, unknown> = {
     name: textOrNull(formData.get('name')) ?? '',
     kind: textOrNull(formData.get('kind')) ?? 'dd',
@@ -866,7 +872,7 @@ function parseScheduleForm(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
-    supplierId: numberOrNull(formData.get('supplierId')),
+    supplierId,
     supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
@@ -1213,6 +1219,10 @@ export async function editScheduleAction(
   const amount = parsePence(
     typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
   );
+  const supplierRaw =
+    typeof formData.get('supplierId') === 'string' ? String(formData.get('supplierId')).trim() : '';
+  const supplierId =
+    supplierRaw === '' || supplierRaw === '__new__' ? null : numberOrNull(supplierRaw);
   const parsed = editScheduleEntrySchema.safeParse({
     scheduleId: numberOrNull(formData.get('scheduleId')),
     expectedVersion: numberOrNull(formData.get('version')),
@@ -1223,7 +1233,7 @@ export async function editScheduleAction(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
-    supplierId: numberOrNull(formData.get('supplierId')),
+    supplierId,
     supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),

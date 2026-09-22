@@ -208,10 +208,16 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
         ) : null}
         {needsSupplier ? (
           <div className="flex flex-col gap-2 sm:col-span-2">
-            <label className={labelClass}>
-              Supplier
+            <div className="flex flex-col gap-1">
+              <label htmlFor="schedule-supplier" className={labelClass}>
+                Supplier
+              </label>
               <select
-                name={supplierMode === '__new__' ? undefined : 'supplierId'}
+                id="schedule-supplier"
+                // Always post supplierId; "__new__" is stripped by the action when
+                // supplierName is present. An empty value is the standing-order
+                // household-transfer option.
+                name="supplierId"
                 required={kind === 'dd'}
                 className={inputClass}
                 value={supplierMode}
@@ -227,11 +233,14 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
                 ))}
                 <option value="__new__">Add a new supplier…</option>
               </select>
-            </label>
+            </div>
             {supplierMode === '__new__' ? (
-              <label className={labelClass}>
-                New supplier name
+              <div className="flex flex-col gap-1">
+                <label htmlFor="schedule-supplier-name" className={labelClass}>
+                  New supplier name
+                </label>
                 <input
+                  id="schedule-supplier-name"
                   name="supplierName"
                   required
                   maxLength={120}
@@ -242,7 +251,7 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
                   Creates the same supplier record used on Purchases, Renewals and Suppliers. Add
                   contact details there afterwards.
                 </span>
-              </label>
+              </div>
             ) : null}
             {kind === 'so' && supplierMode === '' ? (
               <p className="text-xs text-slate-500">

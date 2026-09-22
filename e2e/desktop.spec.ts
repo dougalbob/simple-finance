@@ -229,13 +229,7 @@ test.describe('desktop review', () => {
     await form.locator('input[name="amount"]').fill('55.00');
     await form.locator('select[name="kind"]').selectOption('dd');
     await form.locator('select[name="categoryId"]').selectOption({ label: 'Utilities / Energy' });
-    // The add form's supplier select has no name until a choice is made; pick by label text.
-    await form
-      .locator('label', { hasText: /^Supplier$/ })
-      .locator('select')
-      .selectOption({
-        label: 'Add a new supplier…',
-      });
+    await form.locator('select[name="supplierId"]').selectOption({ label: 'Add a new supplier…' });
     await form.locator('input[name="supplierName"]').fill(supplierName);
     await form.getByRole('button', { name: 'Add schedule' }).click();
     await expect(form.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });

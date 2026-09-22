@@ -278,7 +278,7 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
             </label>
             <select
               id={`schedule-${props.scheduleId}-supplier`}
-              name={supplierMode === '__new__' ? undefined : 'supplierId'}
+              name="supplierId"
               required={props.kind === 'dd'}
               value={supplierMode}
               onChange={(event) => setSupplierMode(event.target.value)}
