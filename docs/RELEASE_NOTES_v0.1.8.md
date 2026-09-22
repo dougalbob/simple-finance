@@ -1,7 +1,10 @@
 # Simple Finance v0.1.8
 
 **Release date:** 2026-09-22
-**Published:** pending — filled in after the annotated tag, publish workflow and GHCR verification.
+**Published:** yes — annotated tag `v0.1.8` on merge commit `00976f7`, publish run
+[35775149820](https://github.com/dougalbob/simple-finance/actions/runs/35775149820) green. `v0.1.8` / `latest` /
+`sha-00976f7` all resolve to one digest. Force Update now brings this release.
+**Image digest:** `sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35`.
 **Type:** cache revalidation only. No schema change, no migration, no data change.
 **Previous published image:** v0.1.7. Do not rewrite `docs/RELEASE_NOTES_v0.1.7.md` and do not retag v0.1.7.
 
@@ -25,14 +28,14 @@ Settings → Category tree updates in place again.
 
 ## Image tags and digest
 
-Filled in after publish:
+The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.1.8`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<merge short SHA>`
+- `ghcr.io/dougalbob/simple-finance:sha-00976f7`
 
-Digest: pending.
-Previous v0.1.7 digest was `sha256:890271632e63dba2e1badf26c68068c3c85dc7c223e18d2864e754f03b7f2d9c`; it was not retagged.
+Digest: `sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35`.
+The previous v0.1.7 digest was `sha256:890271632e63dba2e1badf26c68068c3c85dc7c223e18d2864e754f03b7f2d9c`; it was not retagged.
 
 ## Schema / data notes
 
@@ -44,3 +47,11 @@ Previous v0.1.7 digest was `sha256:890271632e63dba2e1badf26c68068c3c85dc7c223e18
 
 - No changes to the published v0.1.7 image or tag.
 - No unrelated HANDOFF open items (refund version guard, upload error handling, logging/, documents mode).
+
+## Version badge
+
+Navigation should read **v0.1.8 · pre-release**.
+
+## Release notes doc
+
+This file: [`docs/RELEASE_NOTES_v0.1.8.md`](RELEASE_NOTES_v0.1.8.md).
