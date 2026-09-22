@@ -1,43 +1,51 @@
 # Simple Finance — Session Handoff
 
-**Session:** 8 (remove an attached receipt) · **Date:** 2026-09-22
-**Branch:** `arena/01a0c7c1-simple-finance` · **Base:** `main` @ `bc054c6` (v0.1.2, PR #11)
-Supersedes the session 7 handoff. That file, with the post-merge corrections, is preserved in git history at `eb81c17`. The original session 7 text is at `bc054c6`.
+**Session:** mobile Purchases filters (v0.1.5) · **Date:** 2026-09-22
+**Branch:** `arena/01a0c94a-simple-finance` · **Base:** `main` @ `6db4fe2` (v0.1.4 published)
+Supersedes the session 8 handoff. That file is preserved in git history.
 
-Read `docs/SPEC.md` for the product, and this file before changing the app. `docs/IMPLEMENTATION_PLAN.md` is the decision log — read the decisions that touch the area you are changing, especially decision 89. `AGENT_APP_BLUEPRINT.md` supported the initial build through the first release; it is historical context, **not required reading**. Do not send a later session back to it first.
+Read `docs/SPEC.md` for the product, and this file before changing the app. `docs/IMPLEMENTATION_PLAN.md` is
+the decision log — read the decisions that touch the area you are changing, especially decision 92.
+`AGENT_APP_BLUEPRINT.md` supported the initial build through the first release; it is historical context,
+**not required reading**. Do not send a later session back to it first.
 
 ---
 
 ## 0. Read this before touching anything
 
-This sandbox **can** run the Node suite. `npm ci --ignore-scripts` is enough: the `better-sqlite3` package ships a linux-x64 / Node 22 prebuild, and `node -e` against `:memory:` returned a row. A from-source rebuild was not needed and was not attempted. Session 7's "cannot run `npm test`" note was true of that sandbox, not of this one. Re-check rather than copy it forward.
+This sandbox **can** run the Node suite. `npm ci --ignore-scripts` is enough: the `better-sqlite3` package
+ships a linux-x64 / Node 22 prebuild. Re-check rather than copy a previous session's "cannot run tests" note.
 
 | Capability | Status here | Consequence |
 | --- | --- | --- |
-| `npm test` | **ran** | 230 tests, 64 suites, all passed |
+| `npm test` | **ran** | 239 tests, 66 suites, all passed |
 | `npx tsc --noEmit` | **ran** | clean |
 | `npx prettier --check .` | **ran** | clean (markdown is excluded) |
-| `npm run build` | **ran** | compiled (Next.js 16.3.5); see §2 |
-| Playwright (`npm run test:e2e`) | **not run** | Playwright 1.63 is installed; no Chromium binary and no system browser. CI's `browser` job is the evidence |
+| `npm run build` | **ran** | compiled (Next.js 16.3.5) |
+| Playwright (`npm run test:e2e`) | **not run** | no Chromium binary and no system browser. CI's `browser` job is the evidence |
 | Docker | **absent** | the image is unchanged except the version string in `simple-finance.xml` |
 
-**Hard rule:** never commit, screenshot or fixture real receipts or household financial data (SPEC §19, §23.3). Test attachments are generated fictional bytes. The new e2e spec uses a 1×1 PNG buffer, not a photograph.
+**Hard rule:** never commit, screenshot or fixture real receipts or household financial data (SPEC §19, §23.3).
 
-**Do not retag v0.1.2.** That release is published. This release line is v0.1.4. `docs/RELEASE_NOTES_v0.1.2.md` was not rewritten. Tag only after merge, lower-case `v0.1.4`, merge commit not squash (session 7 §5). Merging does not publish.
+**Do not retag v0.1.4.** That release is published. This release line is v0.1.5. Tag only after merge,
+lower-case `v0.1.5`, merge commit not squash (decision 91). Merging does not publish.
 
 ---
 
 ## 1. What this session did
 
-Receipt removal, the open item in the session 7 handoff §3. Decision 89.
+Phone layout for the Purchases filter card. Decision 92.
 
-- `deleteAttachment` in `src/lib/records/attachments.ts`, next to `storeAttachment`. Unknown id throws `AttachmentNotFoundError`. One transaction sets `state = 'deleted'` only where `state = 'stored'`, then writes one `attachment.delete` audit on the purchase (`entity: 'purchase'`, the purchase id, summary `Removed <name> (<size>, <mime>)`, `before` holds file key, name, mime, size and sha256). A second delete matches nothing: no second audit, no second unlink.
-- The file is unlinked only after that commit. `ENOENT` is success. Any other unlink error is logged and does not roll the row back — the leftover file is an orphan, which is the designed report. An unsafe storage key is never joined onto the documents directory.
-- `deleteAttachmentAction` follows `uploadAttachmentAction`: auth, `numberOrNull(attachmentId)`, friendly errors, no rethrown `fs` errors. Revalidates `/purchases`, `/overview` and `/suppliers`. Upload now revalidates `/suppliers` too — the same three pages render the form. That is the existing contract, not a sneak from §4.
-- The chip is a `<span>` holding the view link, plus a quiet control named `Remove receipt <originalName>`. Confirmation is two clicks (`Confirm remove receipt <name>`), not `window.confirm`. No button inside an anchor.
-- Overview's recent purchases render `AttachmentForm`. Purchases shows a History disclosure from `listAuditForEntity`, formatted with `formatInstantLocal`.
-- No migration. `attachments.state` has no CHECK.
-- Version `0.1.4` in `package.json`, `src/lib/version.ts` and `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.4.md`.
+- `PurchaseFilterForm` lives in `src/components/purchase-filter-form.tsx` (client component). The GET form
+  and the field names are unchanged.
+- On viewports below `sm`, a full-width **Show filters** / **Hide filters** button collapses the panel.
+  Default is collapsed; any already-applied filter (dates, pot, supplier, category, paid-by, tags) starts
+  the panel open. From `sm` up the toggle is hidden and the fields stay visible.
+- From date and To date share one row on a phone (`grid-cols-2`). Pot / Supplier / Category / Paid by stay
+  one per row (`col-span-2 sm:col-span-1`). Every control is `w-full min-w-0 max-w-full` so native date and
+  select widgets cannot overflow the rounded card.
+- Version `0.1.5` in `package.json`, `package-lock.json` (both root fields), `src/lib/version.ts` and
+  `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.5.md`.
 
 ---
 
@@ -45,82 +53,56 @@ Receipt removal, the open item in the session 7 handoff §3. Decision 89.
 
 | Check | Run here | Result |
 | --- | --- | --- |
-| `npm test` | yes | 230 passed, 64 suites, 0 failed |
+| `npm test` | yes | 239 passed, 66 suites, 0 failed |
 | `npx tsc --noEmit` | yes | clean |
 | `npx prettier --check .` | yes | clean |
-| `npm run build` | yes | compiled (Next.js 16.3.5, Turbopack); the build's own TypeScript pass finished clean |
+| `npm run build` | yes | compiled (Next.js 16.3.5, Turbopack) |
 | `npm run test:e2e` | no | no browser binary |
 
-The new coverage is in `tests/attachment-pipeline.test.ts` (state flip, audit, double-delete, ENOENT, unlink failure leaves the row deleted, unsafe key does not escape the documents directory, deleted URL 404) and `tests/backup-documents.test.ts` (archive before deletion still restores the file and the `stored` row; archive after deletion has no document member, no orphan, `skippedUnstored` 1, and restores a `deleted` row with a clean `inspectDocuments`).
-
-`e2e/attachments.spec.ts` is its own Playwright project (`attachments`). `testMatch` is per-project, so a new spec file is invisible to `mobile` / `desktop` / `backup`. It creates its own purchase and attaches a generated PNG, because `backup.spec.ts` restores over the shared database. CI has not run it yet.
+New browser coverage: `e2e/home.spec.ts` (mobile: collapse, From/To on one row, controls inside the card,
+panel stays open after Apply) and `e2e/desktop.spec.ts` (Show filters stays hidden). Those run in CI's
+`browser` job.
 
 ---
 
 ## 3. What is not open
 
-Receipt removal is implemented. Do not treat session 7 §3 as current work. The invariants that must keep holding, if anyone touches this path again:
-
-1. Never unlink before the state flip commits. A `stored` row whose file is missing makes `createEncryptedBackup` fail closed.
-2. Do unlink after. A deleted row with bytes left on disk is an orphan on every later Settings report.
-3. No undelete. An older archive is the way back.
-4. Do not add a second path that builds or accepts a storage key.
-5. The viewer must 404 a deleted key. It does, because it serves only `stored`.
+The filter query itself is unchanged. Do not treat the previous session's receipt-removal work as current.
 
 ---
 
 ## 4. Still open — not done, do not sneak them in
 
-These were recorded in session 7 and were left alone on purpose.
+These were recorded in session 7/8 and were left alone on purpose.
 
 1. **Refunds are not version-guarded.** `RefundForm` posts `expectedVersion`; `addRefundAction` never reads it.
-2. **Upload still rethrows non-domain errors.** `deleteAttachmentAction` returns a friendly message instead. `uploadAttachmentAction` still rethrows anything that is not `AttachmentInputError`, so an `EACCES` can leave the attach button pending with no message.
+2. **Upload still rethrows non-domain errors.** `deleteAttachmentAction` returns a friendly message instead.
+   `uploadAttachmentAction` still rethrows anything that is not `AttachmentInputError`.
 3. **`logging/` is created and its ownership repaired, but nothing in the app writes to it.**
-4. **`documents/` mode.** The pipeline asks for `0700`; the entrypoint's `mkdir -p` leaves `0755`. A product decision, not a bug fix.
-5. **`/data/.env` lives in a directory the app user owns.** Pre-existing. A compromised process could replace the file even though the file itself is root-owned `0600`.
-6. **Tag casing.** Always lower-case `vX.Y.Z`. The capital-V `V0.1.1` tag never published. Do not move a published tag.
+4. **`documents/` mode.** The pipeline asks for `0700`; the entrypoint's `mkdir -p` leaves `0755`.
+5. **`/data/.env` lives in a directory the app user owns.** Pre-existing.
+6. **Tag casing.** Always lower-case `vX.Y.Z`. Do not move a published tag.
 
 ---
 
-## 5. v0.1.4 — published (2026-09-22)
+## 5. v0.1.5 — not published until tagged
 
-**Done.** Annotated tag `v0.1.4` → `7197666` (`main`, the PR #14 merge). Publish run
-[35715570724](https://github.com/dougalbob/simple-finance/actions/runs/35715570724) was green: metadata
-check, build, smoke test (health, uid 99, database created and surviving recreation), push, registry tags
-resolve. GHCR now carries `v0.1.4`, `latest` and `sha-7197666` on one digest,
-`sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343`, replacing the v0.1.3 digest
-`sha256:4744ecf9…` that `latest` previously pointed at. The GitHub release `v0.1.4` is marked Latest.
-
-What went wrong on the way, so it is not repeated: **two tags existed that no image could ever come from.**
-`v0.1.4` was first cut on `7db0fcc` (the PR #13 merge, where `package.json` still said `0.1.3`) and `v0.1.5`
-on `7197666` (where it says `0.1.4`). Both runs stopped at `Verify the version metadata matches the tag`.
-A tag is a claim about the tree it points at, not about the version you intend to reach, so cut the tag
-*after* the metadata bump has landed on `main` and run the two `test` lines locally first. Neither failed tag
-had published anything, so re-pointing `v0.1.4` was allowed — that is never true of a tag with an image behind
-it (`v0.1.2`, `v0.1.3`), and the unused `v0.1.5` release was deleted rather than left advertising a version
-with no build.
-
-### For the next release
+The in-tree version is `0.1.5`. The published image is still **v0.1.4** (`latest` = `sha-7197666`) until the
+lower-case tag `v0.1.5` is pushed after merge. Follow decision 91:
 
 1. Review the diff. No real receipts, no household figures.
 2. Merge with a **merge commit**. A squash would make a later `sha-<short>` image tag untraceable.
-3. Wait for CI on `main`: gates, browser (the `attachments` project must be in that run), docker.
-4. Bump `package.json`, `src/lib/version.ts`, `package-lock.json` (both fields), the `simple-finance.xml`
-   blurb and the docs *before* tagging — the publish workflow refuses a tag that does not match
-   `package.json`, and refuses a capital `V`.
-5. Annotated tag `vX.Y.Z` on the merged commit at the tip of `main`, then push only that tag. Run the gate
-   yourself first, so the tag cannot fail it:
+3. Wait for CI on `main`: gates, browser, docker.
+4. Confirm `package.json` and `src/lib/version.ts` already say `0.1.5` on that merge commit, then:
 
    ```bash
-   VERSION=vX.Y.Z
+   VERSION=v0.1.5
    test "v$(node -p "require('./package.json').version")" = "$VERSION" && echo "package.json ok"
    test "v$(node -p "require('fs').readFileSync('src/lib/version.ts','utf8').match(/APP_VERSION = '([^']+)'/)[1]")" = "$VERSION" && echo "version.ts ok"
+   git tag -a "$VERSION" -m "Simple Finance $VERSION"
+   git push origin "$VERSION"
    ```
 
-   If the tag must be corrected afterwards, deleting it drops the release that points at it — recreate both.
-   A force-push of the tag still fires the workflow (`git push --force origin refs/tags/vX.Y.Z`), and
-   **Actions → Publish → Run workflow** with a tag that exists is the documented manual path.
-6. Confirm GHCR has the release tag, `latest` and `sha-<short>` on one digest, and that the digest differs
-   from the previous release's.
-7. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v<version>.md`. Take a backup first.
-   Removing a receipt afterwards cannot be undone except from an older archive.
+5. Confirm GHCR has `v0.1.5`, `latest` and `sha-<short>` on one digest, different from v0.1.4's
+   `sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343`.
+6. The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.5.md`. Take a backup first.

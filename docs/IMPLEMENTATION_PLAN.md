@@ -6,8 +6,9 @@
 > how a decision was made, not a reading list.
 >
 > **Current:** v0.1.4 is the published image (`latest` = `sha-7197666`, built from `main` @ `7197666` on
-> 2026-09-22). Merging does not publish; the image publishes only when the lower-case tag matches the version
-> already in the tree it points at — see decision 91.
+> 2026-09-22). The in-tree version is **v0.1.5** (mobile Purchases filters, decision 92) and is not published
+> until the lower-case tag is pushed after merge. Merging does not publish; the image publishes only when the
+> lower-case tag matches the version already in the tree it points at — see decision 91.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
@@ -605,6 +606,19 @@ covering attachments).
     is otherwise unchanged: `v*.*.*` tag push (or `workflow_dispatch` with a tag that exists), smoke test
     before push, then the release tag, `latest` and `sha-<short>` on one digest.
 
+*Post-release follow-up (2026-09-22) — Purchases filters on a phone (v0.1.5):*
+
+92. **Phone Purchases filters collapse; the fields stay inside the card.** The GET form is unchanged
+    (same names, same query). On viewports below `sm` a full-width **Show filters** / **Hide filters**
+    button is the only chrome until tapped; the panel starts collapsed unless any filter is already in the
+    URL, in which case it starts open so an applied filter is not invisible. From `sm` up the toggle is
+    hidden and the fields stay visible. From date and To date share one row (`grid-cols-2`); Pot, Supplier,
+    Category and Paid by stay one per row (`col-span-2 sm:col-span-1`). Every control is
+    `w-full min-w-0 max-w-full` so a native date or a long category label cannot overflow the rounded
+    card. Client component `src/components/purchase-filter-form.tsx`. No schema, migration or backup-format
+    change. Coverage: mobile `e2e/home.spec.ts` (collapse, same-row dates, in-card bounds, stays open after
+    Apply) and desktop `e2e/desktop.spec.ts` (toggle hidden). Those run in CI; this sandbox has no browser.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -726,6 +740,7 @@ src/components/record-forms.tsx — Phase 4a: line editor, PurchaseEditForm, Ref
 src/components/schedule-forms.tsx — Phase 4a: ScheduleEditForm (composite target picker), RenewalEditForm
 src/components/settings-forms.tsx — Phase 4a: TargetRenameForm, PotEditForm, CategoryTreeEditor, WarningLeadsForm
 src/components/site-nav.tsx     — app chrome: menu pages + version badge (desktop AND mobile)
+src/components/purchase-filter-form.tsx — Purchases GET filters; phone collapse + in-card layout (decision 92)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
 scripts/e2e-server.mts        — Playwright webServer: isolated `.e2e-data` seed (fictional) + `next dev`
 e2e/{home,desktop,backup}.spec.ts — browser acceptance specs (mobile till moment, desktop review incl. the

@@ -251,4 +251,45 @@ test.describe('mobile quick entry', () => {
       await expect(nav.getByRole('link', { name: label })).toBeVisible();
     }
   });
+
+  test('purchase filters start collapsed and stay inside the card', async ({ page }) => {
+    await page.goto('/purchases');
+    const filters = page.getByRole('form', { name: 'Purchase filters' });
+    const show = filters.getByRole('button', { name: 'Show filters' });
+    await expect(show).toBeVisible();
+    await expect(filters.getByLabel('From date')).toBeHidden();
+
+    await show.click();
+    await expect(filters.getByRole('button', { name: 'Hide filters' })).toBeVisible();
+
+    const from = filters.getByLabel('From date');
+    const to = filters.getByLabel('To date');
+    const pot = filters.getByLabel('Pot');
+    await expect(from).toBeVisible();
+    await expect(to).toBeVisible();
+    await expect(pot).toBeVisible();
+
+    const cardBox = await filters.boundingBox();
+    const fromBox = await from.boundingBox();
+    const toBox = await to.boundingBox();
+    const potBox = await pot.boundingBox();
+    expect(cardBox).toBeTruthy();
+    expect(fromBox).toBeTruthy();
+    expect(toBox).toBeTruthy();
+    expect(potBox).toBeTruthy();
+    if (cardBox === null || fromBox === null || toBox === null || potBox === null) return;
+
+    // From/To sit on one row; the dropdowns stay inside the rounded card.
+    expect(Math.abs(fromBox.y - toBox.y)).toBeLessThan(8);
+    expect(toBox.x).toBeGreaterThan(fromBox.x);
+    for (const box of [fromBox, toBox, potBox]) {
+      expect(box.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+    }
+
+    await filters.getByLabel('Supplier').selectOption({ label: 'Corner Foods' });
+    await filters.getByRole('button', { name: 'Apply filters' }).click();
+    await expect(filters.getByRole('button', { name: 'Hide filters' })).toBeVisible();
+    await expect(filters.getByLabel('Supplier')).toBeVisible();
+  });
 });
