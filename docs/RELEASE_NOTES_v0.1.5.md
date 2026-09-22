@@ -1,8 +1,8 @@
 # Simple Finance v0.1.5
 
 **Release date:** 2026-09-22
-The image publishes only when the lower-case tag `v0.1.5` is pushed. Merging the pull request does not
-publish by itself.
+**Published:** yes — annotated tag `v0.1.5` on `129ecea`, publish run green, `v0.1.5` / `latest` /
+`sha-129ecea` all on one digest. Force Update now brings this release.
 **Type:** layout polish. No schema change, no migration, no configuration change, no change to the backup
 archive format (still format 2).
 **Previous published image:** v0.1.4. Do not rewrite `docs/RELEASE_NOTES_v0.1.4.md` and do not retag v0.1.4.
@@ -11,8 +11,8 @@ archive format (still format 2).
 
 1. Take a backup first (Settings → Backup & restore). No migration runs, so nothing is rewritten — a current
    archive is still the right starting point.
-2. Docker → the Simple Finance container → **Force Update** (pulls `ghcr.io/dougalbob/simple-finance:latest`
-   once `v0.1.5` has been tagged). Until that tag exists, Force Update still gives you v0.1.4.
+2. Docker → the Simple Finance container → **Force Update** (pulls `ghcr.io/dougalbob/simple-finance:latest`,
+   which is the v0.1.5 image).
 3. Start it and read the log. Expect the migration step, then `starting Simple Finance on port 3000 as 99:100`.
 4. Confirm the version badge in the navigation reads **v0.1.5 · pre-release**.
 5. On a phone, open Purchases: the filter card should start as a **Show filters** button. Tap it, check that

@@ -9,10 +9,10 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged and released, and **v0.1.4 is the published image**. The in-tree version
-  is **v0.1.5** (phone layout for the Purchases filters). `latest` on the registry is still the v0.1.4 build
-  until the lower-case `v0.1.5` tag is pushed after merge. Merging a pull request still publishes nothing on
-  its own — the lower-case tag does. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
+- **Status:** Phases 0–5 are merged and released, and **v0.1.5 is published**. `latest` on the registry is the
+  v0.1.5 build (from `main` @ `129ecea`), so the household's Force Update in Unraid now brings the phone
+  layout for the Purchases filters. Merging a pull request still publishes nothing on its own — the
+  lower-case tag does. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
   [`docs/RELEASE_NOTES_v0.1.5.md`](docs/RELEASE_NOTES_v0.1.5.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
@@ -156,10 +156,10 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.1.4` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
-release tag must agree; the publish workflow refuses to push an image when they do not. **v0.1.4 is
-published** — `v0.1.4`, `latest` and `sha-7197666` are one digest
-(`sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343`) built from `7197666`.
+The app version is `v0.1.5` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+release tag must agree; the publish workflow refuses to push an image when they do not. **v0.1.5 is
+published** — `v0.1.5`, `latest` and `sha-129ecea` are one digest
+(`sha256:dd6d50579f52454cd6978fae504d8d687695d1b8ed5b4b65c98bdcccc5ef68ed`) built from `129ecea`.
 
 The tag must be lower-case `vX.Y.Z` *and must sit on a commit that already carries that version*. The first
 `v0.1.4` tag pointed at the PR #13 merge, whose `package.json` still said `0.1.3`; the run reached the
