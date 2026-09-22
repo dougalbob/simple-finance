@@ -116,6 +116,7 @@ export default async function PurchasesPage({
         pots={pots.map((pot) => ({ id: pot.id, label: pot.label }))}
         suppliers={suppliers.map((supplier) => ({ id: supplier.id, name: supplier.name }))}
         people={people.map((person) => ({ id: person.id, label: person.label }))}
+        vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, label: vehicle.label }))}
         categories={entryData.categories}
         active={params}
       />

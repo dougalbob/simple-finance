@@ -26,17 +26,22 @@ export function PurchaseFilterForm({
   pots,
   suppliers,
   people,
+  vehicles,
   categories,
   active,
 }: {
   pots: Array<{ id: number; label: string }>;
   suppliers: Array<{ id: number; name: string }>;
   people: Array<{ id: number; label: string }>;
+  vehicles: Array<{ id: number; label: string }>;
   categories: Array<{ id: number; parentName: string; childName: string }>;
   active: PurchaseFilterValues;
 }) {
   const [open, setOpen] = useState(filtersAreActive(active));
+  const [targetKind, setTargetKind] = useState(active.targetKind ?? '');
+  const [targetId, setTargetId] = useState(active.targetId ?? '');
   const panelId = useId();
+  const targetOptions = targetKind === 'person' ? people : targetKind === 'vehicle' ? vehicles : [];
   const inputClass =
     'w-full min-w-0 max-w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
   const labelClass = 'text-xs font-medium text-slate-600';
@@ -155,6 +160,45 @@ export function PurchaseFilterForm({
               {people.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={fullRowClass}>
+            <label htmlFor="f-target-kind" className={labelClass}>
+              Target type
+            </label>
+            <select
+              id="f-target-kind"
+              name="targetKind"
+              value={targetKind}
+              onChange={(event) => {
+                setTargetKind(event.target.value);
+                setTargetId('');
+              }}
+              className={inputClass}
+            >
+              <option value="">Any target</option>
+              <option value="person">Person</option>
+              <option value="vehicle">Vehicle</option>
+            </select>
+          </div>
+          <div className={fullRowClass}>
+            <label htmlFor="f-target-id" className={labelClass}>
+              Target
+            </label>
+            <select
+              id="f-target-id"
+              name="targetId"
+              value={targetId}
+              onChange={(event) => setTargetId(event.target.value)}
+              disabled={targetKind === ''}
+              className={inputClass}
+            >
+              <option value="">Any {targetKind === 'vehicle' ? 'vehicle' : 'person'}</option>
+              {targetOptions.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.label}
                 </option>
               ))}
             </select>

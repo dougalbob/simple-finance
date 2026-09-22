@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import {
+  addVehicleAction,
   editPotAction,
   renameTargetAction,
   saveCategoryAction,
@@ -64,6 +65,55 @@ export function TargetRenameForm(props: TargetRenameFormProps) {
       </div>
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Save name'}
+      </button>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+export interface AddVehicleFormProps {
+  people: Array<{ id: number; label: string }>;
+}
+
+/** Add another vehicle without leaving Settings (the same fields as Home). */
+export function AddVehicleForm({ people }: AddVehicleFormProps) {
+  const [state, formAction, pending] = useActionState(addVehicleAction, initialActionState);
+  return (
+    <form
+      action={formAction}
+      aria-label="Add vehicle"
+      className="rounded-lg border border-sky-100 bg-white p-3"
+    >
+      <p className="mb-2 text-sm font-semibold text-slate-700">Add vehicle</p>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="settings-add-vehicle-label" className={labelClass}>
+          Name
+        </label>
+        <input
+          id="settings-add-vehicle-label"
+          name="label"
+          type="text"
+          required
+          maxLength={60}
+          placeholder="e.g. Vehicle B"
+          className={inputClass}
+        />
+      </div>
+      <div className="mt-2 flex flex-col gap-1">
+        <label htmlFor="settings-add-vehicle-owner" className={labelClass}>
+          Owner (optional)
+        </label>
+        <select id="settings-add-vehicle-owner" name="ownerPersonId" className={inputClass}>
+          <option value="">Shared / not assigned</option>
+          {people.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button type="submit" disabled={pending} className={`${submitClass} mt-3`}>
+        {pending ? 'Saving…' : 'Add vehicle'}
       </button>
       <FormMessage status={state.status} message={state.message} />
     </form>

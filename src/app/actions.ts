@@ -664,7 +664,9 @@ export async function addVehicleAction(
     return { status: 'error', message: 'Give the vehicle a name.' };
   try {
     createVehicle(getDbHandle().db, { label, ownerPersonId, actor: user.email });
-    revalidatePath('/');
+    // Vehicle options are rendered independently on every primary page; clear
+    // all of them so a vehicle added from Settings is immediately selectable.
+    revalidatePages();
     return { status: 'ok', message: 'Vehicle added.' };
   } catch (err) {
     return { status: 'error', message: domainMessage(err, 'The vehicle could not be saved.') };

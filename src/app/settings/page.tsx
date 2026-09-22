@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { BackupPanel } from '@/components/backup-panel';
 import { ProjectionSettingsForm } from '@/components/recurring';
 import {
+  AddVehicleForm,
   CategoryTreeEditor,
   PotEditForm,
   TargetRenameForm,
@@ -96,10 +97,11 @@ export default async function SettingsPage() {
                 />
               </div>
             ))}
+            <AddVehicleForm people={people.map(({ id, label }) => ({ id, label }))} />
           </div>
           {people.length === 0 && vehicles.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">
-              Add people and vehicles from the home page first.
+              Add the household people from the home page, or add a shared vehicle here.
             </p>
           ) : null}
         </section>
