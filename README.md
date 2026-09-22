@@ -9,10 +9,11 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged to `main` and released. The published image is **v0.1.2** — a patch for
-  three field-reported bugs (receipt-upload permissions on a bind-mounted appdata folder, the broken void
-  flow, and the unreadable void button) plus the receipt-upload body-limit fix that never shipped as an
-  image in v0.1.1. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the exact continuation point.
+- **Status:** Phases 0–5 are merged and released. The published image is **v0.1.2**. This tree is
+  **v0.1.3** — a household can remove an attached receipt (audited, file deleted after the database
+  records it, backup format unchanged). The image publishes when the lower-case tag `v0.1.3` is pushed;
+  merging this change does not publish. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
+  [`docs/RELEASE_NOTES_v0.1.3.md`](docs/RELEASE_NOTES_v0.1.3.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
   (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
@@ -23,8 +24,8 @@ miss.
 - **Will:** fast mobile entry at the till (supplier memory, splits, visible one-tap defaults); user-reported
   checkpoints with honest labels; a payday projection with pessimistic day-to-day behaviour; recurring
   schedule instances that convert automatically; two-tier warnings; renewal and contract-end alerts;
-  receipt/invoice attachments kept with the record they belong to; encrypted, restorable backups that
-  include those attachments.
+  receipt/invoice attachments kept with the record they belong to, and removable without breaking a later
+  backup; encrypted, restorable backups that include the receipts still attached.
 - **Won't:** connect to a bank or read statements; move money; recommend products; share or upload
   anything; run as more than one household.
 
@@ -85,9 +86,11 @@ configured development identity; a production build ignores the bypass entirely.
 - **Cash and bank checks:** Quick entry → Balance ("Balance now" = ledger balance for a bank, counted
   amount for cash). Checkpoints are labelled as checkpoints, and never as a bank balance.
 - **Fuel:** Quick entry → Fuel for a vehicle.
-- **Reviewing:** `/purchases` filters and inline edit/refund/void (nothing is deleted — the history is
-  kept), `/recurring` shows the month calendar and the schedule list, `/contracts` shows contract ends
-  and renewals with the follow-ups you promised.
+- **Reviewing:** `/purchases` filters and inline edit/refund/void (a purchase record is never deleted —
+  the history is kept). A receipt attached to a purchase can be removed from Purchases, Overview or
+  Suppliers; that removal is in the purchase's History, the file leaves `documents/`, and an older backup
+  is the only way to get it back. `/recurring` shows the month calendar and the schedule list,
+  `/contracts` shows contract ends and renewals with the follow-ups you promised.
 - **Insights:** `/insights` — month comparison, per-person attribution, vehicle running costs, and the
   honesty loop that compares configured figures with recent complete periods.
 
@@ -133,7 +136,7 @@ The same commands CI runs, all from the repository root:
 npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
 npm run format:check   # Prettier (markdown is excluded deliberately)
 npm run typecheck      # tsc --noEmit
-npm test               # Node test runner: 224 tests across 62 suites
+npm test               # Node test runner: 230 tests across 64 suites
 npm run build          # production build (Turbopack)
 npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
 npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)
@@ -153,8 +156,9 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.1.2` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
-release tag must agree; the publish workflow refuses to push an image when they do not.
+The app version is `v0.1.3` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+release tag must agree; the publish workflow refuses to push an image when they do not. The published image
+stays v0.1.2 until `v0.1.3` is tagged.
 
 The tag must be lower-case `vX.Y.Z`. Both the workflow's `on.push.tags` filter and its version check
 (`test "v${PKG_VERSION}" = "$VERSION"`) reject a capital `V` — which is why the `V0.1.1` tag never published an

@@ -294,7 +294,8 @@ scenario and confirmed household-level granularity is all they need.)
   (partial refunds are just a smaller negative amount). Refunds net off in insights and increase the pot
   estimate (§7.1).
 - A **mistake** is corrected by edit (audit-logged) or **void** (retained, marked void, excluded from totals).
-  Nothing is silently deleted.
+  Nothing is silently deleted. A purchase record is never deleted. Removing a receipt (§23.4) is a
+  deliberate, audited removal of that file — not a silent deletion of the purchase, and not an undelete.
 - A **duplicate** (e.g. both users recorded the same purchase) is resolved by voiding one copy — see §9.6.
 
 ### 9.6 Duplicate-entry protection (light-touch)
@@ -441,10 +442,10 @@ Menu pages:
 
 | Page | Contents |
 |---|---|
-| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries table with inline edit; month-to-date by parent category with small bars. Quick-add always visible. |
-| **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag; inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed and added from the purchase detail. |
+| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
+| **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag; inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
 | **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
-| **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21). Tap-to-call on mobile. |
+| **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
 | **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account. |
 | **Insights** | §16 panels. |
@@ -625,6 +626,11 @@ Host path on Unraid: **`/mnt/user/appdata/simple-finance`**, mapped to container
   silently deleted. (As built, Phase 5 reads the document list from the snapshot itself and fails the backup
   — HTTP 409 — if the snapshot references a file the disk has lost; `manifest.documents.orphans` reports the
   reverse case.)
+- A receipt the household has removed (§23.4) is no longer `stored`. A later archive does not include that
+  file and does not list it as an orphan once the file has been unlinked. An archive taken **before** the
+  removal still contains the receipt — that older archive is the only way back. Removal never changes the
+  archive format, and it never unlinks the file before the database has recorded the removal: the other
+  order would make the next backup fail closed if the process died in between.
 - Archive layout (format 2, as built): the encrypted stream wraps a tar holding exactly `db.sqlite` (the
   WAL-safe snapshot), `manifest.json`, and `documents/<fileKey>` for each `stored` attachment the snapshot
   references. `manifest.json` records `formatVersion`, the producing version, the creation instant, row
@@ -745,7 +751,7 @@ plus context; where the renewal is also a payment (annual premium), that is a sc
 ## 23. Receipt and invoice attachments
 
 Any purchase can carry **attachments** — receipt or invoice photos/scans. v1 formats: PNG, JPEG, PDF;
-multiple per purchase; per-file size limit (proposed 10 MB, plan OQ12).
+multiple per purchase; per-file size limit (10 MB, plan OQ12). A household can remove one receipt later (§23.4); that is not automatic pruning.
 
 ### 23.1 Capture flows
 
@@ -778,3 +784,21 @@ uncached, with `Content-Disposition` using a sanitized display name.
 - Restore verifies presence and sha256 of every referenced document (§18.4).
 - **Real receipts are real financial data:** they must never appear in the repository, screenshots, PRs,
   issues or demo data (§19). Demo/dev attachments are generated fictional images.
+
+### 23.4 Removal
+
+A household can remove one receipt from the purchase row on Purchases, Overview and Suppliers. The
+purchase record stays. There is no undelete in the app.
+
+- The control posts an attachment id. The storage key is read from the row, never from the request, and
+  removal does not grow a second path that builds or accepts a key.
+- In one transaction the row moves from `stored` to `deleted` and one audit entry is written on the
+  purchase (`attachment.delete`: actor, timestamp, the file key, name, type, size and sha256). A second
+  remove of the same row matches nothing and writes nothing.
+- The file is unlinked only after that transaction commits. If the file is already gone, that is success.
+  If the unlink fails for any other reason, the row stays `deleted` and the leftover file is an orphan —
+  reported, not a failed backup, and not a rolled-back removal.
+- A removed key is not `stored`, so the viewer returns 404 and a later backup neither includes it nor
+  lists it as missing. An archive taken before the removal still restores that receipt (§18.2).
+- The purchase's History list shows who removed it and when. The chip disappears from every page that
+  renders stored receipts.

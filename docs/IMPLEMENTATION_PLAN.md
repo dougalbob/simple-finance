@@ -4,6 +4,10 @@
 > release. It is historical context, not required reading for ongoing work. The continuation point is
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
+>
+> **Current:** v0.1.2 is the published image. This tree is **v0.1.3** — user-initiated receipt removal
+> (decision 89). Merging does not publish; the image publishes only when the lower-case tag `v0.1.3` is
+> pushed.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
@@ -27,7 +31,8 @@ This plan follows `AGENT_APP_BLUEPRINT.md` (the build contract) and `docs/SPEC.m
 | 4 | Phase 3 — schedules, estimate/projection engines, warnings, key-date alerts | Complete (build on session branch; docs in same PR) |
 | 5 | Phase 4a — desktop pages + Insights v1 (first part) | Complete (build on session branch; docs in same PR) |
 | 6 | Phase 4b — desktop pages + attachments (remainder) | Complete (PR #8) |
-| 7 | Phase 5 — hardening & first release (v0.1.0) | Complete on session branch (2026-09-21); merge, tag and publish pending the product owner's review |
+| 7 | Phase 5 — hardening & first release (v0.1.0) | Complete; published as v0.1.0, then patched as v0.1.2 |
+| 8 | Post-release — remove an attached receipt (v0.1.3) | This change (decision 89). Not a new phase. |
 
 > Phase 4a/4b boundary as delivered in Session 5: **4a** = Overview (dense dashboard), Purchases
 > (filters + inline edit/refund/void), Recurring Payments (read-only month calendar + schedule/renewal
@@ -97,7 +102,9 @@ everywhere; per-period rounding, half-up, once (SPEC §7.3).
   it as +signed pence. This keeps one clean per-record shape while the estimate engine's per-pot sum stays
   transfer-invariant.
 - `attachments` — id, purchase_id, file_key (server-generated under `documents/`), original_name, mime,
-  size_bytes, sha256, state (pending|stored|failed), created_by, created_at (SPEC §23).
+  size_bytes, sha256, state (pending|stored|failed|deleted), created_by, created_at (SPEC §23, §23.4).
+  `deleted` is a soft-delete written by `deleteAttachment`; there is no CHECK on `state` and no extra
+  migration.
 - `settings` — typed string-key value store (Phase 3): `weekly_groceries_pence`,
   `monthly_fuel_pence:<vehicleId>` (SPEC §7.3), `renewal_warning_lead_days` +
   `contract_end_warning_lead_days` (default 21, SPEC §22); private runtime values, typed accessors in
@@ -203,7 +210,10 @@ covering attachments).
   end-date boundary), "rolled / awaiting review" state transitions.
 - Attachment pipeline tests: content-sniffed MIME vs spoofed extension, size limit enforcement, failed upload
   leaves the purchase intact and retryable, orphan sweep reports without deleting, authenticated-only serving
-  (no unauthenticated fetch), sha256 verification on restore.
+  (no unauthenticated fetch), sha256 verification on restore, and user-initiated removal (decision 89):
+  soft-delete then unlink, double-delete is a no-op, a deleted URL 404s, an unlink failure does not roll
+  the row back, an unsafe key is not used as a path, and a pre-delete archive still restores the file while
+  a post-delete archive has neither the document nor an orphan.
 - Backup consistency tests: an archive can never reference a missing document; unreferenced documents are
   excluded and reported; `.env`/`logging/` provably absent from archives.
 - Browser tests (Playwright where available): mobile-viewport entry flows, desktop table editing, calendar
@@ -539,6 +549,24 @@ covering attachments).
     recreation), then pushes `vX.Y.Z`, `latest` and `sha-<short>`, and finally verifies the registry manifest
     digest matches the built image. Merging a PR publishes nothing.
 
+*Session 8 (2026-09-22) — post-release, remove an attached receipt (v0.1.3):*
+
+89. **Removing a receipt is a soft-delete, then an unlink — never the other way around.**
+    `deleteAttachment` in the shared attachment module (decision 81) loads the row by id (the client never
+    supplies a storage key). In one transaction it sets `state = 'deleted'` only where `state = 'stored'`,
+    then writes one `attachment.delete` audit on the purchase (`entity: 'purchase'`, the purchase id) with
+    the file key, name, mime, size and sha256 in `before`, and the summary `Removed <name> (<size>, <mime>)`.
+    A second delete matches zero rows and writes nothing. The file is unlinked only after that transaction
+    commits. `ENOENT` is success; any other unlink error is logged and does not roll the row back — the
+    leftover file is an orphan, which is the designed report, not a failed backup. Unlinking first would make
+    every later backup fail closed (`BackupIncompleteError`) if the process died in between. No migration:
+    `state` has no CHECK, and the audit entry already carries actor and timestamp. No undelete: an older
+    archive is the only way back. The control is on Purchases, Overview and Suppliers (the three pages that
+    render the receipt chip), a quiet two-click confirm, and the purchase's History list shows the audit
+    line. A key that is not a safe storage key is never joined onto the documents directory. OQ12 is
+    unchanged: this is user-initiated removal, not automatic pruning. v0.1.2 stays published as it was;
+    this change is v0.1.3 and is tagged only after merge.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -554,7 +582,7 @@ covering attachments).
 | OQ9 | Phone camera formats: accept HEIC directly, or rely on browser JPEG capture? | v1 accepts PNG/JPEG/PDF; document the iPhone "Most Compatible"/JPEG camera setting; server-side HEIC conversion only if real devices demand it. |
 | OQ10 | Supplier-level document attachments (e.g. a policy PDF not tied to a purchase)? | Defer; v1 attaches to purchases only. Renewals/suppliers hold references + notes meanwhile. |
 | OQ11 | Interaction follow-up dates surfaced in the key-dates panel — useful? | Include the optional field and panel display (proposed); no notifications either way. |
-| OQ12 | Attachment size limit and retention guidance | 10 MB per file; README guidance on archive growth; no server-side pruning in v1. |
+| OQ12 | Attachment size limit and retention guidance | 10 MB per file; README guidance on archive growth; no server-side pruning in v1. User-initiated removal of one receipt is decision 89 — still no automatic pruning. |
 | OQ13 | 29 February renewal dates under annual advance | Land on 28 February in non-leap years; visible and editable. |
 
 ## Release history
@@ -636,7 +664,8 @@ src/lib/backup/download.ts    — browser download path (client-only): header fi
 src/lib/backup/policy.ts      — shared constants: 12-character create password, RESTORE word, 512 MB bound
 src/lib/auth/origin.ts        — same-origin guard for mutating route handlers (blueprint §4.7)
 src/lib/records/attachments.ts — the one attachment pipeline: content sniffing, 10 MB, key pattern, display-name
-                                sanitising, store + audit, read path (used by action, route, backup, restore)
+                                sanitising, store + audit, delete (soft-delete then unlink, decision 89),
+                                read path (used by action, route, backup, restore)
 src/lib/records/supplier-details.ts — reference pairs + interaction log as audited domain operations,
                                 `upcomingSupplierFollowUps` for the contracts page
 src/app/api/restore/route.ts  — live in-place restore endpoint (confirmed, bounded, same-origin, authenticated)
@@ -728,6 +757,10 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
 - **First browser run is still owed**: the Playwright suite is written against real selectors and its
   server-rendered expectations were checked against a running dev server, but selectors can still drift
   from rendered behaviour. Until the CI `browser` job is green, no browser evidence exists (blueprint §9:
+  never claim a browser run from markup rendering).
+- **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
+  checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item
+  (decision 24).
   never claim a browser run from markup rendering).
 - **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
   checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item

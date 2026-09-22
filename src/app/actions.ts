@@ -17,7 +17,12 @@ import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
 import { loadAppConfig } from '@/lib/config';
 import { formatPence, parsePence } from '@/lib/money';
-import { AttachmentInputError, storeAttachment } from '@/lib/records/attachments';
+import {
+  AttachmentInputError,
+  AttachmentNotFoundError,
+  deleteAttachment,
+  storeAttachment,
+} from '@/lib/records/attachments';
 import { toLocalDateString } from '@/lib/time';
 import {
   initialActionState,
@@ -254,10 +259,60 @@ export async function uploadAttachmentAction(
     });
     revalidatePath('/purchases');
     revalidatePath('/overview');
+    revalidatePath('/suppliers');
     return { status: 'ok', message: `Attached ${stored.originalName}.` };
   } catch (err) {
     if (err instanceof AttachmentInputError) return { status: 'error', message: err.message };
     throw err;
+  }
+}
+
+/**
+ * Remove one receipt (SPEC §23.4). The form posts an attachment id; the
+ * storage key is read from the row, never from the request. Domain errors
+ * come back as a message — a filesystem failure must not be rethrown, or
+ * `useActionState` leaves the button pending with nothing to explain why.
+ */
+export async function deleteAttachmentAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (!user) return NOT_SIGNED_IN;
+  const id = numberOrNull(formData.get('attachmentId'));
+  if (id === null || id <= 0) {
+    return {
+      status: 'error',
+      message: 'That receipt link is incomplete. Refresh and try again.',
+    };
+  }
+  try {
+    const result = await deleteAttachment({
+      db: getDbHandle().db,
+      id,
+      actor: user.email,
+      documentsDir: loadAppConfig().documentsDir,
+    });
+    revalidatePath('/purchases');
+    revalidatePath('/overview');
+    revalidatePath('/suppliers');
+    const name = result.originalName ?? 'That receipt';
+    if (!result.deleted) {
+      return { status: 'ok', message: `“${name}” was already removed.` };
+    }
+    if (!result.fileRemoved) {
+      return {
+        status: 'ok',
+        message: `Removed ${name} from the purchase, but the file is still in the documents folder. It will show as an unreferenced file on Settings until it is cleared.`,
+      };
+    }
+    return { status: 'ok', message: `Removed ${name}.` };
+  } catch (err) {
+    if (err instanceof AttachmentNotFoundError || err instanceof AttachmentInputError) {
+      return { status: 'error', message: err.message };
+    }
+    console.error('[attachments] deleteAttachmentAction failed', err);
+    return { status: 'error', message: 'The receipt could not be removed. Please try again.' };
   }
 }
 
