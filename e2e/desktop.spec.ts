@@ -234,9 +234,11 @@ test.describe('desktop review', () => {
     await form.getByRole('button', { name: 'Add schedule' }).click();
     await expect(form.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
 
-    // The new schedule lists the canonical supplier name.
+    // The new schedule lists the canonical supplier name in its summary line
+    // (the edit-form <option> list also contains it, so avoid getByText alone).
     const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
-    await expect(scheduleItem.getByText(supplierName)).toBeVisible({ timeout: 30_000 });
+    await expect(scheduleItem).toContainText(supplierName, { timeout: 30_000 });
+    await expect(scheduleItem.locator('a', { hasText: 'Supplier card' })).toBeVisible();
 
     // It appears on the Suppliers page and contact details can be edited.
     await page.goto('/suppliers');
@@ -268,13 +270,12 @@ test.describe('desktop review', () => {
     await expect(renewalForm.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
 
     const renewalItem = renewals.locator('li', { hasText: 'Electricity contract renewal' }).first();
-    await expect(renewalItem.getByText(supplierName)).toBeVisible({ timeout: 30_000 });
+    await expect(renewalItem).toContainText(supplierName, { timeout: 30_000 });
     await expect(
       page
         .locator('section[aria-labelledby="schedules-heading"]')
-        .locator('li', { hasText: scheduleName })
-        .getByText(supplierName),
-    ).toBeVisible();
+        .locator('li', { hasText: scheduleName }),
+    ).toContainText(supplierName);
   });
 
   test('a vehicle added in Settings reaches every vehicle picker', async ({ page }) => {
