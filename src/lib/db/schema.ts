@@ -294,6 +294,12 @@ export const schedules = sqliteTable(
       .references(() => pots.id),
     /** Leaf category for dd/so; null for receipts (income has no category). */
     categoryId: integer('category_id').references(() => categories.id),
+    /**
+     * Canonical supplier for dd/so payments. Required for direct debits;
+     * optional for standing orders (null = household transfer / no supplier);
+     * always null for expected receipts (income is not spending).
+     */
+    supplierId: integer('supplier_id').references(() => suppliers.id),
     targetKind: text('target_kind', { enum: ['household', 'person', 'vehicle'] })
       .notNull()
       .default('household'),
@@ -327,6 +333,7 @@ export const schedules = sqliteTable(
     check('schedules_amount_positive', sql`${table.amountPence} > 0`),
     index('schedules_kind_idx').on(table.kind),
     index('schedules_pot_idx').on(table.potId),
+    index('schedules_supplier_idx').on(table.supplierId),
   ],
 );
 

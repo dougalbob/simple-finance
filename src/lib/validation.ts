@@ -162,6 +162,10 @@ export const scheduleEntrySchema = z
     amountPence: positivePenceSchema,
     potId: positiveIdSchema,
     categoryId: positiveIdSchema.nullable().default(null),
+    /** Existing supplier id, or null for standing-order household transfer / receipts. */
+    supplierId: positiveIdSchema.nullable().default(null),
+    /** Inline new supplier name from the recurring form (mutually exclusive with supplierId). */
+    supplierName: nullableText(120, 'Supplier name'),
     targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
     targetId: positiveIdSchema.nullable().default(null),
     contractEndsOn: localDateSchema.nullable().default(null),
@@ -188,6 +192,27 @@ export const scheduleEntrySchema = z
         code: 'custom',
         path: ['categoryId'],
         message: 'Choose a category for the direct debit or standing order.',
+      });
+    }
+    if (value.kind === 'receipt' && (value.supplierId !== null || value.supplierName !== null)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['supplierId'],
+        message: 'Expected receipts have no supplier — income is not spending.',
+      });
+    }
+    if (value.kind === 'dd' && value.supplierId === null && value.supplierName === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['supplierId'],
+        message: 'Choose a supplier for the direct debit, or add a new one by name.',
+      });
+    }
+    if (value.supplierId !== null && value.supplierName !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['supplierId'],
+        message: 'Give the supplier by name or by selection, not both.',
       });
     }
     if (value.targetKind === 'household' && value.targetId !== null) {
@@ -312,6 +337,9 @@ export const editScheduleEntrySchema = z
     amountPence: positivePenceSchema,
     potId: positiveIdSchema,
     categoryId: positiveIdSchema.nullable().default(null),
+    /** Existing supplier id; null clears on standing orders. Receipt schedules omit the field. */
+    supplierId: positiveIdSchema.nullable().default(null),
+    supplierName: nullableText(120, 'Supplier name'),
     targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
     targetId: positiveIdSchema.nullable().default(null),
     contractEndsOn: localDateSchema.nullable().default(null),
@@ -323,6 +351,13 @@ export const editScheduleEntrySchema = z
         code: 'custom',
         path: ['dueMonth'],
         message: 'Annual schedules need a due month.',
+      });
+    }
+    if (value.supplierId !== null && value.supplierName !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['supplierId'],
+        message: 'Give the supplier by name or by selection, not both.',
       });
     }
     if (value.targetKind === 'household' && value.targetId !== null) {

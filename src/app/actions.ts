@@ -9,6 +9,7 @@ import {
 } from '@/lib/records/supplier-details';
 import {
   InvalidSupplierContactError,
+  InvalidSupplierNameError,
   SupplierNotFoundError,
   updateSupplierContact,
 } from '@/lib/records/suppliers';
@@ -697,10 +698,12 @@ export async function addScheduleAction(
     const { schedule } = createSchedule(getDbHandle().db, {
       ...parsed.data,
       categoryId: parsed.data.kind === 'receipt' ? null : parsed.data.categoryId,
+      supplierId: parsed.data.kind === 'receipt' ? null : parsed.data.supplierId,
+      supplierName: parsed.data.kind === 'receipt' ? null : parsed.data.supplierName,
       activeFrom: parsed.data.activeFrom,
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `Schedule “${schedule.name}” added — it will convert automatically on its due date.`,
@@ -709,7 +712,9 @@ export async function addScheduleAction(
     if (
       err instanceof InvalidScheduleInputError ||
       err instanceof ScheduleNotFoundError ||
-      err instanceof ScheduleCancelledError
+      err instanceof ScheduleCancelledError ||
+      err instanceof SupplierNotFoundError ||
+      err instanceof InvalidSupplierNameError
     ) {
       return { status: 'error', message: err.message };
     }
@@ -741,7 +746,7 @@ export async function cancelScheduleAction(
       effectiveOn: parsed.data.effectiveOn ?? '',
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `“${result.name}” cancelled from ${parsed.data.effectiveOn} — converted history is kept.`,
@@ -783,7 +788,7 @@ export async function addRenewalAction(
       ...parsed.data,
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return {
       status: 'ok',
       message: `Renewal “${renewal.label}” added for ${renewal.nextRenewalDate}.`,
@@ -852,6 +857,12 @@ function parseScheduleForm(
   const amount = parsePence(
     typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
   );
+  const supplierRaw =
+    typeof formData.get('supplierId') === 'string' ? String(formData.get('supplierId')).trim() : '';
+  // "__new__" means the form is creating a supplier by name — do not coerce it
+  // into a numeric id (Number('__new__') is NaN and would fail validation).
+  const supplierId =
+    supplierRaw === '' || supplierRaw === '__new__' ? null : numberOrNull(supplierRaw);
   const data: Record<string, unknown> = {
     name: textOrNull(formData.get('name')) ?? '',
     kind: textOrNull(formData.get('kind')) ?? 'dd',
@@ -861,6 +872,8 @@ function parseScheduleForm(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
+    supplierId,
+    supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
     activeFrom: textOrNull(formData.get('activeFrom')) ?? toLocalDateString(now),
@@ -894,6 +907,8 @@ const PAGE_PATHS = [
   '/overview',
   '/purchases',
   '/recurring',
+  '/contracts',
+  '/suppliers',
   '/pots',
   '/insights',
   '/settings',
@@ -1204,6 +1219,10 @@ export async function editScheduleAction(
   const amount = parsePence(
     typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
   );
+  const supplierRaw =
+    typeof formData.get('supplierId') === 'string' ? String(formData.get('supplierId')).trim() : '';
+  const supplierId =
+    supplierRaw === '' || supplierRaw === '__new__' ? null : numberOrNull(supplierRaw);
   const parsed = editScheduleEntrySchema.safeParse({
     scheduleId: numberOrNull(formData.get('scheduleId')),
     expectedVersion: numberOrNull(formData.get('version')),
@@ -1214,6 +1233,8 @@ export async function editScheduleAction(
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
+    supplierId,
+    supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
     activeUntil: textOrNull(formData.get('activeUntil')),
@@ -1234,6 +1255,8 @@ export async function editScheduleAction(
         amountPence: parsed.data.amountPence,
         potId: parsed.data.potId,
         categoryId: parsed.data.categoryId,
+        supplierId: parsed.data.supplierId,
+        supplierName: parsed.data.supplierName,
         targetKind: parsed.data.targetKind,
         targetId: parsed.data.targetId,
         contractEndsOn: parsed.data.contractEndsOn,
@@ -1250,7 +1273,9 @@ export async function editScheduleAction(
       err instanceof InvalidScheduleInputError ||
       err instanceof ScheduleNotFoundError ||
       err instanceof ScheduleCancelledError ||
-      err instanceof VersionConflictError
+      err instanceof VersionConflictError ||
+      err instanceof SupplierNotFoundError ||
+      err instanceof InvalidSupplierNameError
     ) {
       return { status: 'error', message: err.message };
     }

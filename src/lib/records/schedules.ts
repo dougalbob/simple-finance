@@ -9,6 +9,7 @@ import {
   receipts,
   scheduleInstances,
   schedules,
+  suppliers,
   vehicles,
 } from '../db/schema';
 import { formatPence, isValidPenceAmount, MAX_ABS_PENCE } from '../money';
@@ -19,6 +20,12 @@ import { PersonNotFoundError } from './people';
 import { PotNotFoundError } from './pots';
 import { createPurchase, type TargetKind } from './purchases';
 import { createReceipt } from './receipts';
+import {
+  cleanSupplierName,
+  createSupplierRecord,
+  normalizeSupplierName,
+  SupplierNotFoundError,
+} from './suppliers';
 import { VehicleNotFoundError } from './vehicles';
 
 /**
@@ -88,6 +95,15 @@ export interface CreateScheduleInput {
   potId: number;
   /** Leaf category for dd/so; null (required) for receipts. */
   categoryId?: number | null;
+  /**
+   * Canonical supplier for dd/so. Prefer an existing id; otherwise pass a
+   * supplierName and the domain creates (or reuses) the supplier record.
+   * Required for direct debits. Standing orders may omit both (household
+   * transfer). Receipts must leave both null.
+   */
+  supplierId?: number | null;
+  /** Inline new-supplier name from the recurring form (mutually exclusive with supplierId). */
+  supplierName?: string | null;
   targetKind?: TargetKind;
   targetId?: number | null;
   /** Informational + alert only (SPEC §22.1); instances never auto-stop. */
@@ -110,23 +126,31 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
   const actor = checkedActor(input.actor);
   const today = toLocalDateString(now);
   const activeFrom = input.activeFrom ?? today;
-  const effective = checkedScheduleFields(db, {
-    name: input.name,
-    kind: input.kind,
-    frequency: input.frequency,
-    dueDayOfMonth: input.dueDayOfMonth,
-    dueMonth: input.dueMonth ?? null,
-    amountPence: input.amountPence,
-    potId: input.potId,
-    categoryId: input.categoryId ?? null,
-    targetKind: input.targetKind ?? 'household',
-    targetId: input.targetId ?? null,
-    contractEndsOn: input.contractEndsOn ?? null,
-    activeFrom,
-    activeUntil: input.activeUntil ?? null,
-  });
 
   const inserted = db.transaction((tx) => {
+    const supplierId = resolveSupplierForSchedule(tx, {
+      kind: input.kind,
+      supplierId: input.supplierId,
+      supplierName: input.supplierName,
+      actor,
+      now,
+    });
+    const effective = checkedScheduleFields(tx, {
+      name: input.name,
+      kind: input.kind,
+      frequency: input.frequency,
+      dueDayOfMonth: input.dueDayOfMonth,
+      dueMonth: input.dueMonth ?? null,
+      amountPence: input.amountPence,
+      potId: input.potId,
+      categoryId: input.categoryId ?? null,
+      supplierId,
+      targetKind: input.targetKind ?? 'household',
+      targetId: input.targetId ?? null,
+      contractEndsOn: input.contractEndsOn ?? null,
+      activeFrom,
+      activeUntil: input.activeUntil ?? null,
+    });
     const row = tx
       .insert(schedules)
       .values({
@@ -138,6 +162,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
         amountPence: effective.amountPence,
         potId: effective.potId,
         categoryId: effective.categoryId,
+        supplierId: effective.supplierId,
         targetKind: effective.targetKind,
         targetId: effective.targetId,
         contractEndsOn: effective.contractEndsOn,
@@ -174,6 +199,10 @@ export interface EditSchedulePatch {
   frequency?: ScheduleFrequency;
   potId?: number;
   categoryId?: number | null;
+  /** undefined = unchanged; null clears (standing order household transfer only). */
+  supplierId?: number | null;
+  /** Inline new-supplier name (mutually exclusive with supplierId). */
+  supplierName?: string | null;
   targetKind?: TargetKind;
   targetId?: number | null;
   contractEndsOn?: string | null;
@@ -207,6 +236,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
     if (current.version !== input.expectedVersion) {
       throw new VersionConflictError('schedule', input.id, input.expectedVersion, current.version);
     }
+    const supplierId = resolveSupplierForScheduleEdit(tx, current, patch, actor, now);
     const effective = checkedScheduleFields(tx, {
       name: patch.name ?? current.name,
       kind: current.kind,
@@ -216,6 +246,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
       amountPence: patch.amountPence ?? current.amountPence,
       potId: patch.potId ?? current.potId,
       categoryId: patch.categoryId === undefined ? current.categoryId : patch.categoryId,
+      supplierId,
       targetKind: patch.targetKind ?? current.targetKind,
       targetId: patch.targetId === undefined ? current.targetId : patch.targetId,
       contractEndsOn:
@@ -233,6 +264,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
         amountPence: effective.amountPence,
         potId: effective.potId,
         categoryId: effective.categoryId,
+        supplierId: effective.supplierId,
         targetKind: effective.targetKind,
         targetId: effective.targetId,
         contractEndsOn: effective.contractEndsOn,
@@ -359,6 +391,7 @@ export function listSchedulesWithContractEnds(db: Db): ScheduleContractEnd[] {
       frequency: schedules.frequency,
       amountPence: schedules.amountPence,
       contractEndsOn: schedules.contractEndsOn,
+      supplierId: schedules.supplierId,
     })
     .from(schedules)
     .where(and(isNotNull(schedules.contractEndsOn), isNull(schedules.cancelledAt)))
@@ -670,7 +703,7 @@ function convertInstance(db: Db, instance: ScheduleInstance, now: Date): boolean
     );
   }
   const purchase = createPurchase(db, {
-    supplierId: null,
+    supplierId: schedule.supplierId,
     potId: schedule.potId,
     totalPence: schedule.amountPence,
     paidByPersonId: null,
@@ -797,6 +830,7 @@ interface CheckedFields {
   amountPence: number;
   potId: number;
   categoryId: number | null;
+  supplierId: number | null;
   targetKind: TargetKind;
   targetId: number | null;
   contractEndsOn: string | null;
@@ -815,6 +849,7 @@ function checkedScheduleFields(
     amountPence: number;
     potId: number;
     categoryId: number | null;
+    supplierId: number | null;
     targetKind: TargetKind;
     targetId: number | null;
     contractEndsOn: string | null;
@@ -880,8 +915,21 @@ function checkedScheduleFields(
         'Expected receipts have no category — income is not spending.',
       );
     }
+    if (input.supplierId !== null) {
+      throw new InvalidScheduleInputError(
+        'Expected receipts have no supplier — income is not spending.',
+      );
+    }
   } else {
     assertLiveLeafCategory(db, input.categoryId);
+    if (input.kind === 'dd' && input.supplierId === null) {
+      throw new InvalidScheduleInputError(
+        'Choose a supplier for the direct debit, or add a new one by name.',
+      );
+    }
+    if (input.supplierId !== null) {
+      assertSupplierExists(db, input.supplierId);
+    }
   }
   assertTarget(db, input.targetKind, input.targetId);
 
@@ -894,12 +942,90 @@ function checkedScheduleFields(
     amountPence: input.amountPence,
     potId: input.potId,
     categoryId: input.categoryId,
+    supplierId: input.kind === 'receipt' ? null : input.supplierId,
     targetKind: input.targetKind,
     targetId: input.targetKind === 'household' ? null : input.targetId,
     contractEndsOn,
     activeFrom,
     activeUntil,
   };
+}
+
+/**
+ * Resolve the canonical supplier for a new schedule. Direct debits need one
+ * (by id or by inline name); standing orders may omit both for a household
+ * transfer; receipts never carry a supplier.
+ */
+function resolveSupplierForSchedule(
+  tx: DbTx,
+  input: {
+    kind: ScheduleKind;
+    supplierId?: number | null;
+    supplierName?: string | null;
+    actor: string;
+    now: Date;
+  },
+): number | null {
+  if (input.kind === 'receipt') {
+    if (
+      (input.supplierId !== undefined && input.supplierId !== null) ||
+      (input.supplierName !== undefined &&
+        input.supplierName !== null &&
+        input.supplierName.trim() !== '')
+    ) {
+      throw new InvalidScheduleInputError(
+        'Expected receipts have no supplier — income is not spending.',
+      );
+    }
+    return null;
+  }
+  const hasId = input.supplierId !== undefined && input.supplierId !== null;
+  const cleanName = cleanSupplierName(input.supplierName);
+  if (hasId && cleanName !== null) {
+    throw new InvalidScheduleInputError('Give the supplier by name or by id, not both.');
+  }
+  if (cleanName !== null) {
+    const existing = tx
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.normalizedName, normalizeSupplierName(cleanName)))
+      .get();
+    if (existing !== undefined) return existing.id;
+    return createSupplierRecord(tx, { name: cleanName, actor: input.actor, now: input.now }).id;
+  }
+  if (hasId) {
+    assertSupplierExists(tx, input.supplierId as number);
+    return input.supplierId as number;
+  }
+  return null;
+}
+
+function resolveSupplierForScheduleEdit(
+  tx: DbTx,
+  current: Schedule,
+  patch: EditSchedulePatch,
+  actor: string,
+  now: Date,
+): number | null {
+  if (patch.supplierId === undefined && patch.supplierName === undefined) {
+    return current.supplierId;
+  }
+  return resolveSupplierForSchedule(tx, {
+    kind: current.kind,
+    supplierId: patch.supplierId,
+    supplierName: patch.supplierName,
+    actor,
+    now,
+  });
+}
+
+function assertSupplierExists(db: Db | DbTx, supplierId: number): void {
+  const row = db
+    .select({ id: suppliers.id })
+    .from(suppliers)
+    .where(eq(suppliers.id, supplierId))
+    .get();
+  if (row === undefined) throw new SupplierNotFoundError(supplierId);
 }
 
 function assertPotExists(db: Db | DbTx, potId: number): void {

@@ -105,6 +105,8 @@ export interface ScheduleEditFormProps {
   scheduleId: number;
   version: number;
   name: string;
+  /** Kind is fixed at creation — used only to show/hide the supplier field. */
+  kind: 'dd' | 'so' | 'receipt';
   frequency: 'monthly' | 'annual';
   dueDayOfMonth: number;
   dueMonth: number | null;
@@ -115,6 +117,8 @@ export interface ScheduleEditFormProps {
   potOptions: TargetOption[];
   categoryId: number | null;
   categoryOptions: CategoryOption[];
+  supplierId: number | null;
+  supplierOptions: TargetOption[];
   targetKind: 'household' | 'person' | 'vehicle';
   targetId: number | null;
   people: TargetOption[];
@@ -129,10 +133,14 @@ export interface ScheduleEditFormProps {
 export function ScheduleEditForm(props: ScheduleEditFormProps) {
   const [targetKind, setTargetKind] = useState(props.targetKind);
   const [targetId, setTargetId] = useState<number | null>(props.targetId);
+  const [supplierMode, setSupplierMode] = useState<string>(
+    props.supplierId === null ? '' : String(props.supplierId),
+  );
   const [state, formAction, pending] = useActionState(editScheduleAction, initialActionState);
   const amountText = `${Math.trunc(props.amountPence / 100)}.${String(
     Math.abs(props.amountPence % 100),
   ).padStart(2, '0')}`;
+  const needsSupplier = props.kind === 'dd' || props.kind === 'so';
   return (
     <form
       action={(formData: FormData) => {
@@ -150,7 +158,7 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label htmlFor={`schedule-${props.scheduleId}-name`} className={labelClass}>
-            Name
+            Schedule name
           </label>
           <input
             id={`schedule-${props.scheduleId}-name`}
@@ -262,6 +270,49 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
           </select>
         </div>
       </div>
+      {needsSupplier ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`schedule-${props.scheduleId}-supplier`} className={labelClass}>
+              Supplier
+            </label>
+            <select
+              id={`schedule-${props.scheduleId}-supplier`}
+              name="supplierId"
+              required={props.kind === 'dd'}
+              value={supplierMode}
+              onChange={(event) => setSupplierMode(event.target.value)}
+              className={inputClass}
+            >
+              <option value="" disabled={props.kind === 'dd'}>
+                {props.kind === 'dd' ? 'Choose a supplier…' : 'No supplier / household transfer'}
+              </option>
+              {props.supplierOptions.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.label}
+                </option>
+              ))}
+              <option value="__new__">Add a new supplier…</option>
+            </select>
+          </div>
+          {supplierMode === '__new__' ? (
+            <div className="flex flex-col gap-1">
+              <label htmlFor={`schedule-${props.scheduleId}-supplier-name`} className={labelClass}>
+                New supplier name
+              </label>
+              <input
+                id={`schedule-${props.scheduleId}-supplier-name`}
+                name="supplierName"
+                type="text"
+                required
+                maxLength={120}
+                placeholder="e.g. Northern Power Co"
+                className={inputClass}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <TargetPicker
         idPrefix={`schedule-${props.scheduleId}`}
         targetKind={targetKind}

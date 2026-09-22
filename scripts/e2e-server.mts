@@ -145,6 +145,7 @@ function seed(): void {
     amountPence: 3499,
     potId: main.id,
     categoryId: insurance.id,
+    supplierId: broadbandCo.id,
     targetKind: 'household',
     contractEndsOn: localDate(today, 12),
     activeFrom: localDate(today, -180),
@@ -159,6 +160,7 @@ function seed(): void {
     amountPence: 1200,
     potId: main.id,
     categoryId: insurance.id,
+    // Standing order with no supplier: household transfer option.
     targetKind: 'household',
     activeFrom: localDate(today, -90),
     actor: ACTOR,

@@ -87,12 +87,17 @@ export default async function ContractsPage() {
               {contracts.map((schedule) => {
                 const days = daysBetween(today, schedule.contractEndsOn);
                 const rolled = schedule.contractEndsOn < today;
+                const supplierName =
+                  schedule.supplierId !== null
+                    ? (supplierNames.get(schedule.supplierId) ?? null)
+                    : null;
                 return (
                   <div key={schedule.id} className="flex flex-wrap items-baseline gap-x-3 py-3">
                     <span className="font-medium">{schedule.name}</span>
                     <span className="text-sm text-slate-600">
                       ends {schedule.contractEndsOn} · {formatPence(schedule.amountPence)} ·{' '}
                       {schedule.frequency}
+                      {supplierName !== null ? ` · ${supplierName}` : ''}
                     </span>
                     {rolled ? (
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
@@ -103,6 +108,14 @@ export default async function ContractsPage() {
                         {days === 0 ? 'ends today' : `in ${days} days`}
                       </span>
                     )}
+                    {supplierName !== null ? (
+                      <Link
+                        href="/suppliers"
+                        className="text-xs font-medium text-sky-700 hover:underline"
+                      >
+                        {supplierName} card →
+                      </Link>
+                    ) : null}
                     <Link
                       href={`/recurring#schedule-edit-${schedule.id}`}
                       className="text-xs font-medium text-sky-700 hover:underline"
