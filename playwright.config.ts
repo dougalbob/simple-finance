@@ -56,6 +56,13 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project for the same reason. Runs before backup so the restore in
+      // that project cannot rewind the category tree this spec mutates.
+      name: 'settings',
+      testMatch: /settings\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

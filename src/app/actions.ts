@@ -1455,8 +1455,15 @@ export async function saveCategoryAction(
   try {
     const db = getDbHandle().db;
     const { op } = parsed.data;
+    // Every successful write revalidates the same page set as the other
+    // Settings actions: the category tree is server-rendered into
+    // `CategoryTreeEditor`, and the leaf categories feed the pickers on Quick
+    // Entry, Purchases and Recurring. Without this the browser keeps the
+    // previous RSC payload, so the new name only appears after a manual
+    // refresh.
     if (op === 'add-parent') {
       const category = createParentCategory(db, { name: parsed.data.name, actor: user.email });
+      revalidatePages();
       return { status: 'ok', message: `Category “${category.name}” added.` };
     }
     if (op === 'add-child') {
@@ -1465,6 +1472,7 @@ export async function saveCategoryAction(
         name: parsed.data.name,
         actor: user.email,
       });
+      revalidatePages();
       return { status: 'ok', message: `Category “${category.name}” added.` };
     }
     if (op === 'rename') {
@@ -1474,6 +1482,7 @@ export async function saveCategoryAction(
         name: parsed.data.name,
         actor: user.email,
       });
+      revalidatePages();
       return { status: 'ok', message: `Category renamed to “${category.name}”.` };
     }
     const category = retireCategory(db, {
@@ -1481,6 +1490,7 @@ export async function saveCategoryAction(
       expectedVersion: parsed.data.expectedVersion as number,
       actor: user.email,
     });
+    revalidatePages();
     return {
       status: 'ok',
       message: `“${category.name}” retired — it can no longer be assigned, and its history is preserved.`,
