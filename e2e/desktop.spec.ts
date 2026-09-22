@@ -221,13 +221,22 @@ test.describe('desktop review', () => {
     await page.goto('/recurring');
     const schedules = page.locator('section[aria-labelledby="schedules-heading"]');
     await schedules.getByText('Add a schedule').click();
-    const form = schedules.locator('form').filter({ has: page.getByLabel('Schedule name') });
-    await form.getByLabel('Schedule name').fill(scheduleName);
-    await form.getByLabel('Amount').fill('55.00');
-    await form.getByLabel('Type').selectOption('dd');
-    await form.getByLabel('Category (child)').selectOption({ label: 'Utilities / Energy' });
-    await form.getByLabel('Supplier').selectOption({ label: 'Add a new supplier…' });
-    await form.getByLabel('New supplier name').fill(supplierName);
+    // Scope to the add form only — edit forms also label a "Schedule name" field.
+    const form = schedules
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Add schedule' }) });
+    await form.locator('input[name="name"]').fill(scheduleName);
+    await form.locator('input[name="amount"]').fill('55.00');
+    await form.locator('select[name="kind"]').selectOption('dd');
+    await form.locator('select[name="categoryId"]').selectOption({ label: 'Utilities / Energy' });
+    // The add form's supplier select has no name until a choice is made; pick by label text.
+    await form
+      .locator('label', { hasText: /^Supplier$/ })
+      .locator('select')
+      .selectOption({
+        label: 'Add a new supplier…',
+      });
+    await form.locator('input[name="supplierName"]').fill(supplierName);
     await form.getByRole('button', { name: 'Add schedule' }).click();
     await expect(form.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
 
@@ -252,20 +261,25 @@ test.describe('desktop review', () => {
     await page.goto('/recurring');
     const renewals = page.locator('section[aria-labelledby="renewals-heading"]');
     await renewals.getByText('Add a renewal').click();
-    const renewalForm = renewals.locator('form').filter({ has: page.getByLabel('Label') });
-    await renewalForm.getByLabel('Label').fill('Electricity contract renewal');
+    const renewalForm = renewals
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Add renewal' }) });
+    await renewalForm.locator('input[name="label"]').fill('Electricity contract renewal');
     const nextYear = new Date();
     nextYear.setUTCDate(nextYear.getUTCDate() + 40);
     const nextDate = nextYear.toISOString().slice(0, 10);
-    await renewalForm.getByLabel('Next renewal date').fill(nextDate);
-    await renewalForm.getByLabel('Supplier (optional)').selectOption({ label: supplierName });
+    await renewalForm.locator('input[name="nextRenewalDate"]').fill(nextDate);
+    await renewalForm.locator('select[name="supplierId"]').selectOption({ label: supplierName });
     await renewalForm.getByRole('button', { name: 'Add renewal' }).click();
     await expect(renewalForm.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
 
     const renewalItem = renewals.locator('li', { hasText: 'Electricity contract renewal' }).first();
     await expect(renewalItem.getByText(supplierName)).toBeVisible({ timeout: 30_000 });
     await expect(
-      schedules.locator('li', { hasText: scheduleName }).getByText(supplierName),
+      page
+        .locator('section[aria-labelledby="schedules-heading"]')
+        .locator('li', { hasText: scheduleName })
+        .getByText(supplierName),
     ).toBeVisible();
   });
 
