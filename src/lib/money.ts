@@ -40,6 +40,21 @@ export function parsePence(input: string): number | null {
 }
 
 /**
+ * Render whole pence as the exact decimal string an amount field shows:
+ * 8500 -> "85.00". The field-side mirror of `parsePence`, so a mirrored value
+ * and a typed value are the same string (no thousands separators, no
+ * locale drift) and re-parsing one gives the same integer back.
+ */
+export function penceInput(pence: number): string {
+  if (!Number.isSafeInteger(pence)) {
+    throw new Error(`penceInput expects an integer pence amount, received ${pence}`);
+  }
+  const negative = pence < 0;
+  const abs = Math.abs(pence);
+  return `${negative ? '-' : ''}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+}
+
+/**
  * Integer half-up division: round(numerator / denominator) to the nearest
  * integer, halves away from zero. Pure integer arithmetic — the projection
  * engine's period-level rounding (SPEC §6, §7.3: "round once, half-up to

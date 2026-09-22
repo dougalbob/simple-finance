@@ -567,6 +567,30 @@ covering attachments).
     unchanged: this is user-initiated removal, not automatic pruning. v0.1.2 stays published as it was;
     this change is v0.1.3 and is tagged only after merge.
 
+*Post-release follow-up (2026-09-22) — Quick Entry: Line 1 follows the amount (no phase, no version change):*
+
+90. **A shop typed at the till fills split Line 1 until the household takes that line over.** Mobile entry had
+    a step nobody wanted: type the amount, then retype it on Line 1 (or hunt for "Assign remaining") before
+    Save would light up. `PurchaseForm` now mirrors the amount into Line 1 while the line is untouched. The
+    takeover flag (`lineFollowsTotal`, true on mount) is cleared for good when the user edits the Line 1
+    amount — that field's handler, **not** the shared `updateLine`, so category, "For"/target, supplier (and
+    `selectSupplier`'s most-used-category write), pot, paid-by, date and note changes all keep the following —
+    when they press "+ Add split" (the new line stays empty and Line 1 is neither cleared nor shrunk), or
+    when Assign remaining writes Line 1. Removing an extra line does not resume it; only "Add another" does.
+    `parsePence("8")` is already £8.00, so every valid intermediate keystroke mirrors (typing 8 then 5 ends at
+    85.00 — nothing freezes on the first valid number) and a correction from 85 to 84.50 arrives too. A
+    deleted or zero total clears the line; a half-typed "85." or a negative total leaves the last mirrored
+    value and keeps Save disabled, because `balanced` already requires a positive parsed total. The rule is
+    the pure `followedLineAmount` (`src/lib/records/quick-entry.ts`) over `penceInput`, now shared from
+    `src/lib/money.ts`. Deliberately unchanged: no category control next to the supplier and the amount (the
+    dropdown stays in "Split the payment", above Save), the `balanced` check and its exact-total rule,
+    `assignRemainder`'s replace-not-add behaviour, the paid-by chip not retargeting existing lines, and every
+    server action. No schema, migration, backup-format or version change. Coverage:
+    `tests/quick-entry.test.ts` plus `penceInput` cases in `tests/money.test.ts` (Node, run green here), and
+    seven mobile specs in `e2e/home.spec.ts` for the mirror, the keystroke sequence, the half-typed and
+    deleted totals, the takeover, Add split and "Add another" — the flag is client state, so those need a
+    browser and run in the CI `browser` job.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
