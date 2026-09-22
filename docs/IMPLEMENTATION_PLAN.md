@@ -5,9 +5,9 @@
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
 >
-> **Current:** v0.1.2 is the published image. This tree is **v0.1.4** — the receipt-removal release work
-> plus the quick-entry line-1 follow-up. Merging does not publish; the image publishes only when the
-> lower-case tag `v0.1.4` is pushed.
+> **Current:** v0.1.4 is the published image (`latest` = `sha-7197666`, built from `main` @ `7197666` on
+> 2026-09-22). Merging does not publish; the image publishes only when the lower-case tag matches the version
+> already in the tree it points at — see decision 91.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
@@ -590,6 +590,20 @@ covering attachments).
     seven mobile specs in `e2e/home.spec.ts` for the mirror, the keystroke sequence, the half-typed and
     deleted totals, the takeover, Add split and "Add another" — the flag is client state, so those need a
     browser and run in the CI `browser` job.
+
+*Post-release follow-up (2026-09-22) — publishing v0.1.4 (no code change):*
+
+91. **A release tag is a claim about the commit it points at, so cut it after the metadata bump lands.**
+    v0.1.4's publication stalled until `v0.1.4` was re-cut on `7197666`: the first `v0.1.4` tag sat on the
+    PR #13 merge (whose `package.json` still said `0.1.3`) and a `v0.1.5` tag sat on the metadata-bump merge
+    (whose `package.json` says `0.1.4`). Both publish runs reached `Verify the version metadata matches the
+    tag`, refused, and pushed nothing — which is the design: an image must not exist for a version the code
+    disowns, and a half-published registry tag is worse than a refused run. `docs/HANDOFF.md` §5 now carries
+    the two-command local pre-check and the ordered step list. Because neither refused tag had ever published
+    an image, `v0.1.4` could be re-pointed and the unused `v0.1.5` release deleted; `v0.1.2` and `v0.1.3`
+    have images on the registry and are never moved (the same rule that left `V0.1.1` in place). Publication
+    is otherwise unchanged: `v*.*.*` tag push (or `workflow_dispatch` with a tag that exists), smoke test
+    before push, then the release tag, `latest` and `sha-<short>` on one digest.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
