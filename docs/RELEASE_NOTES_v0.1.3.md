@@ -1,7 +1,8 @@
 # Simple Finance v0.1.3
 
-**Release date:** not tagged yet. This file ships with the change; the image publishes only when the
-lower-case tag `v0.1.3` is pushed after merge. Merging the pull request does not publish.
+**Release date:** 2026-09-22
+The image publishes only when the lower-case tag `v0.1.3` is pushed. Merging the pull request does not
+publish by itself.
 **Type:** small feature. No schema change, no migration, no configuration change, no change to the backup
 archive format (still format 2).
 **Previous published image:** v0.1.2. Do not rewrite `docs/RELEASE_NOTES_v0.1.2.md` and do not retag v0.1.2.
