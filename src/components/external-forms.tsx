@@ -7,6 +7,8 @@ import {
   addSwapAction,
   archivePotAction,
   editDebtAction,
+  editExternalMovementAction,
+  voidSwapAction,
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
 
@@ -522,6 +524,210 @@ export function SwapForm({
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Record swap'}
       </button>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+/** Integer pence → the text form's amount field expects ("80.00"). */
+const penceToAmountText = (pence: number): string => {
+  const abs = Math.abs(pence);
+  return `${Math.trunc(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+};
+
+export interface EditableMovement {
+  id: number;
+  version: number;
+  kind: 'loan' | 'swap' | 'other';
+  potId: number;
+  amountPence: number;
+  occurredDate: string;
+  counterparty: string;
+  note: string | null;
+}
+
+/**
+ * Correct one boundary movement's pot, amount, date, counterparty or note
+ * (SPEC §10.2). Kind/direction/debt/exchange are immutable in the domain —
+ * for a swap leg that means the pair's net-zero can change (an honest
+ * correction), which the Pots page then shows. A blank note keeps the
+ * current note, matching the purchase-edit convention.
+ */
+export function ExternalMovementEditForm({
+  idPrefix,
+  movement,
+  pots,
+  today,
+}: {
+  idPrefix: string;
+  movement: EditableMovement;
+  pots: PotOption[];
+  today: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    editExternalMovementAction,
+    initialActionState,
+  );
+  const counterpartyLocked = movement.kind === 'loan';
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="movementId" value={movement.id} />
+      <input type="hidden" name="expectedVersion" value={movement.version} />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-pot`} className={labelClass}>
+            Pot
+          </label>
+          <select
+            id={`${idPrefix}-pot`}
+            name="potId"
+            className={inputClass}
+            defaultValue={String(movement.potId)}
+          >
+            {pots.map((pot) => (
+              <option key={pot.id} value={pot.id}>
+                {pot.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-amount`} className={labelClass}>
+            Amount
+          </label>
+          <input
+            id={`${idPrefix}-amount`}
+            name="amount"
+            type="text"
+            inputMode="decimal"
+            required
+            defaultValue={penceToAmountText(movement.amountPence)}
+            className={inputClass}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-date`} className={labelClass}>
+            When
+          </label>
+          <input
+            id={`${idPrefix}-date`}
+            name="occurredDate"
+            type="date"
+            required
+            max={today}
+            defaultValue={movement.occurredDate}
+            className={inputClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-counterparty`} className={labelClass}>
+            Who
+          </label>
+          <input
+            id={`${idPrefix}-counterparty`}
+            name="counterparty"
+            type="text"
+            required
+            maxLength={120}
+            defaultValue={movement.counterparty}
+            disabled={counterpartyLocked}
+            className={inputClass}
+          />
+          {counterpartyLocked ? (
+            <p className="text-xs text-slate-500">
+              Borrowing carries the debt&rsquo;s name — rename the debt instead.
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}-note`} className={labelClass}>
+          Note (blank keeps the current note)
+        </label>
+        <input
+          id={`${idPrefix}-note`}
+          name="note"
+          type="text"
+          maxLength={280}
+          defaultValue={movement.note ?? ''}
+          className={inputClass}
+        />
+      </div>
+      <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
+        {pending ? 'Saving…' : 'Save changes'}
+      </button>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+/**
+ * Void a swap as a pair — both legs in one server action, one shared reason
+ * (SPEC §10.2). Two-click confirm, like archive. The single-leg VoidForm
+ * stays available for the honest half-correction (one leg genuinely did not
+ * happen).
+ */
+export function VoidSwapPairForm({
+  idPrefix,
+  exchangeKey,
+  inLeg,
+  outLeg,
+  summary,
+}: {
+  idPrefix: string;
+  exchangeKey: string;
+  inLeg: { id: number; version: number };
+  outLeg: { id: number; version: number };
+  summary: string;
+}) {
+  const [state, formAction, pending] = useActionState(voidSwapAction, initialActionState);
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button type="button" onClick={() => setConfirming(true)} className={dangerSubmitClass}>
+        Void both legs
+      </button>
+    );
+  }
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="exchangeKey" value={exchangeKey} />
+      <input type="hidden" name="inLegId" value={inLeg.id} />
+      <input type="hidden" name="outLegId" value={outLeg.id} />
+      <input type="hidden" name="inLegVersion" value={inLeg.version} />
+      <input type="hidden" name="outLegVersion" value={outLeg.version} />
+      <p className="text-sm text-slate-600">
+        Void &ldquo;{summary}&rdquo;? Both legs are voided together in one step — the history stays.
+      </p>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}-reason`} className={labelClass}>
+          Why are you voiding both legs?
+        </label>
+        <input
+          id={`${idPrefix}-reason`}
+          name="reason"
+          type="text"
+          required
+          minLength={4}
+          maxLength={280}
+          placeholder="e.g. the swap never happened"
+          className={inputClass}
+        />
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={pending} className={dangerSubmitClass}>
+          {pending ? 'Voiding…' : 'Yes, void both legs'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+        >
+          Keep the swap
+        </button>
+      </div>
       <FormMessage status={state.status} message={state.message} />
     </form>
   );

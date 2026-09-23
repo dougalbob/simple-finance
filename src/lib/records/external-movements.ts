@@ -430,6 +430,107 @@ export function voidExternalMovement(db: Db, input: VoidExternalMovementInput): 
   });
 }
 
+export interface VoidSwapInput {
+  /** The pair's shared exchange key (both legs carry it). */
+  exchangeKey: string;
+  inLegId: number;
+  outLegId: number;
+  expectedInVersion: number;
+  expectedOutVersion: number;
+  reason?: string | null;
+  actor: string;
+  now?: Date;
+}
+
+/**
+ * Void a swap as a pair — both legs in ONE transaction, with one shared
+ * reason (SPEC §10.2). The v0.2.0 workaround for a wrong swap was to void
+ * both legs by hand; the household must never be left with an orphaned leg
+ * (a lone in-leg is a −£X lie about the household). Each leg keeps its own
+ * version guard, so a pair voided over a stale form fails visibly rather
+ * than half-applying. For a single-leg correction (the cash never arrived,
+ * the transfer went to the wrong account) use voidExternalMovement on the
+ * one leg instead — the survivor stays visible, honestly.
+ */
+export function voidSwap(
+  db: Db,
+  input: VoidSwapInput,
+): { inLeg: ExternalMovement; outLeg: ExternalMovement } {
+  const now = input.now ?? new Date();
+  const actor = checkedActor(input.actor);
+  const reason = checkedVoidReason(input.reason);
+  return db.transaction((tx) => {
+    const inLeg = readSwapLeg(tx, input.inLegId, 'in', input.exchangeKey, input.expectedInVersion);
+    const outLeg = readSwapLeg(
+      tx,
+      input.outLegId,
+      'out',
+      input.exchangeKey,
+      input.expectedOutVersion,
+    );
+    const voided = (leg: ExternalMovement): ExternalMovement => {
+      const updated = tx
+        .update(externalMovements)
+        .set({
+          voidedAt: now,
+          voidedBy: actor,
+          voidReason: reason,
+          updatedAt: now,
+          version: leg.version + 1,
+        })
+        .where(eq(externalMovements.id, leg.id))
+        .returning()
+        .get();
+      if (updated === undefined) {
+        throw new Error(`void swap leg ${leg.id} returned no row`);
+      }
+      recordAudit(tx, {
+        actor,
+        action: 'external.void',
+        entity: 'external_movement',
+        entityId: leg.id,
+        summary:
+          `Voided swap (both legs) — ${describeExternalMovement(leg)}` +
+          (reason === null ? '' : ` — ${reason}`),
+        before: leg,
+        after: updated,
+        now,
+      });
+      return updated;
+    };
+    return { inLeg: voided(inLeg), outLeg: voided(outLeg) };
+  });
+}
+
+function readSwapLeg(
+  tx: DbTx,
+  legId: number,
+  expectedDirection: ExternalDirection,
+  exchangeKey: string,
+  expectedVersion: number,
+): ExternalMovement {
+  const leg = tx.select().from(externalMovements).where(eq(externalMovements.id, legId)).get();
+  if (leg === undefined) {
+    throw new ExternalMovementNotFoundError(legId);
+  }
+  if (
+    leg.kind !== 'swap' ||
+    leg.direction !== expectedDirection ||
+    leg.exchangeKey !== exchangeKey
+  ) {
+    throw new InvalidExternalMovementInputError(
+      'That record is not the expected swap leg — refresh and try again.',
+    );
+  }
+  if (leg.voidedAt !== null) {
+    throw new AlreadyVoidError('external movement', legId);
+  }
+  if (leg.version !== expectedVersion) {
+    throw new VersionConflictError('external movement', legId, expectedVersion, leg.version);
+  }
+  return leg;
+}
+
 export function getExternalMovement(db: Db | DbTx, movementId: number): ExternalMovement {
   const row = db.select().from(externalMovements).where(eq(externalMovements.id, movementId)).get();
   if (row === undefined) {
@@ -533,6 +634,27 @@ export function listExchanges(
   return views
     .filter((view) => view.inLeg?.voidedAt === null || view.outLeg?.voidedAt === null)
     .slice(0, limit);
+}
+
+/**
+ * Human-readable label for one boundary movement — shared by the Pots page
+ * (boundary history + swap pair list) so the wording cannot drift.
+ */
+export function describeExternalMovement(movement: ExternalMovement): string {
+  const amount = formatPence(movement.amountPence);
+  if (movement.kind === 'loan') {
+    return movement.direction === 'in'
+      ? `Borrowed ${amount} from ${movement.counterparty}`
+      : `Repaid ${amount} to ${movement.counterparty}`;
+  }
+  if (movement.kind === 'swap') {
+    return movement.direction === 'in'
+      ? `Swap in ${amount} with ${movement.counterparty}`
+      : `Swap out ${amount} with ${movement.counterparty}`;
+  }
+  return movement.direction === 'in'
+    ? `Received ${amount} from ${movement.counterparty}`
+    : `Paid ${amount} to ${movement.counterparty}`;
 }
 
 function describeMovement(

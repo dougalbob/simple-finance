@@ -3,10 +3,12 @@ import { describe, it } from 'node:test';
 import {
   checkpointEntrySchema,
   debtEntrySchema,
+  editExternalMovementEntrySchema,
   externalMovementEntrySchema,
   fuelEntrySchema,
   purchaseEntrySchema,
   swapEntrySchema,
+  voidSwapEntrySchema,
 } from '../src/lib/validation';
 
 describe('Phase 2b entry boundary schemas', () => {
@@ -155,6 +157,71 @@ describe('external money boundary schemas (SPEC §10.2)', () => {
     );
     assert.equal(
       debtEntrySchema.safeParse({ counterparty: '  ', direction: 'they_owe', note: null }).success,
+      false,
+    );
+  });
+
+  it('edit: nullable patch fields with null defaults; identity fields required', () => {
+    assert.equal(
+      editExternalMovementEntrySchema.safeParse({ movementId: 7, expectedVersion: 1 }).success,
+      true,
+    );
+    assert.equal(
+      editExternalMovementEntrySchema.safeParse({ movementId: 7, expectedVersion: 0 }).success,
+      false,
+    );
+    assert.equal(
+      editExternalMovementEntrySchema.safeParse({
+        movementId: 7,
+        expectedVersion: 1,
+        amountPence: 0,
+      }).success,
+      false,
+    );
+    // Counterparty is trimmed and capped; note nulls an existing note.
+    const parsed = editExternalMovementEntrySchema.safeParse({
+      movementId: 7,
+      expectedVersion: 1,
+      counterparty: '  Mum  ',
+      note: null,
+    });
+    assert.equal(parsed.success, true);
+    if (parsed.success) {
+      assert.equal(parsed.data.counterparty, 'Mum');
+      assert.equal(parsed.data.note, null);
+    }
+  });
+
+  it('voidSwap: requires both legs, versions and a non-empty exchange key', () => {
+    assert.equal(
+      voidSwapEntrySchema.safeParse({
+        exchangeKey: 'abc123',
+        inLegId: 1,
+        outLegId: 2,
+        inLegVersion: 1,
+        outLegVersion: 1,
+        reason: 'the swap never happened',
+      }).success,
+      true,
+    );
+    assert.equal(
+      voidSwapEntrySchema.safeParse({
+        exchangeKey: '  ',
+        inLegId: 1,
+        outLegId: 2,
+        inLegVersion: 1,
+        outLegVersion: 1,
+      }).success,
+      false,
+    );
+    assert.equal(
+      voidSwapEntrySchema.safeParse({
+        exchangeKey: 'abc123',
+        inLegId: 1,
+        outLegId: 2,
+        inLegVersion: 0,
+        outLegVersion: 1,
+      }).success,
       false,
     );
   });
