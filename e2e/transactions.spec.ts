@@ -25,7 +25,9 @@ test.describe('all transactions', () => {
     // The seeded split purchase: one row, first allocation line + "+1 more",
     // red (money out), with the original note and the exact-total intact.
     const corner = table.locator('tr', { has: page.getByRole('link', { name: /Corner Foods/ }) });
-    await expect(corner.getByRole('cell', { name: 'PUR' })).toBeVisible();
+    // Anchored: the source cell's name ("Corner Foods — Open this purchase")
+    // contains "pur" too, so an unanchored match is not unique.
+    await expect(corner.getByRole('cell', { name: /^PUR\b/ })).toBeVisible();
     await expect(corner).toContainText('Groceries / Weekly Shop (household)');
     await expect(corner).toContainText('+1 more');
     await expect(corner).toContainText('−£63.47');
@@ -33,7 +35,7 @@ test.describe('all transactions', () => {
 
     // A converted standing order keeps its code and links back to the schedule.
     const phone = table.locator('tr', { has: page.getByRole('link', { name: /Phone plan/ }) });
-    await expect(phone.getByRole('cell', { name: 'SO' })).toBeVisible();
+    await expect(phone.getByRole('cell', { name: /^SO\b/ })).toBeVisible();
     await expect(phone.getByRole('link', { name: 'Open the schedule' })).toHaveAttribute(
       'href',
       /^\/recurring#schedule-\d+$/,
@@ -42,7 +44,9 @@ test.describe('all transactions', () => {
     // The checkpoint is a divider carrying a reported figure, never a movement.
     const divider = table.locator('tr', { hasText: 'Checkpoint · reported' });
     await expect(divider.first()).toContainText('not a movement');
-    await expect(page.getByText('Movements shown')).toBeVisible();
+    // Scoped to the footer: the caveat paragraph below the table also says
+    // "Movements shown", so an unscoped text match would not be unique.
+    await expect(page.locator('tfoot').getByText('Movements shown')).toBeVisible();
     // The page says what the total is not.
     await expect(page.getByText(/It is not the change in this pot’s estimate/)).toBeVisible();
   });
@@ -66,7 +70,7 @@ test.describe('all transactions', () => {
     const outRow = page
       .locator('section[aria-labelledby="activity-heading"] table tr')
       .filter({ hasText: '£7.77' });
-    await expect(outRow.getByRole('cell', { name: 'TX>' })).toBeVisible();
+    await expect(outRow.getByRole('cell', { name: /^TX>/ })).toBeVisible();
     await expect(outRow).toContainText("Alex's cash");
     await expect(outRow).toContainText('−£7.77');
 
@@ -77,7 +81,7 @@ test.describe('all transactions', () => {
     const inRow = page
       .locator('section[aria-labelledby="activity-heading"] table tr')
       .filter({ hasText: '£7.77' });
-    await expect(inRow.getByRole('cell', { name: 'TX<' })).toBeVisible();
+    await expect(inRow.getByRole('cell', { name: /^TX</ })).toBeVisible();
     await expect(inRow).toContainText('Main account');
     await expect(inRow).toContainText('+£7.77');
 
