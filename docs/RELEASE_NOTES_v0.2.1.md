@@ -1,11 +1,10 @@
 # Simple Finance v0.2.1
 
 **Release date:** 2026-09-23
-**Published:** pending — annotated tag `v0.2.1` on the merge commit, publish run to be confirmed.
-`v0.2.1` / `latest` / `sha-<merge short SHA>` must all resolve to one digest. This line and the digest
-below are completed by the follow-up "docs: complete RELEASE_NOTES_v0.2.1 publish metadata" commit on
-`main`, as they were for v0.1.7 through v0.2.0.
-**Image digest:** pending — recorded after the publish workflow verifies the registry tags.
+**Published:** yes — annotated tag `v0.2.1` on merge commit `1047d90`, publish run
+[35848467948](https://github.com/dougalbob/simple-finance/actions/runs/35848467948) green. `v0.2.1` /
+`latest` / `sha-1047d90` all resolve to one digest. Force Update now brings this release.
+**Image digest:** `sha256:7008ed725b1f76d1ea66a5976e55091a0e7b96f27e8d43557a965e8db1259fdc`.
 **Type:** bugfix release. Three fixes to v0.2.0: same-day credit double-count in the estimate,
 checkpoint staleness on /pots and /overview, and swap management (find, edit, void as a pair). No
 new record types, no new pages. **No schema change, no migration, no backup-format change.**
@@ -63,18 +62,22 @@ The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.2.1`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<merge short SHA>`
+- `ghcr.io/dougalbob/simple-finance:sha-1047d90`
 
-Digest: pending (see the "Published" line once the publish workflow verifies the registry tags).
+Digest: `sha256:7008ed725b1f76d1ea66a5976e55091a0e7b96f27e8d43557a965e8db1259fdc` — confirmed by the
+publish workflow's registry verification and the package versions API.
 v0.2.0 (`sha256:76b3c5bac7be9490f9f71d105048782df1d1aad05d7c231acd77287325f8cd38`) was not retagged,
-and the v0.2.1 digest must differ from it.
+and the v0.2.1 digest differs from it.
 
 ## Verification of the registry
 
 `ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags are verified
 two ways: the publish workflow's own `Verify the registry tags resolve` step (it fails unless every
 tag's registry digest equals the image it just built and smoke tested), and
-`GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`.
+`GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`. Both
+succeeded for this release: the publish job's step concluded success, and the versions API returned
+one entry — `sha256:7008ed725b1f76d1ea66a5976e55091a0e7b96f27e8d43557a965e8db1259fdc` — carrying
+exactly `["sha-1047d90", "v0.2.1", "latest"]`, with `latest` moved off the v0.2.0 entry.
 
 ## Schema / data notes
 
