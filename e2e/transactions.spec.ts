@@ -44,7 +44,9 @@ test.describe('all transactions', () => {
     const phone = table
       .locator('tr', { has: page.getByRole('link', { name: /Phone plan/ }) })
       .first();
-    await expect(phone.getByRole('cell', { name: /^SO\b/ })).toBeVisible();
+    // No \b after the code: JSX leaves no whitespace between the badge and the
+    // schedule link, so the cell's accessible name is "SOOpen the schedule".
+    await expect(phone.getByRole('cell', { name: /^SO/ })).toBeVisible();
     await expect(phone.getByRole('link', { name: 'Open the schedule' })).toHaveAttribute(
       'href',
       /^\/recurring#schedule-\d+$/,
