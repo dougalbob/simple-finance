@@ -1,6 +1,10 @@
 # Simple Finance v0.4.0
 
 **Release date:** 2026-09-23
+**Published:** yes — annotated tag `v0.4.0` on merge commit `4183cf4` (PR #32), publish run
+`35893148549`. `v0.4.0`, `latest` and `sha-4183cf4` all resolve to one digest. Force Update now
+brings this release.
+**Image digest:** `sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8`.
 **Type:** feature release — **Income**. A new page (`/income`), one-off income recorded by hand with a
 source, income rows (`BAC`) in All Transactions, and a payday that moves off the weekend.
 **One additive migration (`0006_income_source`), no backup-format change.**
@@ -78,10 +82,44 @@ resolves open question OQ2.
   source, correcting and voiding it (and seeing it leave All Transactions), moving the salary to a
   weekend day and reading back the Friday the app now expects (the day is computed in the spec, so it
   is not tied to a calendar date), and adding a second scheduled income.
-- `npm run format:check`, `npm run typecheck`, `npm run build` and `npm audit --omit=dev` all clean. A
-  dev-server smoke run against the fictional seed rendered the page, the seeded "Sale of bicycle"
-  income, the `BAC` row on `/transactions` with its `/income?receipt=…` link, and the live payday
-  shift (salary due Sunday the 27th → expected Friday the 25th).
+- `e2e/transactions.spec.ts` gains a fifth spec: seeded income rendered as a `BAC` row — its source,
+  `+` amount, "Collected in cash", `—` category and the link through to `/income?receipt=…`.
+- The whole browser acceptance job — **39 specs across 9 projects** — concluded success on the pull
+  request run `35892134193` (1.3m) and again on the merge commit run `35892829568`. It runs in CI's
+  `browser` job, which the agent sandbox cannot run locally (no browser there). The project's first
+  run, `35889857166`, failed two of the four new income specs, and both were spec bugs rather than
+  product bugs: the seeded-salary row was matched on the word "Salary", which every row also carries
+  in its pot picker ("Salary account"), and the void step clicked "Correct or void" when the row's
+  disclosure box was already open after the previous save, closing it. Fixed in `7525d98`; the
+  product code was not touched.
+- `npm run format:check`, `npm run typecheck`, `npm run build` (**17 routes**, was 16) and
+  `npm audit --omit=dev` (0 vulnerabilities) all clean. A dev-server smoke run against the fictional
+  seed rendered the page, the seeded "Sale of bicycle" income, the `BAC` row on `/transactions` with
+  its `/income?receipt=…` link, and the live payday shift (salary due Sunday the 27th → expected
+  Friday the 25th).
+
+## Image tags and digest
+
+The publish workflow put these tags on one digest:
+
+- `ghcr.io/dougalbob/simple-finance:v0.4.0`
+- `ghcr.io/dougalbob/simple-finance:latest`
+- `ghcr.io/dougalbob/simple-finance:sha-4183cf4`
+
+Digest: `sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8` — confirmed by the
+publish workflow's registry verification and the package versions API.
+v0.3.0 (`sha256:2db0a0c802d5055d1e7788b03dfd52c98bba0125dbbc032354b3b1f2d031da68`) was not retagged,
+and the v0.4.0 digest differs from it.
+
+## Verification of the registry
+
+`ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags are verified
+two ways: the publish workflow's own registry verification step (it fails unless every tag's registry
+digest equals the image it just built and smoke tested), and
+`GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`. Both
+succeeded for this release: the publish job concluded success, and the versions API returned one
+entry — `sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8` — carrying exactly
+`["sha-4183cf4", "v0.4.0", "latest"]`, with `latest` moved off the v0.3.0 entry.
 
 ## Schema / data notes
 
