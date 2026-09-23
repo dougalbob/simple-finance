@@ -1,7 +1,10 @@
-# Handoff — "All Transactions" design (v0.3.0 line; docs only, nothing implemented)
+# Handoff — "All Transactions" (v0.3.0: designed, built, shipped 2026-09-23)
 
-Date: 2026-09-23. Branch: `arena/01a0ce41-simple-finance` (from `main` @ `7fc9c7b`, post-v0.2.1 —
-v0.2.1 is published: tag on merge commit `1047d90`, GitHub release `Latest`).
+Date: 2026-09-23. Branch: `arena/01a0ce41-simple-finance` (from `main` @ `7fc9c7b`, post-v0.2.1),
+merged as PR #29 → merge commit `96069a3`. v0.3.0 is published: annotated tag `v0.3.0` on that merge
+commit, publish run `35871843722`, digest
+`sha256:2db0a0c802d5055d1e7788b03dfd52c98bba0125dbbc032354b3b1f2d031da68` carrying `v0.3.0`,
+`latest` and `sha-96069a3`.
 
 ## What this session did
 
@@ -71,8 +74,10 @@ Changed: `docs/SPEC.md` (§15.2 menu-table row + new §15.3 "All Transactions"),
   `TX< +£5.00` on Alex's cash. `/overview?transfer=1` renders `id="transfer-1"` and
   `/pots?external=1` renders `id="external-1"`. Server stopped afterwards.
 - `npx playwright test --list` — 34 tests in 8 files; the new `transactions` project resolves with
-  its 3 specs between `checkpoint` and `backup`. **The browser specs were NOT run** — no browser in
-  this sandbox (`docs/SANDBOX.md` §2), so CI's `browser` job is their first real run.
+  its 3 specs between `checkpoint` and `backup`. The browser specs cannot run in this sandbox — no
+  browser (`docs/SANDBOX.md` §2) — so CI's `browser` job was their first real run: **success**, all
+  34 specs, on the pull-request run `35871229504` and again on the merge commit. Three CI rounds
+  were needed to get there; see "Watch out for" below for the two causes.
 
 ## Watch out for
 
@@ -82,6 +87,17 @@ Changed: `docs/SPEC.md` (§15.2 menu-table row + new §15.3 "All Transactions"),
   (`purchase-3`, not `3`); two tests initially collided a swap leg with a purchase.
 - `archivePot` refuses a pot that has *any* record, including voided ones. Do not design a feature
   around "archived pot history" — there is none, by construction.
+- **Browser specs must not pin seed text that an earlier project mutates.** All eight projects run
+  against one seeded database in order, so by the time `transactions` runs, `desktop.spec.ts` has
+  already edited the seeded Corner Foods note and moved the Phone plan schedule to the 21st — and
+  that move back-fills a *second* converted SO row inside the 30-day window, because
+  `syncScheduleInstances` regenerates from `lastConverted + 1`. Assert presence and shape, not seed
+  wording, and add `.first()` to any row locator a preceding project can duplicate.
+- **`getByRole(name:)` matches the accessible name, which is not the visible text.** Blink
+  concatenates a subtree's text without inserting spaces where the DOM has none, and JSX leaves no
+  whitespace between the code badge and the schedule link — so that cell's name is
+  `"SOOpen the schedule"` and `/^SO\b/` never matches (use `/^SO/`). It is also case-insensitive and
+  unanchored, so `{ name: 'PUR' }` also matched "Corner Foods — Open this **pur**chase".
 
 ---
 

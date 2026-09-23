@@ -1,8 +1,10 @@
 # Simple Finance v0.3.0
 
 **Release date:** 2026-09-23
-**Published:** _to be completed after the publish run — merge commit, short SHA, publish run id and
-image digest._
+**Published:** yes — annotated tag `v0.3.0` on merge commit `96069a3` (PR #29), publish run
+`35871843722`. `v0.3.0`, `latest` and `sha-96069a3` all resolve to one digest. Force Update now
+brings this release.
+**Image digest:** `sha256:2db0a0c802d5055d1e7788b03dfd52c98bba0125dbbc032354b3b1f2d031da68`.
 **Type:** feature release. One new page: **All Transactions** (`/transactions`) — a read-only,
 one-pot activity view. **No schema change, no migration, no backup-format change.**
 **Previous published image:** v0.2.1. Do not rewrite `docs/RELEASE_NOTES_v0.2.1.md` and do not retag
@@ -71,11 +73,36 @@ Everything else in the app is unchanged. `docs/SPEC.md` gains §15.3 and a menu-
   (which is what makes offering live pots only safe).
 - New browser project **`transactions`** (`e2e/transactions.spec.ts`, 3 specs) covering the
   projection on real pages, the red-out/green-in pair for one transfer, and the purchase deep link.
-  It runs in CI's `browser` job; it was not run in the agent sandbox (no browser there).
+  It runs in CI's `browser` job, which the agent sandbox cannot run locally (no browser there): the
+  job concluded **success** on this release's pull request run `35871229504`, all 34 specs across
+  the 8 projects, and again on the merge commit `96069a3`.
 - `npm run format:check`, `npm run typecheck`, `npm run build` (16 routes) and
   `npm audit --omit=dev` (0 vulnerabilities) all clean. A dev-server smoke test against seeded
   fictional data rendered the page, the checkpoint divider, both sides of a transfer, and both
   deep-link anchors.
+
+## Image tags and digest
+
+The publish workflow put these tags on one digest:
+
+- `ghcr.io/dougalbob/simple-finance:v0.3.0`
+- `ghcr.io/dougalbob/simple-finance:latest`
+- `ghcr.io/dougalbob/simple-finance:sha-96069a3`
+
+Digest: `sha256:2db0a0c802d5055d1e7788b03dfd52c98bba0125dbbc032354b3b1f2d031da68` — confirmed by the
+publish workflow's registry verification and the package versions API.
+v0.2.1 (`sha256:7008ed725b1f76d1ea66a5976e55091a0e7b96f27e8d43557a965e8db1259fdc`) was not retagged,
+and the v0.3.0 digest differs from it.
+
+## Verification of the registry
+
+`ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags are verified
+two ways: the publish workflow's own `Verify the registry tags resolve` step (it fails unless every
+tag's registry digest equals the image it just built and smoke tested), and
+`GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`. Both
+succeeded for this release: the publish job's step concluded success, and the versions API returned
+one entry — `sha256:2db0a0c802d5055d1e7788b03dfd52c98bba0125dbbc032354b3b1f2d031da68` — carrying
+exactly `["sha-96069a3", "v0.3.0", "latest"]`, with `latest` moved off the v0.2.1 entry.
 
 ## Schema / data notes
 
