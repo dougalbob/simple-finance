@@ -65,7 +65,7 @@ describe('pots & checkpoints on an isolated database', () => {
     const handle = await freshDb();
     try {
       const pot = createPot(handle.db, {
-        label: 'Shared jar',
+        label: "Sam's cash",
         kind: 'cash',
         actor: 'sam@example.com',
       });
@@ -73,7 +73,7 @@ describe('pots & checkpoints on an isolated database', () => {
         potId: pot.id,
         amountPence: 10450,
         effectiveAt: new Date('2026-09-22T16:00:00Z'),
-        note: 'counted the jar',
+        note: 'counted the cash',
         actor: 'sam@example.com',
         now: new Date('2026-09-22T16:05:00Z'),
       });

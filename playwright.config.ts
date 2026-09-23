@@ -63,6 +63,13 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project for the same reason: household-boundary money mutates
+      // pots and debts, so it runs before the backup project's restore.
+      name: 'external',
+      testMatch: /external-money\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

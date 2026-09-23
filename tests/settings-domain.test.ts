@@ -76,8 +76,8 @@ describe('settings: pot edits', () => {
     assert.throws(
       () =>
         editPot(db, {
-          id: pots.alexWallet.id,
-          expectedVersion: pots.alexWallet.version,
+          id: pots.alexCash.id,
+          expectedVersion: pots.alexCash.version,
           actor: ACTOR,
           now: NOW,
           patch: { overdraftLimitPence: null, warningThresholdPence: 1000 },
@@ -88,8 +88,8 @@ describe('settings: pot edits', () => {
     assert.throws(
       () =>
         editPot(db, {
-          id: pots.alexWallet.id,
-          expectedVersion: pots.alexWallet.version,
+          id: pots.alexCash.id,
+          expectedVersion: pots.alexCash.version,
           actor: ACTOR,
           now: NOW,
           patch: { overdraftLimitPence: 5000, warningThresholdPence: 6000 },
@@ -100,8 +100,8 @@ describe('settings: pot edits', () => {
     assert.throws(
       () =>
         editPot(db, {
-          id: pots.alexWallet.id,
-          expectedVersion: pots.alexWallet.version,
+          id: pots.alexCash.id,
+          expectedVersion: pots.alexCash.version,
           actor: ACTOR,
           now: NOW,
           patch: { overdraftLimitPence: 0 },
@@ -110,8 +110,8 @@ describe('settings: pot edits', () => {
     );
     // Blank = cleared, and equal is allowed (threshold == limit).
     const cleared = editPot(db, {
-      id: pots.alexWallet.id,
-      expectedVersion: pots.alexWallet.version,
+      id: pots.alexCash.id,
+      expectedVersion: pots.alexCash.version,
       actor: ACTOR,
       now: NOW,
       patch: { overdraftLimitPence: null, warningThresholdPence: null },
@@ -119,7 +119,7 @@ describe('settings: pot edits', () => {
     assert.equal(cleared.overdraftLimitPence, null);
     assert.equal(cleared.warningThresholdPence, null);
     const equal = editPot(db, {
-      id: pots.alexWallet.id,
+      id: pots.alexCash.id,
       expectedVersion: cleared.version,
       actor: ACTOR,
       now: NOW,

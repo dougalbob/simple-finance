@@ -292,4 +292,21 @@ test.describe('mobile quick entry', () => {
     await expect(filters.getByRole('button', { name: 'Hide filters' })).toBeVisible();
     await expect(filters.getByLabel('Supplier')).toBeVisible();
   });
+
+  test('the Move tab records a transfer without moving the household total', async ({ page }) => {
+    await page.goto('/');
+    const household = page.getByRole('heading', { name: /household:/i });
+    const before = await household.textContent();
+
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    await entry.getByRole('tab', { name: 'Move' }).click();
+    await entry.getByLabel('From pot').selectOption({ label: 'Main account' });
+    await entry.getByLabel('To pot').selectOption({ label: "Alex's cash" });
+    await entry.getByLabel('Amount').fill('5.00');
+    await entry.getByRole('button', { name: 'Record transfer' }).click();
+    await expect(entry.getByRole('status')).toContainText(/recorded/i, { timeout: 30_000 });
+
+    // Between our own pots: the household total does not move.
+    await expect(page.getByRole('heading', { name: /household:/i })).toHaveText(before ?? '');
+  });
 });

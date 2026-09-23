@@ -240,7 +240,7 @@ describe('schedules: canonical supplier link', () => {
     const { db, pots } = fixture;
 
     const transfer = createSchedule(db, {
-      name: 'Jar top-up',
+      name: 'Cash top-up',
       kind: 'so',
       frequency: 'monthly',
       dueDayOfMonth: 1,

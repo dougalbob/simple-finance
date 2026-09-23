@@ -36,6 +36,13 @@
       "when": 1789990000000,
       "tag": "0004_schedule_supplier",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790000000000,
+      "tag": "0005_external_money",
+      "breakpoints": true
     }
   ]
 }

@@ -498,3 +498,79 @@ export const attachments = sqliteTable('attachments', {
   createdBy: text('created_by').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
+
+/**
+ * Phase 6: informal debts — money the household owes someone outside it, or
+ * is owed by them (SPEC §10.2). A debt is a named IOU with a counterparty
+ * (\"Mum\", \"our son\") and a direction; its outstanding balance is derived
+ * from the linked loan movements, never stored, so the balance can never
+ * drift from the movements it claims to summarise. No interest, no
+ * schedules — repayments simply reduce the balance.
+ */
+export const debts = sqliteTable('debts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  counterparty: text('counterparty').notNull(),
+  direction: text('direction', { enum: ['we_owe', 'they_owe'] }).notNull(),
+  note: text('note'),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  version: integer('version').notNull().default(1),
+});
+
+/**
+ * Phase 6: money crossing the household boundary that is neither salary nor
+ * spending (SPEC §10.2) — borrowing and repayments (kind `loan`, always
+ * linked to a debt), the two legs of a cash-for-bank style swap (kind
+ * `swap`, always created as a pair sharing one exchange key), and anything
+ * else with a note saying what it was (kind `other`). External movements
+ * move pot estimates like receipts (in) and spending (out) but never enter
+ * Insights; the join over `allocations` excludes them by construction.
+ */
+export const externalMovements = sqliteTable(
+  'external_movements',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    potId: integer('pot_id')
+      .notNull()
+      .references(() => pots.id),
+    direction: text('direction', { enum: ['in', 'out'] }).notNull(),
+    kind: text('kind', { enum: ['loan', 'swap', 'other'] }).notNull(),
+    amountPence: integer('amount_pence').notNull(),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+    /** Local calendar date the movement belongs to ('YYYY-MM-DD'). */
+    occurredDate: text('occurred_date').notNull(),
+    /** Who the money came from or went to — copied from the debt for loans. */
+    counterparty: text('counterparty').notNull(),
+    debtId: integer('debt_id').references(() => debts.id),
+    /** Swap-pairing key: the two legs of one exchange share it, nothing else carries it. */
+    exchangeKey: text('exchange_key'),
+    note: text('note'),
+    enteredBy: text('entered_by').notNull(),
+    voidedAt: integer('voided_at', { mode: 'timestamp_ms' }),
+    voidedBy: text('voided_by'),
+    voidReason: text('void_reason'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [
+    check('external_movements_amount_positive', sql`${table.amountPence} > 0`),
+    check(
+      'external_movements_loan_link',
+      sql`(${table.kind} != 'loan') OR (${table.debtId} IS NOT NULL AND ${table.exchangeKey} IS NULL)`,
+    ),
+    check(
+      'external_movements_swap_link',
+      sql`(${table.kind} != 'swap') OR (${table.exchangeKey} IS NOT NULL AND ${table.debtId} IS NULL)`,
+    ),
+    check(
+      'external_movements_other_link',
+      sql`(${table.kind} != 'other') OR (${table.debtId} IS NULL AND ${table.exchangeKey} IS NULL)`,
+    ),
+    index('external_movements_pot_occurred_idx').on(table.potId, table.occurredAt),
+    index('external_movements_occurred_date_idx').on(table.occurredDate),
+    index('external_movements_debt_idx').on(table.debtId),
+    index('external_movements_exchange_idx').on(table.exchangeKey),
+  ],
+);

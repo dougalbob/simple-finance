@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { checkpointEntrySchema, fuelEntrySchema, purchaseEntrySchema } from '../src/lib/validation';
+import {
+  checkpointEntrySchema,
+  debtEntrySchema,
+  externalMovementEntrySchema,
+  fuelEntrySchema,
+  purchaseEntrySchema,
+  swapEntrySchema,
+} from '../src/lib/validation';
 
 describe('Phase 2b entry boundary schemas', () => {
   it('accepts a parsed mixed purchase payload with integer-pence lines', () => {
@@ -76,6 +83,78 @@ describe('Phase 2b entry boundary schemas', () => {
         effectiveDate: '2026-02-30',
         note: null,
       }).success,
+      false,
+    );
+  });
+});
+
+describe('external money boundary schemas (SPEC §10.2)', () => {
+  it('accepts borrowing linked to a debt and rejects it without one', () => {
+    const base = {
+      potId: 1,
+      direction: 'in',
+      kind: 'loan',
+      amountPence: 100000,
+      debtId: 2,
+      counterparty: null,
+      occurredDate: '2026-09-20',
+      note: null,
+    };
+    assert.equal(externalMovementEntrySchema.safeParse(base).success, true);
+    assert.equal(externalMovementEntrySchema.safeParse({ ...base, debtId: null }).success, false);
+  });
+
+  it('requires a counterparty and a note for other money', () => {
+    const base = {
+      potId: 1,
+      direction: 'out',
+      kind: 'other',
+      amountPence: 500,
+      debtId: null,
+      counterparty: 'neighbour',
+      occurredDate: '2026-09-20',
+      note: 'chipped in for the fence',
+    };
+    assert.equal(externalMovementEntrySchema.safeParse(base).success, true);
+    assert.equal(externalMovementEntrySchema.safeParse({ ...base, note: null }).success, false);
+    assert.equal(
+      externalMovementEntrySchema.safeParse({ ...base, counterparty: null }).success,
+      false,
+    );
+  });
+
+  it('accepts a swap between two pots with a named counterparty', () => {
+    assert.equal(
+      swapEntrySchema.safeParse({
+        inPotId: 3,
+        outPotId: 1,
+        amountPence: 12000,
+        counterparty: 'our son',
+        occurredDate: '2026-09-20',
+        note: null,
+      }).success,
+      true,
+    );
+    assert.equal(
+      swapEntrySchema.safeParse({
+        inPotId: 3,
+        outPotId: 1,
+        amountPence: 12000,
+        counterparty: '',
+        occurredDate: '2026-09-20',
+        note: null,
+      }).success,
+      false,
+    );
+  });
+
+  it('accepts a debt in either direction and rejects an empty name', () => {
+    assert.equal(
+      debtEntrySchema.safeParse({ counterparty: 'Mum', direction: 'we_owe', note: null }).success,
+      true,
+    );
+    assert.equal(
+      debtEntrySchema.safeParse({ counterparty: '  ', direction: 'they_owe', note: null }).success,
       false,
     );
   });

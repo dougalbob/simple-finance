@@ -1,144 +1,134 @@
-# Simple Finance — Session Handoff
+# Handoff — money across the household boundary (unreleased; supersedes the v0.1.9 handoff)
 
-**Session:** v0.1.9 — documentation carry-over (sandbox notes, working ethos) · **Date:** 2026-09-23
-**Branch:** `arena/01a0cc97-simple-finance` · **Base:** `main` @ `921233a` (v0.1.8 published, tag `v0.1.8` on `00976f7`)
-Supersedes the v0.1.5 handoff. That file is preserved in git history.
+Date: 2026-09-23. Branch: `arena/01a0ccc2-simple-finance` (from `main` @ `644f3af`).
+Environment: this sandbox — no browser binaries, no Playwright download host, `npm ci
+--ignore-scripts` (better-sqlite3 prebuild used as-is). Browser specs run in CI only.
 
-Read `docs/SPEC.md` for the product, and this file before changing the app. `docs/IMPLEMENTATION_PLAN.md` is
-the decision log — read the decisions that touch the area you are changing.
-Sandbox constraints and proven workarounds live in [`docs/SANDBOX.md`](SANDBOX.md) — check it before you chase
-a failing `npm ci` or `playwright install`.
-`AGENT_APP_BLUEPRINT.md` supported the initial build through the first release; it is historical context,
-**not required reading**. Do not send a later session back to it first.
+## Session goal and outcome
 
-`AGENTS.md` carries the working ethos: these docs are a guiding hand, not a pact. If one is getting in the
-way, say so and propose an alternative before deviating. `docs/RELEASE_PROCESS.md` is the one strict rule.
+The household reported three real-world gaps in v0.1.9 (their words, condensed): cash is a
+"shared jar" but should be individual jars, so a £200 cash handover is untracked; a £1,000
+family loan in cash paid into the bank has no honest home (is it income? a transfer?); and a
+son paid in cash who gets a bank transfer back produces an unexplained cash increase with no
+category for the transfer. This session designed and built the answer in full: the jar is
+retired for one cash pot each, borrowing is loan movements plus a tracked lender (never
+income), repayments reduce what is owed (never spending), swaps are atomic net-zero pairs,
+and anything else crosses the boundary with a note.
 
----
+Outcome: the feature is implemented, tested (269/269 green), documented (SPEC §4/§6/§7/§10/
+§15/§17, plan decisions 93–97, README, handoff), and browser-covered by new specs that run
+in CI. It is committed on the session branch and awaiting the household's release decision
+(PR open or not — see "Open items").
 
-## 0. Read this before touching anything
+## Current state
 
-This sandbox **can** run the Node suite. `npm ci --ignore-scripts` is enough: the `better-sqlite3` package
-ships a linux-x64 / Node 22 prebuild. Re-check rather than copy a previous session's "cannot run tests" note.
-The full list of blocked hosts and the proven workaround for each is in
-[`docs/SANDBOX.md`](SANDBOX.md) — read that before retrying a failing install.
+Done:
 
-Re-verified in this sandbox on 2026-09-23, not copied from an earlier session:
+- Schema + migration: `debts` and `external_movements` tables, 4 indexes
+  (`src/lib/db/schema.ts`, `drizzle/0005_external_money.sql`, journal count 6).
+- Domain: `src/lib/records/debts.ts` (derived balances, summary, labels),
+  `src/lib/records/external-movements.ts` (loan/other CRUD, atomic `createSwap` under one
+  `exchange_key` with two audits, same-pot rejected; void per leg), `archivePot`
+  (zero-referencing pots only) in `src/lib/records/pots.ts`.
+- Estimate engine: external money in/out move per-pot and household estimates
+  (`src/lib/records/estimates.ts`, `src/lib/records/money-view.ts`); Insights untouched
+  by construction (allocations join); four pots everywhere (jar gone).
+- Boundary + actions: Zod schemas (debt/external/swap/archive, note required for other)
+  in `src/lib/validation.ts`; six audited server actions in `src/app/actions.ts`.
+- UI: shared form components (`src/components/external-forms.tsx`, `record-forms.tsx`
+  `VoidForm` external kind); fourth quick-entry tab (Move) on home + overview;
+  owed/owing lines beside "available now"; Pots page gains Owed & owing, Borrow & repay,
+  Swap, Other money, boundary history with void, and Archive in Edit pot.
+- Fixtures + seed: `tests/household.ts` is four pots (alexCash/samCash); E8 recomputed
+  to the no-jar figures (£938.70 available, −£579.62 low); `scripts/e2e-server.mts` seeds
+  the same four pots.
+- Tests: `tests/external-money.test.ts` (17: debts, swap atomicity/net-zero/round-trip,
+  estimate≡Insights, archivePot guard), `tests/entry-validation.test.ts` +4 Zod boundary
+  tests, migration-count and uncheckpointed-pot asserts updated honestly (6, 4).
+- E2E: `e2e/external-money.spec.ts` (borrow → owed line; repay → balance falls; swap →
+  household total unchanged), a Move-tab transfer test in `e2e/home.spec.ts`, and the
+  `external` project in `playwright.config.ts` (runs before `backup`).
+- Docs: SPEC delta (§2 scope, §4 four pots, §6 record types, §7.1 formula, §10 → 10.1 +
+  10.2, §15.1 four actions, §15.2 Pots/Overview rows, E8 recompute, new E10–E12);
+  plan decisions 93–97 + data-model sketch + test strategy + file map; README Move
+  bullet + 269/73 counts; this handoff.
 
-| Capability | Status here | Consequence |
-| --- | --- | --- |
-| `npm ci --ignore-scripts` | **ran** | 86 packages; `better-sqlite3` prebuild loads (SQLite 3.53.4) |
-| `npm test` | **ran** | 248 tests, 67 suites, all passed |
-| `npx tsc --noEmit` | **ran** | clean |
-| `npx prettier --check .` | **ran** | clean (markdown is excluded by `.prettierignore`) |
-| `npm run build` | **ran** | compiled, 15 routes |
-| `npm audit --omit=dev` | **ran** | 0 vulnerabilities |
-| Playwright (`npm run test:e2e`) | **not run** | `cdn.playwright.dev` and `deb.debian.org` blocked, no system browser libs. CI's `browser` job is the evidence |
-| Docker | **absent** | no daemon here. CI's `docker` job is the evidence |
+In progress: nothing — the tree is the deliverable.
 
-**Hard rule:** never commit, screenshot or fixture real receipts or household financial data (SPEC §19, §23.3).
+Not started: cutting a release (version still 0.1.9; suggest 0.2.0 — new record types —
+when the household says go), manual acceptance on the users' real phones (Move tab,
+borrow/swap forms), the v2/roadmap watch-list below.
 
-**Tag casing.** Always lower-case `vX.Y.Z`, annotated, on the merge commit. Never move a published tag —
-v0.1.8 is published. This release line is **v0.1.9**. Merging does not publish; the tag does.
+## Key decisions (2026-09-23, with the product owner)
 
----
+- (a) Two personal cash pots, no jar — a handover is a visible transfer.
+- (b) Loans are movements + a lender + a derived owed balance; repayments reduce it; no
+  interest, no schedules — informal IOUs only (SPEC §10.2, plan decisions 93–94).
+- (c) Swaps are linked net-zero pairs, atomic at creation, independently correctable
+  afterwards (plan decision 95).
+- (d) Full scope this session: design + build + tests + docs (this handoff).
 
-## 1. What this session did
+Engineering decisions (agent, same day): debt balances derived, never stored (92/94);
+debt direction and loan/swap/other kind + direction + debt link + exchange key immutable
+(void-and-rerecord to fix); other requires a note; rename propagates to linked loan
+copies in one transaction; archivePot refuses referenced pots; Insights exclusion by
+construction, covered by an estimate≡Insights test; audits `debt.create/edit`,
+`external.create/edit/void`, `pot.archive`.
 
-Documentation only. No application behaviour changed. This is the carry-over that could not ride in the
-v0.1.8 pull request because it was written after that merge.
+## Exact file paths touched
 
-- **`docs/SANDBOX.md` (new).** Append-only field notes on the sandbox: `nodejs.org` blocked but
-  `better-sqlite3` ships prebuilds, so `npm ci --ignore-scripts` is the answer; `cdn.playwright.dev` and
-  `deb.debian.org` blocked and no system libs, so browsers cannot run locally; `codeload.github.com`
-  reachable where `objects.githubusercontent.com` is not. A session that hits a **new** limit must record it
-  there before merging — Arena will not accept substantive pushes afterwards.
-- **`AGENTS.md`.** Added "Working ethos — how to use the docs": SPEC / IMPLEMENTATION_PLAN / BLUEPRINT are a
-  guiding hand, not an unbreakable pact. Challenge the spec and propose alternatives; have the short
-  conversation before deviating rather than working around a doc silently. `docs/RELEASE_PROCESS.md` is the
-  explicit exception — strict, and owned end to end by the agent without pulling in the household.
-- **`docs/HANDOFF.md`.** This rewrite: points at `docs/SANDBOX.md`, supersedes the v0.1.5 header, and carries
-  the still-open list forward **re-verified against the code** rather than copied.
-- **Version `0.1.9`** in `package.json`, `package-lock.json` (both root fields), `src/lib/version.ts` and
-  `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.9.md`.
+New: `drizzle/0005_external_money.sql`, `e2e/external-money.spec.ts`,
+`src/components/external-forms.tsx`, `src/lib/records/debts.ts`,
+`src/lib/records/external-movements.ts`, `tests/external-money.test.ts`.
 
-`docs/RELEASE_PROCESS.md` was deliberately left untouched.
+Modified: `README.md`, `docs/HANDOFF.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/SPEC.md`,
+`drizzle/meta/_journal.json`, `e2e/home.spec.ts`, `playwright.config.ts`,
+`scripts/e2e-server.mts`, `src/app/actions.ts`, `src/app/overview/page.tsx`,
+`src/app/page.tsx`, `src/app/pots/page.tsx`, `src/components/pot-forms.tsx`,
+`src/components/quick-entry.tsx`, `src/components/record-forms.tsx`,
+`src/lib/db/schema.ts`, `src/lib/records/entry-view.ts`,
+`src/lib/records/estimates.ts`, `src/lib/records/money-view.ts`,
+`src/lib/records/pots.ts`, `src/lib/validation.ts`, `tests/backup-restore.test.ts`,
+`tests/db-slice.test.ts`, `tests/entry-validation.test.ts`, `tests/household.ts`,
+`tests/money-view.test.ts`, `tests/projection.test.ts`,
+`tests/schedule-lifecycle.test.ts`, `tests/schedule-supplier.test.ts`,
+`tests/settings-domain.test.ts`, `tests/transfers.test.ts`.
 
----
+Reverted before commit: `next-env.d.ts` (dev-server import-path churn, not a change).
 
-## 2. Verification
+## Validation evidence (this sandbox, 2026-09-23)
 
-| Check | Run here | Result |
-| --- | --- | --- |
-| `npm ci --ignore-scripts` | yes | 86 packages, no compile needed |
-| `npm test` | yes | 248 passed, 67 suites, 0 failed |
-| `npx tsc --noEmit` | yes | clean |
-| `npx prettier --check .` | yes | clean |
-| `npm run build` | yes | compiled, 15 routes |
-| `npm audit --omit=dev` | yes | 0 vulnerabilities |
-| `npm run test:e2e` | no | no browser binary, no system libs |
+- `npm test` — 269/269 green across 73 suites (baseline at session start: 248/248).
+- `npx tsc --noEmit` — clean. `npx prettier --check .` — clean. `npm run build` —
+  green, 15 routes.
+- `E2E_SEED_ONLY=1 node --import tsx scripts/e2e-server.mts` — seed success, four pots
+  (£42.10 / £1,612.35 / £1,200.00 / £28.62, household £2,883.07).
+- Dev server smoke: `/`, `/overview`, `/pots` all 200 with the new sections (Move tab,
+  Owed & owing, Borrow & repay, Swap, Other money, boundary history, Archive control);
+  server stopped afterwards.
+- Browser specs (`external-money`, Move-tab): written against verified selectors and
+  project wiring, but NOT run — this sandbox has no browser. CI `npm run test:e2e` is
+  the first real run (blueprint §9: never claim a browser run from markup rendering).
 
-No new browser coverage — nothing in `src/` changed except the version string, so the existing `e2e/` specs
-are unchanged and CI's `browser` job should pass on them as before.
+## Open items for next session
 
-Note that `npm run format` does **not** reformat markdown: `.prettierignore` excludes `*.md` because the docs
-are hand-authored. Formatting a new doc is a no-op, not a check.
+1. Merge + release decision (household's call): PR from the session branch to `main`,
+   review, merge; then version bump (suggest 0.2.0) + tag per `docs/RELEASE_PROCESS.md`
+   if they want this shipped.
+2. CI must be green, including the first-ever run of the `external` project.
+3. Manual acceptance on the real phones: Move tab at the till, a borrow + repay, a
+   swap — the "walking out of Tesco" test for the new tab.
+4. Watch-list (unchanged): phone camera formats (OQ9), attachment growth, email alerts
+   (v2), PWA (post-v1), first Unraid install picks its own port (OQ8).
 
----
+## Exact resume point
 
-## 3. What is not open
+Branch `arena/01a0ccc2-simple-finance`, committed (see `git log --oneline -3`). Resume
+with `git status`, `npm run check`, `npm test`, then continue from "Open items" above.
 
-The v0.1.8 category-tree revalidation fix is published and is not this session's work. Do not treat the
-v0.1.5 mobile-filter handoff content as current; it is preserved in git history only.
+## Important lesson (do not repeat)
 
----
-
-## 4. Still open — not done, do not sneak them in
-
-Carried forward from earlier sessions. **Each was re-verified against the code on 2026-09-23**, so this list
-is current rather than inherited. v0.1.8's release notes explicitly deferred all four.
-
-1. **Refunds are not version-guarded.** `RefundForm` posts `expectedVersion`, but `addRefundAction`
-   (`src/app/actions.ts:1016`) never reads it — the field is absent from its schema parse, so a concurrent
-   edit is not detected.
-2. **Upload still rethrows non-domain errors.** `uploadAttachmentAction` (`src/app/actions.ts:266`) returns a
-   friendly message only for `AttachmentInputError` and rethrows everything else.
-   `deleteAttachmentAction` (`:315`) already logs and returns a message instead.
-3. **`logging/` is created and its ownership repaired, but nothing in the app writes to it.** Created at
-   `docker-entrypoint.sh:38` and `Dockerfile:54`; there are no references to it anywhere in `src/`.
-4. **`documents/` mode.** `src/lib/records/attachments.ts:172` asks for `0o700`, but `mkdir` with `recursive`
-   does not tighten an existing directory and the entrypoint contains no `chmod`, so the mode depends on the
-   umask.
-5. **`/data/.env` lives in a directory the app user owns.** Pre-existing.
-6. **Tag casing.** Always lower-case `vX.Y.Z`. Do not move a published tag.
-
----
-
-## 5. v0.1.9 — published (2026-09-23)
-
-**Done.** Docs-only release, delivered per `docs/RELEASE_PROCESS.md`. PR #24 merged with a merge commit
-(`gh pr merge --merge`) as `9393a85`; `gates`, `browser` and `docker` were green on the pull request and
-again on the `main` merge commit before the tag was created. Annotated lower-case tag `v0.1.9` on `9393a85`,
-publish run [35821794221](https://github.com/dougalbob/simple-finance/actions/runs/35821794221) green
-including "Verify the version metadata matches the tag" and "Verify the registry tags resolve".
-
-`v0.1.9` / `latest` / `sha-9393a85` all resolve to one digest,
-`sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d`, replacing the v0.1.8 digest
-`sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35` that `latest` previously pointed
-at. v0.1.8 and v0.1.7 were not retagged. The GitHub release `v0.1.9` is marked Latest.
-
-`ghcr.io` is blocked in the sandbox, so the registry was verified through the publish workflow's step
-conclusion and `/users/dougalbob/packages/container/simple-finance/versions` on `api.github.com` — see
-[`docs/SANDBOX.md`](SANDBOX.md) entry 6.
-
-The household takes a backup, then Force Updates in Unraid, and follows
-[`docs/RELEASE_NOTES_v0.1.9.md`](RELEASE_NOTES_v0.1.9.md). The badge should read **v0.1.9 · pre-release**.
-There is no behaviour change to try; this release changes how the app is worked on.
-
----
-
-## Next session
-
-Not yet decided — ask the household what they'd like to do.
-
-The four verified open items in section 4 are the natural candidates, but none was chosen this session.
+Parallel same-block edits to one file race: only the last write survives, silently
+dropping the others (this session lost hunks in six files that way and had to redo
+them). Rule for this repo: **one writer per file per block** — batch a file's edits
+into a single script with `count == 1` asserts, and run files sequentially.

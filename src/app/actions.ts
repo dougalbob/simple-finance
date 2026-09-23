@@ -33,6 +33,7 @@ import {
 } from '@/lib/action-state';
 import {
   addCheckpoint,
+  archivePot,
   createPot,
   editPot,
   InvalidCheckpointInputError,
@@ -80,15 +81,32 @@ import {
   TransferNotFoundError,
   voidTransfer,
 } from '@/lib/records/transfers';
+import {
+  createDebt,
+  DebtNotFoundError,
+  editDebt,
+  InvalidDebtInputError,
+} from '@/lib/records/debts';
+import {
+  createExternalMovement,
+  createSwap,
+  ExternalMovementNotFoundError,
+  InvalidExternalMovementInputError,
+  voidExternalMovement,
+} from '@/lib/records/external-movements';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from '@/lib/records/errors';
 import {
+  archivePotEntrySchema,
   cancelScheduleEntrySchema,
   categoryEntrySchema,
   checkpointEntrySchema,
+  debtEntrySchema,
+  editDebtEntrySchema,
   editPotEntrySchema,
   editPurchaseEntrySchema,
   editRenewalEntrySchema,
   editScheduleEntrySchema,
+  externalMovementEntrySchema,
   fuelEntrySchema,
   potIdSchema,
   potKindSchema,
@@ -102,6 +120,7 @@ import {
   supplierContactEntrySchema,
   supplierInteractionEntrySchema,
   supplierReferenceEntrySchema,
+  swapEntrySchema,
   transferEntrySchema,
   voidRecordEntrySchema,
   warningLeadsEntrySchema,
@@ -1206,6 +1225,266 @@ export async function voidTransferAction(
     return {
       status: 'error',
       message: 'That transfer could not be voided. Refresh and try again.',
+    };
+  }
+}
+
+/**
+ * External money (SPEC §10.2): informal debts, money crossing the household
+ * boundary, and swaps with someone outside the household. Same conventions
+ * as transfers: authenticated, Zod at the boundary, domain authority, audit
+ * in-transaction, every money page revalidated.
+ */
+
+export async function addDebtAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = debtEntrySchema.safeParse({
+    counterparty: String(formData.get('counterparty') ?? ''),
+    direction: String(formData.get('direction') ?? ''),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the debt fields.') };
+  }
+  try {
+    const debt = createDebt(getDbHandle().db, {
+      counterparty: parsed.data.counterparty,
+      direction: parsed.data.direction,
+      note: parsed.data.note,
+      actor: user.email,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message:
+        debt.direction === 'we_owe'
+          ? `Now tracking what we owe ${debt.counterparty}.`
+          : `Now tracking what ${debt.counterparty} owes us.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidDebtInputError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The debt could not be saved. Please try again.' };
+  }
+}
+
+export async function editDebtAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = editDebtEntrySchema.safeParse({
+    debtId: numberOrNull(formData.get('debtId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    counterparty: String(formData.get('counterparty') ?? ''),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the debt fields.') };
+  }
+  try {
+    const debt = editDebt(getDbHandle().db, {
+      id: parsed.data.debtId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: { counterparty: parsed.data.counterparty, note: parsed.data.note },
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Debt “${debt.counterparty}” updated.` };
+  } catch (err) {
+    if (
+      err instanceof InvalidDebtInputError ||
+      err instanceof DebtNotFoundError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The debt could not be saved. Please try again.' };
+  }
+}
+
+export async function addExternalMovementAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = externalMovementEntrySchema.safeParse({
+    potId: numberOrNull(formData.get('potId')),
+    direction: String(formData.get('direction') ?? ''),
+    kind: String(formData.get('kind') ?? ''),
+    amountPence: amount,
+    debtId: numberOrNull(formData.get('debtId')),
+    counterparty: textOrNull(formData.get('counterparty')),
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the money fields.') };
+  }
+  try {
+    const movement = createExternalMovement(getDbHandle().db, {
+      potId: parsed.data.potId,
+      direction: parsed.data.direction,
+      kind: parsed.data.kind,
+      amountPence: parsed.data.amountPence,
+      debtId: parsed.data.debtId ?? undefined,
+      counterparty: parsed.data.counterparty ?? undefined,
+      occurredDate: parsed.data.occurredDate ?? undefined,
+      note: parsed.data.note,
+      actor: user.email,
+    });
+    revalidatePages();
+    const what =
+      parsed.data.kind === 'loan'
+        ? parsed.data.direction === 'in'
+          ? `Borrowed ${formatPence(movement.amountPence)} from ${movement.counterparty} — owed, never income.`
+          : `Repaid ${formatPence(movement.amountPence)} to ${movement.counterparty} — the balance is reduced.`
+        : parsed.data.direction === 'in'
+          ? `${formatPence(movement.amountPence)} received from ${movement.counterparty} recorded.`
+          : `${formatPence(movement.amountPence)} paid to ${movement.counterparty} recorded.`;
+    return { status: 'ok', message: what };
+  } catch (err) {
+    if (
+      err instanceof InvalidExternalMovementInputError ||
+      err instanceof PotNotFoundError ||
+      err instanceof DebtNotFoundError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The movement could not be saved. Please try again.' };
+  }
+}
+
+export async function addSwapAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = swapEntrySchema.safeParse({
+    inPotId: numberOrNull(formData.get('inPotId')),
+    outPotId: numberOrNull(formData.get('outPotId')),
+    amountPence: amount,
+    counterparty: String(formData.get('counterparty') ?? ''),
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the swap fields.') };
+  }
+  try {
+    const swap = createSwap(getDbHandle().db, {
+      inPotId: parsed.data.inPotId,
+      outPotId: parsed.data.outPotId,
+      amountPence: parsed.data.amountPence,
+      counterparty: parsed.data.counterparty,
+      occurredDate: parsed.data.occurredDate ?? undefined,
+      note: parsed.data.note,
+      actor: user.email,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Swapped ${formatPence(swap.inLeg.amountPence)} with ${swap.inLeg.counterparty} — household total unchanged, spending untouched.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidExternalMovementInputError || err instanceof PotNotFoundError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The swap could not be saved. Please try again.' };
+  }
+}
+
+export async function voidExternalMovementAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = voidRecordEntrySchema.safeParse({
+    recordId: numberOrNull(formData.get('recordId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The void link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    voidExternalMovement(getDbHandle().db, {
+      id: parsed.data.recordId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      reason: parsed.data.reason,
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Movement #${parsed.data.recordId} voided. History kept.` };
+  } catch (err) {
+    if (
+      err instanceof AlreadyVoidError ||
+      err instanceof VersionConflictError ||
+      err instanceof RecordVoidedError ||
+      err instanceof ExternalMovementNotFoundError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return {
+      status: 'error',
+      message: 'That movement could not be voided. Refresh and try again.',
+    };
+  }
+}
+
+export async function archivePotAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = archivePotEntrySchema.safeParse({
+    potId: numberOrNull(formData.get('potId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The archive link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    const pot = archivePot(getDbHandle().db, {
+      id: parsed.data.potId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Pot “${pot.label}” archived.` };
+  } catch (err) {
+    if (
+      err instanceof InvalidPotInputError ||
+      err instanceof PotNotFoundError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return {
+      status: 'error',
+      message: 'That pot could not be archived. Refresh and try again.',
     };
   }
 }

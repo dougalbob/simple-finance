@@ -389,6 +389,33 @@ function MoneySection({ money }: { money: MoneySnapshot }) {
           ))}
         </ul>
       )}
+      {money.debts.owedByHouseholdPence > 0 || money.debts.owedToHouseholdPence > 0 ? (
+        <p className="mt-3 text-sm text-slate-600">
+          {money.debts.owedByHouseholdPence > 0 ? (
+            <>
+              Owe others{' '}
+              <span className="font-semibold tabular-nums text-slate-900">
+                {formatPence(money.debts.owedByHouseholdPence)}
+              </span>
+              {' (borrowed, not income)'}
+            </>
+          ) : null}
+          {money.debts.owedByHouseholdPence > 0 && money.debts.owedToHouseholdPence > 0
+            ? ' · '
+            : null}
+          {money.debts.owedToHouseholdPence > 0 ? (
+            <>
+              Owed to us{' '}
+              <span className="font-semibold tabular-nums text-slate-900">
+                {formatPence(money.debts.owedToHouseholdPence)}
+              </span>
+            </>
+          ) : null}{' '}
+          <a href="/pots" className="font-medium text-sky-700 hover:underline">
+            Details →
+          </a>
+        </p>
+      ) : null}
     </section>
   );
 }

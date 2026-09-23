@@ -535,6 +535,94 @@ export const supplierReferenceEntrySchema = z.object({
   value: z.string().trim().min(1, 'Give the reference a value.').max(500, 'Value too long.'),
 });
 
+/** Informal debt — who it is owed to or by, and which way round (SPEC §10.2). */
+export const debtEntrySchema = z.object({
+  counterparty: z
+    .string()
+    .trim()
+    .min(1, 'Say who the money is owed to or by.')
+    .max(120, 'Keep the name to 120 characters or fewer.'),
+  direction: z.enum(['we_owe', 'they_owe'], {
+    error: 'Choose whether we owe them or they owe us.',
+  }),
+  note: nullableText(280, 'Note'),
+});
+
+/** Debt correction: the direction is immutable (the domain enforces it). */
+export const editDebtEntrySchema = z.object({
+  debtId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  counterparty: z
+    .string()
+    .trim()
+    .min(1, 'Say who the money is owed to or by.')
+    .max(120, 'Keep the name to 120 characters or fewer.'),
+  note: nullableText(280, 'Note'),
+});
+
+/** Money crossing the household boundary — borrowing/repayment or other (SPEC §10.2). */
+export const externalMovementEntrySchema = z
+  .object({
+    potId: positiveIdSchema,
+    direction: z.enum(['in', 'out']),
+    kind: z.enum(['loan', 'other']),
+    amountPence: positivePenceSchema,
+    debtId: positiveIdSchema.nullable().default(null),
+    counterparty: z
+      .string()
+      .trim()
+      .max(120, 'Keep the name to 120 characters or fewer.')
+      .nullable()
+      .default(null),
+    occurredDate: localDateSchema.nullable().default(null),
+    note: nullableText(280, 'Note'),
+  })
+  .superRefine((value, context) => {
+    if (value.kind === 'loan' && value.debtId === null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['debtId'],
+        message: 'Borrowing and repayments link to a debt — pick who it is owed to or by.',
+      });
+    }
+    if (value.kind === 'other') {
+      if (value.counterparty === null || value.counterparty === '') {
+        context.addIssue({
+          code: 'custom',
+          path: ['counterparty'],
+          message: 'Say who the money came from or went to.',
+        });
+      }
+      if (value.note === null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['note'],
+          message: 'Say what the money was — a note is required for other money in and out.',
+        });
+      }
+    }
+  });
+
+/** A swap with someone outside the household — one amount, two pots (SPEC §10.2). */
+export const swapEntrySchema = z.object({
+  inPotId: positiveIdSchema,
+  outPotId: positiveIdSchema,
+  amountPence: positivePenceSchema,
+  counterparty: z
+    .string()
+    .trim()
+    .min(1, 'Say who you swapped with.')
+    .max(120, 'Keep the name to 120 characters or fewer.'),
+  occurredDate: localDateSchema.nullable().default(null),
+  note: nullableText(280, 'Note'),
+});
+
+/** Archive an empty pot (pots with records cannot be archived — the domain enforces it). */
+export const archivePotEntrySchema = z.object({
+  potId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+});
+
 /** Interaction log entry (SPEC §21.2). */
 export const supplierInteractionEntrySchema = z.object({
   supplierId: z.number().int().positive('Unknown supplier'),

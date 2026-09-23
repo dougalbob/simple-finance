@@ -1,6 +1,14 @@
 import { and, asc, desc, eq, gte, isNull, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { pots, purchases, receipts, scheduleInstances, schedules, transfers } from '../db/schema';
+import {
+  externalMovements,
+  pots,
+  purchases,
+  receipts,
+  scheduleInstances,
+  schedules,
+  transfers,
+} from '../db/schema';
 import { toLocalDateString } from '../time';
 import { addDaysLocal, daysBetween } from './dates';
 import {
@@ -22,6 +30,7 @@ import {
   getWeeklyGroceriesPence,
 } from './settings';
 import { advanceDueRenewals, listRenewals } from './renewals';
+import { debtsSummary, type DebtsSummary } from './debts';
 import { listSchedules, materializeAndConvert, type ScheduleKind } from './schedules';
 import { latestCheckpointPerPot, listPots, type Checkpoint, type Pot } from './pots';
 import { listPeople } from './people';
@@ -52,6 +61,8 @@ export interface MoneySnapshot {
   householdAvailablePence: number | null;
   /** Pots that have never been checkpointed — no estimate, ever. */
   uncheckpointedPotIds: number[];
+  /** What the household owes others / is owed — beside "available now", never netted (SPEC §10.2). */
+  debts: DebtsSummary;
 }
 
 export interface EnsureStateResult {
@@ -139,6 +150,26 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       occurredDate: row.occurredDate,
     });
   }
+  // External movements: money in adds like a receipt, money out subtracts
+  // like spending (SPEC §10.2) — the household total genuinely moves.
+  const externalRows = db
+    .select({
+      potId: externalMovements.potId,
+      direction: externalMovements.direction,
+      amountPence: externalMovements.amountPence,
+      occurredAt: externalMovements.occurredAt,
+      occurredDate: externalMovements.occurredDate,
+    })
+    .from(externalMovements)
+    .where(isNull(externalMovements.voidedAt))
+    .all();
+  for (const row of externalRows) {
+    push(row.potId, {
+      signedPence: row.direction === 'in' ? row.amountPence : -row.amountPence,
+      occurredAt: row.occurredAt,
+      occurredDate: row.occurredDate,
+    });
+  }
 
   const pots: PotMoneyView[] = potList.map((pot) => {
     const checkpoint = latest.get(pot.id) ?? null;
@@ -158,6 +189,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
     pots,
     householdAvailablePence: householdEstimatePence(pots.map((pot) => pot.estimate)),
     uncheckpointedPotIds: pots.filter((pot) => pot.estimatePence === null).map((pot) => pot.pot.id),
+    debts: debtsSummary(db),
   };
 }
 

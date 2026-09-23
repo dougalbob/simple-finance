@@ -1,7 +1,15 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, or } from 'drizzle-orm';
 import { recordAudit } from '../audit';
 import type { Db } from '../db/client';
-import { checkpoints, pots } from '../db/schema';
+import {
+  checkpoints,
+  externalMovements,
+  pots,
+  purchases,
+  receipts,
+  schedules,
+  transfers,
+} from '../db/schema';
 import { formatPence, isValidPenceAmount } from '../money';
 import { InvalidOccurredError, resolveOccurred } from './occurred';
 import { VersionConflictError } from './errors';
@@ -287,6 +295,91 @@ function assertOverdraftContext(
       'The warning threshold must sit inside the authorised overdraft limit — it is the point to warn, the limit is the edge.',
     );
   }
+}
+
+export interface ArchivePotInput {
+  id: number;
+  expectedVersion: number;
+  actor: string;
+  now?: Date;
+}
+
+/**
+ * Archive an empty pot — it leaves every list and takes no new records.
+ * Only a pot with no records at all (no checkpoints, purchases, transfers,
+ * receipts, external movements or schedules) may be archived: hiding a pot
+ * with history would silently remove its records from the estimates, which
+ * is exactly the kind of quiet lie the app never tells. The row stays, so
+ * nothing is ever deleted.
+ */
+export function archivePot(db: Db, input: ArchivePotInput): Pot {
+  const now = input.now ?? new Date();
+  return db.transaction((tx) => {
+    const current = tx.select().from(pots).where(eq(pots.id, input.id)).get();
+    if (current === undefined) throw new PotNotFoundError(input.id);
+    if (current.version !== input.expectedVersion) {
+      throw new VersionConflictError('pot', input.id, input.expectedVersion, current.version);
+    }
+    if (current.archivedAt !== null) {
+      throw new InvalidPotInputError(`“${current.label}” is already archived.`);
+    }
+    const hasCheckpoint =
+      tx
+        .select({ id: checkpoints.id })
+        .from(checkpoints)
+        .where(eq(checkpoints.potId, current.id))
+        .get() !== undefined;
+    const hasPurchase =
+      tx
+        .select({ id: purchases.id })
+        .from(purchases)
+        .where(eq(purchases.potId, current.id))
+        .get() !== undefined;
+    const hasTransfer =
+      tx
+        .select({ id: transfers.id })
+        .from(transfers)
+        .where(or(eq(transfers.fromPotId, current.id), eq(transfers.toPotId, current.id)))
+        .get() !== undefined;
+    const hasReceipt =
+      tx.select({ id: receipts.id }).from(receipts).where(eq(receipts.potId, current.id)).get() !==
+      undefined;
+    const hasExternal =
+      tx
+        .select({ id: externalMovements.id })
+        .from(externalMovements)
+        .where(eq(externalMovements.potId, current.id))
+        .get() !== undefined;
+    const hasSchedule =
+      tx
+        .select({ id: schedules.id })
+        .from(schedules)
+        .where(eq(schedules.potId, current.id))
+        .get() !== undefined;
+    if (hasCheckpoint || hasPurchase || hasTransfer || hasReceipt || hasExternal || hasSchedule) {
+      throw new InvalidPotInputError(
+        `“${current.label}” has records against it, so it cannot be archived — its history stays visible.`,
+      );
+    }
+    const updated = tx
+      .update(pots)
+      .set({ archivedAt: now, updatedAt: now, version: current.version + 1 })
+      .where(eq(pots.id, current.id))
+      .returning()
+      .get();
+    if (updated === undefined) throw new Error('update pot returned no row');
+    recordAudit(tx, {
+      actor: input.actor,
+      action: 'pot.archive',
+      entity: 'pot',
+      entityId: current.id,
+      summary: `Archived empty pot “${current.label}”`,
+      before: current,
+      after: updated,
+      now,
+    });
+    return updated;
+  });
 }
 
 export function listPots(db: Db): Pot[] {
