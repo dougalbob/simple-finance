@@ -34,8 +34,10 @@ test.describe('income', () => {
     await expect(row).toContainText('Buyer transferred it');
 
     // The seeded salary is in the same list, marked as scheduled income.
-    const salary = list.locator('li', { hasText: 'Salary' }).first();
-    await expect(salary).toContainText('from schedule');
+    // Matched on the badge, not the name: every row's pot picker also
+    // contains the word "Salary" ("Salary account").
+    const salary = list.locator('li').filter({ hasText: 'from schedule' }).first();
+    await expect(salary).toContainText('Salary');
   });
 
   test('an income record can be corrected and voided, keeping the history', async ({ page }) => {
@@ -50,21 +52,31 @@ test.describe('income', () => {
     await row.getByRole('button', { name: 'Save changes' }).click();
     await expect(row).toContainText('+£30.00', { timeout: 30_000 });
 
-    // Void it: the row stays, struck through, with the reason.
-    await row.locator('summary', { hasText: 'Correct or void' }).click();
-    await row.getByLabel(/Why are you voiding this/).fill('The buyer changed their mind');
-    await row.getByRole('button', { name: 'Void income' }).click();
-    await expect(row).toContainText('Voided — The buyer changed their mind', { timeout: 30_000 });
+    // Void it: the row stays, struck through, with the reason. Reload first —
+    // the save above re-rendered the list, and a <details> that is still open
+    // would only be closed by another click.
+    await page.reload();
+    const saved = list.locator('li', { hasText: 'Sale of old bike' }).first();
+    await expect(saved).toContainText('+£30.00');
+    await saved.locator('summary', { hasText: 'Correct or void' }).click();
+    await expect(saved.getByLabel(/Why are you voiding this/)).toBeVisible();
+    await saved.getByLabel(/Why are you voiding this/).fill('The buyer changed their mind');
+    await saved.getByRole('button', { name: 'Void income' }).click();
+    await expect(saved).toContainText('Voided — The buyer changed their mind', { timeout: 30_000 });
 
     // ...and it leaves All Transactions, which excludes voided records.
     await page.goto('/transactions');
+    const table = page.locator('section[aria-labelledby="activity-heading"] table');
+    await expect(table).toBeVisible();
     const filters = page.getByRole('form', { name: 'Activity filters' });
     await filters.getByLabel('Target').selectOption({ label: "Alex's cash" });
     await filters.getByRole('button', { name: 'Show activity' }).click();
+    // The pot still has its seeded income; the voided one is gone. Matched on
+    // the corrected amount, so a row left behind by an earlier failed attempt
+    // cannot make this fail — and the seeded row proves the filter applied.
+    await expect(table.getByText('Sale of bicycle')).toHaveCount(1);
     await expect(
-      page
-        .locator('section[aria-labelledby="activity-heading"] table')
-        .getByText('Sale of old bike'),
+      table.locator('tr').filter({ hasText: 'Sale of old bike' }).filter({ hasText: '+£30.00' }),
     ).toHaveCount(0);
   });
 
