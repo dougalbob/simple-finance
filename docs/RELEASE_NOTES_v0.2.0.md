@@ -1,11 +1,10 @@
 # Simple Finance v0.2.0
 
 **Release date:** 2026-09-23
-**Published:** pending — annotated tag `v0.2.0` on the merge commit, publish run to be confirmed.
-`v0.2.0` / `latest` / `sha-<merge short SHA>` must all resolve to one digest. This line and the digest
-below are completed by the follow-up "docs: complete RELEASE_NOTES_v0.2.0 publish metadata" pull
-request, as they were for v0.1.7, v0.1.8 and v0.1.9.
-**Image digest:** pending — recorded after the publish workflow verifies the registry tags.
+**Published:** yes — annotated tag `v0.2.0` on merge commit `e2e813b`, publish run
+[35825816256](https://github.com/dougalbob/simple-finance/actions/runs/35825816256) green. `v0.2.0` / `latest` /
+`sha-e2e813b` all resolve to one digest. Force Update now brings this release.
+**Image digest:** `sha256:76b3c5bac7be9490f9f71d105048782df1d1aad05d7c231acd77287325f8cd38`.
 **Type:** feature release. New record types (debts, external movements), new Move entry tab, Pots page
 gains debt/borrow/swap/other sections. Schema migration 0005 (new tables only — no existing data
 touched). No backup-format change.
@@ -53,33 +52,36 @@ Three real-world gaps the household reported against v0.1.9, closed:
 
 Also: E8 recomputed to the no-jar figures (£938.70 available, −£579.62 low); 21 new unit tests
 (`tests/external-money.test.ts`, Zod boundary tests) and 3 new browser specs
-(`e2e/external-money.spec.ts` + Move-tab test), whose first real run is CI's `browser` job on this
-release's pull request.
+(`e2e/external-money.spec.ts` + Move-tab test), whose first real run — CI's `browser` job on this
+release's pull request — passed.
 
-- **Version `0.2.0`** in `package.json`, `package-lock.json` (root `version` and `packages[\"\"]`),
+- **Version `0.2.0`** in `package.json`, `package-lock.json` (root `version` and `packages[""]`),
   `src/lib/version.ts` and `simple-finance.xml`.
 
 ## Image tags and digest
 
-The publish workflow must put these tags on one digest:
+The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.2.0`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<merge short SHA>`
+- `ghcr.io/dougalbob/simple-finance:sha-e2e813b`
 
-Digest: pending — recorded after the publish workflow verifies the registry tags. It must differ
-from the v0.1.8 digest
-`sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35` and from the v0.1.9
-digest `sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d`; an identical
-digest would mean the release did not publish.
+Digest: `sha256:76b3c5bac7be9490f9f71d105048782df1d1aad05d7c231acd77287325f8cd38`.
+Neither v0.1.8
+(`sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35`) nor v0.1.9
+(`sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d`) was retagged, and the
+v0.2.0 digest differs from both, so the new image really was published.
 
 ## Verification of the registry
 
-Pending — `ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags
-are verified two ways instead, as for v0.1.7–v0.1.9: the publish workflow's own `Verify the
-registry tags resolve` step must conclude **success**, and
-`GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com` must return
-one version entry carrying exactly `[\"sha-<merge short SHA>\", \"v0.2.0\", \"latest\"]`.
+`ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags could not be
+inspected from there with `docker buildx imagetools`. They were verified two ways instead:
+
+- the publish workflow's own `Verify the registry tags resolve` step concluded **success** — it fails
+  unless every tag's registry digest equals the digest of the image it just built and smoke tested;
+- `GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`, which is
+  reachable, returned one version entry `sha256:76b3c5ba…` carrying exactly
+  `["sha-e2e813b", "v0.2.0", "latest"]`, with `latest` moved off the v0.1.9 entry.
 
 ## Schema / data notes
 
