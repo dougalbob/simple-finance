@@ -7,6 +7,7 @@ import { findChildCategory } from '../src/lib/records/categories';
 import { createPerson } from '../src/lib/records/people';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
 import { createPurchase } from '../src/lib/records/purchases';
+import { createReceipt } from '../src/lib/records/receipts';
 import { createRenewal } from '../src/lib/records/renewals';
 import { createSchedule } from '../src/lib/records/schedules';
 import { setMonthlyFuelPence, setWeeklyGroceriesPence } from '../src/lib/records/settings';
@@ -132,6 +133,20 @@ function seed(): void {
     supplierName: 'The Corner Cafe',
     actor: 'sam@example.com',
     lines: [{ amountPence: 349, categoryId: groceries.id, targetKind: 'person', targetId: sam.id }],
+    now,
+  });
+
+  // One-off income (plan decision 110): the old bicycle sold for cash, paid
+  // into the cash pot — so the Income page, All Transactions and the estimate
+  // all have a manual, non-schedule income row to show. Fictional, like
+  // everything in this seed.
+  createReceipt(db, {
+    potId: alexCash.id,
+    amountPence: 4500,
+    occurredAt: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000),
+    source: 'Sale of bicycle',
+    note: 'Collected in cash',
+    actor: ACTOR,
     now,
   });
 

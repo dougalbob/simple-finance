@@ -38,6 +38,7 @@ export class InvalidReceiptInputError extends Error {
 
 export const MAX_RECEIPT_NOTE_LENGTH = 280;
 export const MAX_RECEIPT_VOID_REASON_LENGTH = 280;
+export const MAX_RECEIPT_SOURCE_LENGTH = 120;
 
 export interface CreateReceiptInput {
   scheduleInstanceId?: number | null;
@@ -45,6 +46,8 @@ export interface CreateReceiptInput {
   amountPence: number;
   occurredAt?: Date;
   occurredDate?: string;
+  /** Who or what the money came from ("Sale of bicycle") — free text. */
+  source?: string | null;
   note?: string | null;
   actor: string;
   now?: Date;
@@ -54,6 +57,7 @@ export function createReceipt(db: Db, input: CreateReceiptInput): Receipt {
   const now = input.now ?? new Date();
   const actor = checkedActor(input.actor);
   assertPositiveAmount(input.amountPence);
+  const source = checkedSource(input.source);
   const note = checkedNote(input.note);
   const occurred = resolveOccurred({
     occurredAt: input.occurredAt,
@@ -72,6 +76,7 @@ export function createReceipt(db: Db, input: CreateReceiptInput): Receipt {
         occurredAt: occurred.occurredAt,
         occurredDate: occurred.occurredDate,
         enteredBy: actor,
+        source,
         note,
         createdAt: now,
         updatedAt: now,
@@ -86,7 +91,9 @@ export function createReceipt(db: Db, input: CreateReceiptInput): Receipt {
       action: 'receipt.create',
       entity: 'receipt',
       entityId: inserted.id,
-      summary: `Recorded receipt ${formatPence(inserted.amountPence)}`,
+      summary:
+        `Recorded income ${formatPence(inserted.amountPence)}` +
+        (source === null ? '' : ` — ${source}`),
       after: inserted,
       now,
     });
@@ -99,6 +106,8 @@ export interface EditReceiptPatch {
   amountPence?: number;
   occurredAt?: Date;
   occurredDate?: string;
+  /** undefined = unchanged; null = clear the source. */
+  source?: string | null;
   /** undefined = unchanged; null = clear the note. */
   note?: string | null;
 }
@@ -135,6 +144,7 @@ export function editReceipt(db: Db, input: EditReceiptInput): Receipt {
         ? resolveOccurred({ occurredAt: patch.occurredAt, occurredDate: patch.occurredDate, now })
         : { occurredAt: current.occurredAt, occurredDate: current.occurredDate };
     const note = patch.note === undefined ? current.note : checkedNote(patch.note);
+    const source = patch.source === undefined ? current.source : checkedSource(patch.source);
 
     const updated = tx
       .update(receipts)
@@ -143,6 +153,7 @@ export function editReceipt(db: Db, input: EditReceiptInput): Receipt {
         amountPence: effectiveAmount,
         occurredAt: occurred.occurredAt,
         occurredDate: occurred.occurredDate,
+        source,
         note,
         updatedAt: now,
         version: current.version + 1,
@@ -158,7 +169,9 @@ export function editReceipt(db: Db, input: EditReceiptInput): Receipt {
       action: 'receipt.edit',
       entity: 'receipt',
       entityId: current.id,
-      summary: `Edited receipt #${current.id} (${formatPence(effectiveAmount)})`,
+      summary:
+        `Edited income #${current.id} (${formatPence(effectiveAmount)})` +
+        (source === null ? '' : ` — ${source}`),
       before: current,
       after: updated,
       now,
@@ -211,7 +224,7 @@ export function voidReceipt(db: Db, input: VoidReceiptInput): Receipt {
       entity: 'receipt',
       entityId: current.id,
       summary:
-        `Voided receipt #${current.id} (${formatPence(current.amountPence)})` +
+        `Voided income #${current.id} (${formatPence(current.amountPence)})` +
         (reason === null ? '' : ` — ${reason}`),
       before: current,
       after: updated,
@@ -284,6 +297,24 @@ function checkedActor(raw: string): string {
     throw new InvalidReceiptInputError('Every receipt records who entered it.');
   }
   return raw.trim();
+}
+
+/**
+ * The money's origin as typed by the household. Free text, never required
+ * (a converted salary is already named by its schedule), trimmed, and blank
+ * is stored as NULL rather than as an empty string — "no source" and
+ * "a source of nothing" are the same fact.
+ */
+function checkedSource(raw: string | null | undefined): string | null {
+  if (raw === undefined || raw === null) return null;
+  const source = raw.trim();
+  if (source === '') return null;
+  if (source.length > MAX_RECEIPT_SOURCE_LENGTH) {
+    throw new InvalidReceiptInputError(
+      `Keep the source to ${MAX_RECEIPT_SOURCE_LENGTH} characters or fewer.`,
+    );
+  }
+  return source;
 }
 
 function checkedNote(raw: string | null | undefined): string | null {

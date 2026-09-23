@@ -14,7 +14,13 @@ import {
 } from '../db/schema';
 import { formatPence, isValidPenceAmount, MAX_ABS_PENCE } from '../money';
 import { isValidLocalDate, startOfLocalDate, toLocalDateString } from '../time';
-import { addDaysLocal, checkedLocalDate, clampedDueDate, daysBetween } from './dates';
+import {
+  addDaysLocal,
+  checkedLocalDate,
+  clampedDueDate,
+  daysBetween,
+  shiftIncomeOffWeekend,
+} from './dates';
 import { VersionConflictError } from './errors';
 import { PersonNotFoundError } from './people';
 import { PotNotFoundError } from './pots';
@@ -47,7 +53,12 @@ import { VehicleNotFoundError } from './vehicles';
  * - cancellation with an effective date: instances from that date stop
  *   existing, instances before it remain history (SPEC §11.2);
  * - a contract end date is informational + alert only — instances never
- *   auto-stop (SPEC §22.1).
+ *   auto-stop (SPEC §22.1);
+ * - **income due dates shift off the weekend** (plan OQ2, resolved
+ *   2026-09-23): an expected receipt whose configured day lands on a
+ *   Saturday or Sunday is expected on the **previous Friday**, because pay
+ *   lands before the weekend. Direct debits and standing orders keep the
+ *   configured date.
  */
 
 export type ScheduleKind = 'dd' | 'so' | 'receipt';
@@ -469,14 +480,14 @@ export function nextDueDateAfter(schedule: Schedule, afterDate: string): string 
     for (let step = 0; step <= 14; step += 1) {
       const year = start.year + Math.floor((start.month - 1 + step) / 12);
       const month = ((start.month - 1 + step) % 12) + 1;
-      const candidate = clampedDueDate(schedule.dueDayOfMonth, year, month);
+      const candidate = dueDateForPeriod(schedule, year, month);
       if (candidate > afterDate && (upper === null || candidate <= upper)) return candidate;
     }
     return null;
   }
   if (schedule.dueMonth === null) return null; // annual without a month: malformed row
   for (let year = start.year; year <= start.year + 3; year += 1) {
-    const candidate = clampedDueDate(schedule.dueDayOfMonth, year, schedule.dueMonth);
+    const candidate = dueDateForPeriod(schedule, year, schedule.dueMonth);
     if (candidate > afterDate && (upper === null || candidate <= upper)) return candidate;
   }
   return null;
@@ -589,16 +600,26 @@ export function syncScheduleInstances(
   // dates AFTER the last existing instance. Generating only the tail keeps
   // the window bounded by the horizon even when the schedule started far
   // in the past (its history is already materialized).
-  const relevantExisting =
+  const inWindow =
     upper === null
       ? existing.filter((date) => date >= lower)
       : existing.filter((date) => date >= lower && date <= upper);
+  // Income only: an upcoming instance still sitting on a Saturday or Sunday
+  // was materialized before the payday rule, or before a due-day edit moved
+  // the configured day onto a weekend. Move it to its Friday here — upcoming
+  // rows are derived data, and leaving one would expect money on a day the
+  // app no longer believes in. Converted instances are never touched.
+  const relevantExisting =
+    schedule.kind === 'receipt'
+      ? [...new Set(inWindow.map((date) => shiftIncomeOffWeekend(date)))]
+      : inWindow;
   const lastExisting = relevantExisting.at(-1);
   const startForNew = lastExisting === undefined ? lower : addDaysLocal(lastExisting, 1);
   let desired: string[] = [...relevantExisting];
   if (upper !== null && startForNew <= upper) {
     desired.push(...dueDatesBetween(schedule, startForNew, upper));
   }
+  desired = [...new Set(desired)];
   const existingSet = new Set(existing);
   const desiredSet = new Set(desired);
   const toInsert = desired.filter((date) => !existingSet.has(date));
@@ -767,6 +788,34 @@ function markConverted(
   });
 }
 
+/**
+ * The date one period's instance actually carries: the configured day
+ * clamped into the month (plan OQ1), then — for income only — moved off a
+ * weekend onto the previous Friday (plan OQ2, resolved 2026-09-23).
+ */
+function dueDateForPeriod(schedule: Schedule, year: number, month: number): string {
+  const clamped = clampedDueDate(schedule.dueDayOfMonth, year, month);
+  return schedule.kind === 'receipt' ? shiftIncomeOffWeekend(clamped) : clamped;
+}
+
+/**
+ * `dueDateForPeriod` gated by a window. Membership is decided by the
+ * **configured** date, never the shifted one, so a payday that moves back
+ * onto the previous Friday is never dropped for falling just before the
+ * window's start — one instance per period, always.
+ */
+function candidateForPeriod(
+  schedule: Schedule,
+  year: number,
+  month: number,
+  fromDate: string,
+  throughDate: string,
+): string[] {
+  const configured = clampedDueDate(schedule.dueDayOfMonth, year, month);
+  if (configured < fromDate || configured > throughDate) return [];
+  return [dueDateForPeriod(schedule, year, month)];
+}
+
 function dueDatesBetween(schedule: Schedule, fromDate: string, throughDate: string): string[] {
   const start = checkedLocalDate(fromDate);
   const end = checkedLocalDate(throughDate);
@@ -780,8 +829,7 @@ function dueDatesBetween(schedule: Schedule, fromDate: string, throughDate: stri
     let month = start.month;
     let guard = 0;
     while ((year < end.year || (year === end.year && month <= end.month)) && guard < guardLimit) {
-      const candidate = clampedDueDate(schedule.dueDayOfMonth, year, month);
-      if (candidate >= fromDate && candidate <= throughDate) result.push(candidate);
+      result.push(...candidateForPeriod(schedule, year, month, fromDate, throughDate));
       month += 1;
       if (month > 12) {
         month = 1;
@@ -793,8 +841,7 @@ function dueDatesBetween(schedule: Schedule, fromDate: string, throughDate: stri
     if (schedule.dueMonth === null) return result;
     let guard = 0;
     for (let year = start.year; year <= end.year + 1 && guard < guardLimit; year += 1) {
-      const candidate = clampedDueDate(schedule.dueDayOfMonth, year, schedule.dueMonth);
-      if (candidate >= fromDate && candidate <= throughDate) result.push(candidate);
+      result.push(...candidateForPeriod(schedule, year, schedule.dueMonth, fromDate, throughDate));
       guard += 1;
     }
   }

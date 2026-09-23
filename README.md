@@ -86,6 +86,12 @@ configured development identity; a production build ignores the bypass entirely.
 - **Cash and bank checks:** Quick entry → Balance ("Balance now" = ledger balance for a bank, counted
   amount for cash). Checkpoints are labelled as checkpoints, and never as a bank balance.
 - **Fuel:** Quick entry → Fuel for a vehicle.
+- **Income (laptop):** `/income` — the salary that repeats, scheduled for its day of the month and
+  corrected in place (a change applies from the next instance onward), plus one-off money recorded by
+  hand: something you sold, a refund, a gift, a one-off job. Cash or bank transfer is simply which pot
+  it landed in. A payday that falls on a Saturday or Sunday is expected on the Friday before. Income
+  is not spending: it has no category, never appears in an insight, and shows up in All Transactions
+  as `BAC`.
 - **Moving money:** Quick entry → Move — between your own pots (a cash handover from one of you to the
   other is a transfer here, not a mystery), borrowing and repayments against someone you track on
   `/pots`, a swap with someone outside the household (cash one way, bank transfer the other), or other
@@ -98,9 +104,9 @@ configured development identity; a production build ignores the bypass entirely.
   `/contracts` shows contract ends and renewals with the follow-ups you promised.
 - **All activity in one pot:** `/transactions` — a read-only list of everything that touched a chosen
   account or cash pot between two dates: purchases, direct debits and standing orders, transfers,
-  borrowing and repayments, swaps and other money, in one amount column (green in, red out relative to
-  that pot), with the original note, checkpoint dividers and a link from every row to the page that can
-  still edit or void it. Nothing on that page writes anything.
+  borrowing and repayments, swaps and other money, and **income** (`BAC`), in one amount column (green
+  in, red out relative to that pot), with the original note, checkpoint dividers and a link from every
+  row to the page that can still edit or void it. Nothing on that page writes anything.
 - **Insights:** `/insights` — month comparison, per-person attribution, vehicle running costs, and the
   honesty loop that compares configured figures with recent complete periods.
 

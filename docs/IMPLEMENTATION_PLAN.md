@@ -253,7 +253,8 @@ covering attachments).
 7. Recurring payments: **auto-convert to actual spending on due date**; amounts are fixed and user-maintained;
    no confirmation step; "from schedule" tag; edit/void for late/missed; cancellation with effective date.
 8. Income: **fixed expected receipts in scope** (salary, known date, roughly fixed amount) feeding the
-   projection.
+   projection. One-off income (a sale, a third-party refund, a gift) was deferred at the time and is
+   **in scope from v0.4.0** (decisions 109–111).
 9. Warnings: **two tiers** — heads-up below £0; main warning at a configured overdrawn threshold well inside
    the authorised overdraft limit (limit exists on the Main account only; real figures private).
 10. Day-to-day projection: **configured figures** (weekly groceries; per-vehicle monthly fuel — spending is
@@ -756,12 +757,59 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     strand; (b) a standing order with no supplier shows the **schedule's name** in the source cell
     rather than "Unknown supplier", which would be a dead end on a dense list.
 
+109. **Income is a feature of its own, and `BAC` is rendered (household choice, 2026-09-23,
+    v0.4.0).** Decision 103 deferred income rows because the app could not produce one: no manual
+    entry, no source column, no list. The household answered the four questions that deferred it:
+    build all three phases (entry, list, `BAC` rows); one free-text **source** field ("Sale of
+    bicycle") rather than a payer list; a **dedicated Income page**; and (decision 112) always move
+    a weekend payday to the Friday before. Migration `0006_income_source` adds the optional
+    `receipts.source` column; `createReceipt`/`editReceipt` accept it; `addReceiptAction`,
+    `editReceiptAction` and `voidReceiptAction` wrap the domain; `activity.ts` renders income as
+    `BAC`. **No estimate, projection or insight code changed** — receipts were always +signed pence
+    there, and insights stay blind to income (§12/§16). Insights still carry no income analysis:
+    no income-vs-spending, no income categories (decision 103's reasoning stands).
+110. **One-off income is a receipt with a `source`, not an external movement (household choice,
+    2026-09-23).** The documented interim was other money in (`TX<`, counterparty + mandatory
+    note). The household's own example — selling something they own, paid in cash or by bank
+    transfer — is *income into a pot*, not money across the household boundary with a counterparty,
+    and borrowing is the one thing that must never read as income. So: `receipts` gets one nullable
+    free-text `source` (120 chars, trimmed, blank stored as NULL) for what or who it came from, and
+    the note stays optional. A converted expected receipt leaves `source` NULL and reads its
+    **schedule's current name** through the back-reference, so renaming a salary does not strand
+    history. Income still has no category and no target (SPEC §6): it is not spending.
+111. **Income lives on its own page, and is desktop-shaped (household choice, 2026-09-23).** "I
+    would like the majority of income to be handled by a scheduled entry… I can handle any small
+    edits on PC view, it is not subject I expect to be visiting from a mobile view." So `/income`
+    joins the menu (between Recurring and Accounts & Pots) with three sections — scheduled income
+    (add/edit/cancel in place, "applies from the next instance onward"), one-off income entry, and
+    one list of everything received with inline edit/void — and **Quick Entry gains no income
+    tab**: squeezing a record the household does not make at the till into the mobile panel would
+    cost more than it returns. Deep-link contract is the decision-105 pattern: `receipt-{id}`
+    anchors plus `?receipt={id}`.
+112. **A weekend payday is expected on the previous Friday — always, for income only (OQ2
+    resolved, household choice 2026-09-23).** Not a toggle: "always move salary income to the
+    previous Friday if pay date falls on a weekend". Implemented once, where due dates are derived
+    — `dueDateForPeriod` in `schedules.ts` — so instance materialization, the "next due date"
+    every list shows, the calendar and the to-payday projection all agree, and an *upcoming*
+    instance left on a weekend (materialized before this rule) is re-dated on the next sync while
+    converted history is never rewritten. Two consequences are deliberate and documented in SPEC
+    §11.3: a payday configured for the 1st can land in the previous month, so one calendar month
+    can hold two instances; and **bank holidays are not handled** — the app has no holiday
+    calendar and will not guess one, so a Friday bank holiday still expects the money that day and
+    the receipt can be corrected by hand.
+113. **The `BAC` row resolves its source, and links to the Income page (2026-09-23).** Source cell
+    = `receipt.source` ?? the income schedule's name ?? "Income"; category `—` (income has none);
+    direction always `in` (a receipt is a credit to its pot); the note as stored; a primary link to
+    `/income?receipt={id}#receipt-{id}` and, for a converted receipt, the secondary
+    `/recurring#schedule-{id}` link DD and SO rows already carry. Voided income is excluded here
+    and shown struck through on the Income page, which is where its history lives.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
 |---|---|---|
 | OQ1 | Due-day clamping (day 29–31 in shorter months) | Clamp to last day of month; test leap years. |
-| OQ2 | Income schedules: "shift to previous working day if weekend/bank holiday" toggle (salaries often pay on last working day)? | Add toggle for receipt schedules only; DDs/SOs use configured date as-is. |
+| OQ2 | Income schedules: "shift to previous working day if weekend/bank holiday" toggle (salaries often pay on last working day)? | **Resolved 2026-09-23 (decision 112): always shift, no toggle, income schedules only, weekends only** — payday moves to the previous Friday; bank holidays are not handled because the app keeps no holiday calendar. |
 | OQ3 | Duplicate-notice matching window & rule (currently ~2h, same pot+supplier/category+amount) | Ship as stated; tune after real use. |
 | OQ4 | Checkpoint effective-date granularity (date-only backdating vs full timestamp) | Date-only backdating, boundary = end of local date; revisit if users want finer. |
 | OQ5 | Receipts storage shape (own table vs signed purchase records) | **Resolved in Phase 3 (decision 55): dedicated `receipts` table** — income has no category/target (SPEC §6), so it does not reuse the split machinery; the estimate engine reads it as +signed pence. |

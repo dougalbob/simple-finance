@@ -92,6 +92,37 @@ export function addYearsClamped(dateString: string, years: number): string {
 }
 
 /**
+ * Day of the week for a local date: 0 = Sunday … 6 = Saturday. Derived from
+ * the same UTC day number every other helper here uses, so DST cannot shift
+ * it (a local date's weekday never depends on the instant).
+ */
+export function weekdayOf(dateString: string): number {
+  return new Date(dayNumber(checkedLocalDate(dateString))).getUTCDay();
+}
+
+/**
+ * Payday rule (SPEC §11.3, plan OQ2 resolved 2026-09-23): **income is paid
+ * on the previous Friday when the configured due day falls on a weekend.**
+ * Salaries do not wait for Monday — the money lands before the weekend, so
+ * the app must expect it then.
+ *
+ * Monday–Friday pass through untouched; Saturday moves back one day and
+ * Sunday two, both to the same Friday. Only *income* schedules shift (a
+ * direct debits leave on the date the household configured). Bank holidays
+ * are deliberately NOT handled: the app has no holiday data and will not
+ * guess one, so a Good Friday salary still expects the record on that day —
+ * the receipt can be corrected by hand, and the projection is the only
+ * consumer, so a wrong expectation is visible and never silently wrong
+ * money.
+ */
+export function shiftIncomeOffWeekend(dateString: string): string {
+  const weekday = weekdayOf(dateString);
+  if (weekday === 6) return addDaysLocal(dateString, -1); // Saturday → Friday
+  if (weekday === 0) return addDaysLocal(dateString, -2); // Sunday → Friday
+  return dateString;
+}
+
+/**
  * The due date for a monthly/annual schedule falling in a given month/year:
  * the configured day (1–31), clamped to that month's last day (plan OQ1 —
  * a schedule due on the 31st lands on the 30th in April, the 28th/29th in

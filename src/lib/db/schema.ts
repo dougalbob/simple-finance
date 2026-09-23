@@ -382,6 +382,13 @@ export const scheduleInstances = sqliteTable(
  * the sign flipped. No category, no target, no supplier — income is not
  * spending and never enters a spending insight. Optional schedule_instance_id
  * links a converted expected receipt back to its instance.
+ *
+ * `source` (migration 0006) is who/what the money came from, free text,
+ * nullable — "Sale of bicycle", "Acme windows", "eBay buyer". Income carries
+ * no category or target by design, so this one field plus the note carries
+ * everything a one-off credit needs. A converted expected receipt leaves it
+ * NULL: its origin is the schedule, resolvable through the back-reference
+ * and re-read live, so a renamed schedule reads correctly in history.
  */
 export const receipts = sqliteTable(
   'receipts',
@@ -395,6 +402,7 @@ export const receipts = sqliteTable(
     occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
     occurredDate: text('occurred_date').notNull(),
     enteredBy: text('entered_by').notNull(),
+    source: text('source'),
     note: text('note'),
     voidedAt: integer('voided_at', { mode: 'timestamp_ms' }),
     voidedBy: text('voided_by'),

@@ -86,6 +86,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project for the same reason: it records and voids income, so it
+      // runs after the transaction list is asserted and before the backup
+      // project's restore rewinds the installation.
+      name: 'income',
+      testMatch: /income\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

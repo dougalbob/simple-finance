@@ -474,7 +474,7 @@ describe('schedules: E3 lifecycle — counted exactly once', () => {
     assert.ok(later.includes('2028-02-29'), 'leap year keeps 29 February');
   });
 
-  it('receipt schedules convert into receipts (income), not purchases', async () => {
+  it('receipt schedules convert into receipts (income), not purchases — on the previous Friday when payday falls on a weekend', async () => {
     fixture = await createHouseholdFixture();
     const { db, pots } = fixture;
     const salary = createSchedule(db, {
@@ -490,9 +490,15 @@ describe('schedules: E3 lifecycle — counted exactly once', () => {
       actor: 'alex@example.com',
       now: new Date('2026-09-02T09:00:00Z'),
     });
+    // The 26th of September 2026 is a Saturday, so payday is expected on
+    // Friday the 25th (plan OQ2): the money lands before the weekend.
+    const upcoming = listInstances(db, { scheduleId: salary.schedule.id, state: 'upcoming' });
+    assert.equal(upcoming[0]?.instance.dueDate, '2026-09-25');
+
     materializeAndConvert(db, new Date('2026-09-26T00:30:00+01:00'));
     const rows = listInstances(db, { scheduleId: salary.schedule.id, state: 'converted' });
     assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.instance.dueDate, '2026-09-25');
     assert.equal(rows[0]?.instance.convertedRecordKind, 'receipt');
     assert.ok(rows[0]?.instance.convertedRecordId);
     const purchases = listPurchases(db, { limit: 10, includeVoided: false }).filter(
@@ -500,12 +506,13 @@ describe('schedules: E3 lifecycle — counted exactly once', () => {
     );
     assert.equal(purchases.length, 0, 'income must never become a purchase');
 
-    // The household estimate includes the converted receipt.
+    // The household estimate includes the converted receipt: the checkpoint
+    // is dated the 24th, so the Friday-midnight receipt lands after it.
     addCheckpoint(db, {
       potId: pots.salary.id,
       amountPence: p(100),
       actor: 'alex@example.com',
-      now: new Date('2026-09-25T09:00:00+01:00'),
+      now: new Date('2026-09-24T09:00:00+01:00'),
     });
     const snapshot = getMoneySnapshot(db, new Date('2026-09-27T09:00:00+01:00'));
     assert.equal(

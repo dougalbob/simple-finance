@@ -5,6 +5,7 @@ import {
   checkpoints,
   externalMovements,
   purchases,
+  receipts,
   scheduleInstances,
   schedules,
   transfers,
@@ -25,9 +26,14 @@ import { listVehicles } from './vehicles';
  * It is a **pure projection of existing records** — it writes nothing, stores
  * nothing and invents nothing. Every row carries a link to the canonical form
  * that owns the add/edit/void behaviour, because this page deliberately has
- * none. Voided records are excluded (`voided_at IS NULL` on every family) and
- * income (`receipts`, code `BAC`) is not rendered in v1 — a one-off third-party
- * credit is other money in and therefore appears as `TX<` (decision 103).
+ * none. Voided records are excluded (`voided_at IS NULL` on every family).
+ *
+ * Income is rendered as `BAC` (v0.4.0, plan decisions 109–113): both the
+ * receipts converted from income schedules and the one-off income the
+ * household records on the Income page. It carried no source column and no
+ * entry form when `BAC` was first reserved, so it was deferred with income
+ * itself; that gap is closed, and a one-off third-party credit is income
+ * rather than other money in.
  *
  * Signs are relative to the selected pot, so one pot→pot transfer is green on
  * the receiving side and red on the sending side with no data change anywhere.
@@ -39,7 +45,7 @@ import { listVehicles } from './vehicles';
 
 /** The compact type codes the household sketch asked for (SPEC §15.3). */
 export type ActivityCode =
-  'PUR' | 'REF' | 'DD' | 'SO' | 'TX<' | 'TX>' | 'LN<' | 'LN>' | 'SW<' | 'SW>';
+  'PUR' | 'REF' | 'DD' | 'SO' | 'TX<' | 'TX>' | 'LN<' | 'LN>' | 'SW<' | 'SW>' | 'BAC';
 
 export const ACTIVITY_ROW_LIMIT = 500;
 
@@ -58,7 +64,7 @@ export interface ActivityLink {
 export interface ActivityRow {
   /** Stable React key: family + record id. */
   key: string;
-  family: 'purchase' | 'transfer' | 'external';
+  family: 'purchase' | 'transfer' | 'external' | 'receipt';
   recordId: number;
   /** Local calendar date, 'YYYY-MM-DD' — the only date this page shows. */
   date: string;
@@ -358,6 +364,65 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
     });
   }
 
+  // --- Income: BAC --------------------------------------------------------
+  // Scheduled salary and one-off income (a sold bicycle paid in cash or by
+  // bank transfer) are the same record family: money that arrived in this
+  // pot. Always a credit — a receipt can only add to the pot it landed in.
+  const receiptRows = db
+    .select({
+      receipt: receipts,
+      scheduleId: schedules.id,
+      scheduleName: schedules.name,
+    })
+    .from(receipts)
+    .leftJoin(scheduleInstances, eq(scheduleInstances.id, receipts.scheduleInstanceId))
+    .leftJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
+    .where(
+      and(
+        eq(receipts.potId, potId),
+        isNull(receipts.voidedAt),
+        gte(receipts.occurredDate, dateFrom),
+        lte(receipts.occurredDate, dateTo),
+      ),
+    )
+    .orderBy(desc(receipts.occurredAt), desc(receipts.id))
+    .limit(limit)
+    .all();
+
+  for (const { receipt, scheduleId, scheduleName } of receiptRows) {
+    pending.push({
+      sortAt: receipt.occurredAt.getTime(),
+      recordId: receipt.id,
+      familyRank: 3,
+      row: {
+        key: `receipt-${receipt.id}`,
+        family: 'receipt',
+        recordId: receipt.id,
+        date: receipt.occurredDate,
+        code: 'BAC',
+        // A typed source wins; a converted receipt reads its schedule's
+        // current name; a salary recorded before sources existed still has
+        // something to show rather than a blank cell.
+        source: receipt.source ?? scheduleName ?? 'Income',
+        // Income has no category by design (SPEC §6): it is not spending.
+        category: '',
+        extraLines: 0,
+        amountPence: receipt.amountPence,
+        direction: 'in',
+        note: receipt.note ?? '',
+        link: {
+          href: `/income?receipt=${receipt.id}#receipt-${receipt.id}`,
+          label: 'Open this income record',
+        },
+        secondaryLink:
+          scheduleId === null
+            ? null
+            : { href: `/recurring#schedule-${scheduleId}`, label: 'Open the schedule' },
+        badge: scheduleName === null ? null : 'from schedule',
+      },
+    });
+  }
+
   // One deterministic order across families: newest first, then a stable
   // tie-break so a re-render cannot reshuffle rows sharing an instant.
   pending.sort(
@@ -374,7 +439,8 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
   const windowRowCount =
     countRows(db, purchases, potId, dateFrom, dateTo) +
     countTransferRows(db, potId, dateFrom, dateTo) +
-    countRows(db, externalMovements, potId, dateFrom, dateTo);
+    countRows(db, externalMovements, potId, dateFrom, dateTo) +
+    countRows(db, receipts, potId, dateFrom, dateTo);
   const hiddenRowCount = Math.max(windowRowCount - shown.length, 0);
 
   let inPence = 0;
@@ -518,7 +584,7 @@ function swapPartnerByExchangeKey(
 /** Exact live-row count in the window for a single-pot family. */
 function countRows(
   db: Db,
-  table: typeof purchases | typeof externalMovements,
+  table: typeof purchases | typeof externalMovements | typeof receipts,
   potId: number,
   dateFrom: string,
   dateTo: string,

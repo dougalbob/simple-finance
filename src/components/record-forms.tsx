@@ -7,6 +7,7 @@ import {
   editPurchaseAction,
   voidExternalMovementAction,
   voidPurchaseAction,
+  voidReceiptAction,
   voidTransferAction,
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
@@ -365,7 +366,7 @@ export function RefundForm(props: RefundFormProps) {
 }
 
 interface VoidFormProps {
-  kind: 'purchase' | 'transfer' | 'external';
+  kind: 'purchase' | 'transfer' | 'external' | 'receipt';
   recordId: number;
   expectedVersion: number;
   summary: string;
@@ -382,7 +383,9 @@ export function VoidForm({ kind, recordId, expectedVersion, summary }: VoidFormP
       ? voidPurchaseAction
       : kind === 'transfer'
         ? voidTransferAction
-        : voidExternalMovementAction,
+        : kind === 'receipt'
+          ? voidReceiptAction
+          : voidExternalMovementAction,
     initialActionState,
   );
   return (
@@ -407,7 +410,7 @@ export function VoidForm({ kind, recordId, expectedVersion, summary }: VoidFormP
         />
       </div>
       <button type="submit" disabled={pending} className={`${dangerSubmitClass} self-start`}>
-        {pending ? 'Voiding…' : `Void ${kind}`}
+        {pending ? 'Voiding…' : `Void ${kind === 'receipt' ? 'income' : kind}`}
       </button>
       <FormMessage status={state.status} message={state.message} />
     </form>
