@@ -68,7 +68,43 @@ Staging `~/.cache/node-gyp/22.22.3/config.gypi` (`installVersion: 2`) is not eno
 
 ---
 
+## 6. `ghcr.io` is blocked — you cannot inspect the registry from the sandbox
+
+**Symptom:** any `curl` to `ghcr.io` fails with `curl exit 35` (`SSL_ERROR_SYSCALL`), including the anonymous pull-token endpoint `https://ghcr.io/token?scope=repository:dougalbob/simple-finance:pull`. There is also no Docker daemon in the sandbox, so `docker buildx imagetools inspect` — the command the publish workflow uses — is not available either way.
+
+**Consequence:** release step 9/10 ("confirm GHCR carries all three tags and that they resolve to one digest differing from the previous release") **cannot be done the obvious way from here.** Do not conclude the release is unverified. Two routes work:
+
+- **The publish workflow already proves it.** Its `Verify the registry tags resolve` step resolves the remote digest for all three tags and compares it against the digest of the image it just built and smoke tested, failing the job on any mismatch. Read the step's **conclusion**, not its output: `gh run view <id> --json jobs -q '.jobs[0].steps[] | {name, conclusion}'`. A `success` there *is* the one-digest proof.
+- **`api.github.com` gives you the digest directly** (reachable, entry 1). Package versions live under the **user** scope, not the org scope — `dougalbob` is a user, so `/orgs/...` returns 404:
+  ```bash
+  gh api "/users/dougalbob/packages/container/simple-finance/versions?per_page=20" \
+    -q '.[] | "tags=\(.metadata.container.tags|join(","))  digest=\(.name)"'
+  ```
+  The digest is the **`name`** field — there is a `digest` field too and it is always `null`. One entry carrying `["sha-<short>", "vX.Y.Z", "latest"]` confirms step 9, and comparing `name` against the previous release's entry confirms the digest moved.
+
+**Do not:** retry `ghcr.io`, or try `docker login` / `docker manifest inspect`. Neither the host nor a daemon exists here.
+
+---
+
+## 7. GitHub Actions log text is unreachable — read step conclusions instead
+
+**Symptom:** `gh run view <id> --log` and `gh api repos/<owner>/<repo>/actions/jobs/<jobId>/logs` both return nothing usable. The API responds with a redirect to `productionresultssa5.blob.core.windows.net`, which is blocked, so the fetch dies with a `Get "https://productionresultssa5.blob.core.windows.net/..."` error. The run **step summary** (`### ... >> $GITHUB_STEP_SUMMARY`) is not retrievable this way either.
+
+**Consequence:** you cannot read what a CI step printed. You can still read **whether it passed**, which is usually the actual question.
+
+**What works here:**
+
+- Per-step conclusions: `gh run view <id> --json jobs -q '.jobs[0].steps[] | "\(.name): \(.conclusion)"'`.
+- Check runs on a commit: `gh api repos/<owner>/<repo>/commits/<sha>/check-runs -q '.check_runs[] | "\(.name)\t\(.status)\t\(.conclusion)"'`.
+- `gh run watch <id> --exit-status` blocks until done and returns non-zero on failure — good for gating a merge or a tag.
+- For values CI computed but you cannot read (a digest, a resolved tag), re-derive them from a reachable API instead — see entry 6.
+
+**Do not:** assume a step was skipped because its log is empty. Empty log ≠ did not run; check `conclusion`.
+
+---
+
 ## History
 
 - **2026-09-22:** Initial entries after v0.1.8 (category-tree revalidation). Verified in this sandbox: `npm ci --ignore-scripts` → 86 packages, 248/248 Node tests, `next build` green, Playwright blocked as above. Source: session `arena/01a0ca74-simple-finance` discussion 2026-09-22 19:xx UTC.
 - **2026-09-23:** Committed in v0.1.9 and every claim above re-probed in a **fresh** sandbox (session `arena/01a0cc97-simple-finance`), since uncommitted working-tree drafts do not survive between sessions. All reproduced: 86 packages, 248/248 tests, 67 suites, `tsc --noEmit` clean, `prettier --check .` clean, `next build` 15 routes, `npm audit --omit=dev` 0 vulnerabilities. Hosts re-confirmed — `nodejs.org` / `cdn.playwright.dev` / `objects.githubusercontent.com` fail with curl exit 35 (`SSL_ERROR_SYSCALL`), `deb.debian.org` with exit 52 and `apt-get update` failing all three indices at `151.101.x.x:80`, while `registry.npmjs.org`, `api.github.com` and `codeload.github.com` return HTTP/2 200. Missing browser libs re-confirmed absent via `ldconfig` (`libnss3`, `libgbm`, `libgtk-3`, `libxdamage`, `libxkbcommon`) and no `Xvfb`. One correction: `~/.nodebuild/nodedir` did not exist in the fresh sandbox, so entry 1 now says plainly that the header tree must be assembled first.
+- **2026-09-23 (later, same session):** entries 6 and 7 added after hitting them while verifying the v0.1.9 publish. `ghcr.io` blocked with curl exit 35 including the anonymous pull-token endpoint, and no Docker daemon, so registry verification went via the publish workflow's step conclusion plus `/users/dougalbob/packages/container/simple-finance/versions` on `api.github.com` — note the **user** scope (`/orgs/...` 404s) and that the digest is the `name` field, since `digest` is always `null`. GitHub Actions log text blocked via `productionresultssa5.blob.core.windows.net`, so step conclusions were read instead. v0.1.9 resolved to `sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d` on tags `v0.1.9` / `latest` / `sha-9393a85`, differing from v0.1.8's `sha256:da65d23e…`, which was not retagged.
