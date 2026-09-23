@@ -114,19 +114,26 @@ is current rather than inherited. v0.1.8's release notes explicitly deferred all
 
 ---
 
-## 5. v0.1.9 — pending publish
+## 5. v0.1.9 — published (2026-09-23)
 
-Docs-only release. Delivery follows `docs/RELEASE_PROCESS.md` exactly: merge commit not squash, wait for
-`gates` / `browser` / `docker` on the pull request and then on the `main` merge commit, annotated lower-case
-tag `v0.1.9` on that merge commit, publish workflow, registry verification of all three tags against one
-digest that differs from v0.1.8's, then the GitHub release marked Latest.
+**Done.** Docs-only release, delivered per `docs/RELEASE_PROCESS.md`. PR #24 merged with a merge commit
+(`gh pr merge --merge`) as `9393a85`; `gates`, `browser` and `docker` were green on the pull request and
+again on the `main` merge commit before the tag was created. Annotated lower-case tag `v0.1.9` on `9393a85`,
+publish run [35821794221](https://github.com/dougalbob/simple-finance/actions/runs/35821794221) green
+including "Verify the version metadata matches the tag" and "Verify the registry tags resolve".
 
-`docs/RELEASE_NOTES_v0.1.9.md` ships with the merge SHA and the `sha256` digest marked **pending**. They are
-completed by the follow-up `docs: complete RELEASE_NOTES_v0.1.9 publish metadata` pull request, matching the
-v0.1.7 (#21) and v0.1.8 (#23) pattern.
+`v0.1.9` / `latest` / `sha-9393a85` all resolve to one digest,
+`sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d`, replacing the v0.1.8 digest
+`sha256:da65d23eeeacb7b60f975fe40464fecc8e74f986834784752ab57c02b2feda35` that `latest` previously pointed
+at. v0.1.8 and v0.1.7 were not retagged. The GitHub release `v0.1.9` is marked Latest.
+
+`ghcr.io` is blocked in the sandbox, so the registry was verified through the publish workflow's step
+conclusion and `/users/dougalbob/packages/container/simple-finance/versions` on `api.github.com` — see
+[`docs/SANDBOX.md`](SANDBOX.md) entry 6.
 
 The household takes a backup, then Force Updates in Unraid, and follows
 [`docs/RELEASE_NOTES_v0.1.9.md`](RELEASE_NOTES_v0.1.9.md). The badge should read **v0.1.9 · pre-release**.
+There is no behaviour change to try; this release changes how the app is worked on.
 
 ---
 
