@@ -1,6 +1,6 @@
 {
   "name": "simple-finance",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Private household spending app for two people watching money carefully. See docs/SPEC.md.",
   "engines": {

@@ -1,13 +1,18 @@
 # Simple Finance — Session Handoff
 
-**Session:** mobile Purchases filters (v0.1.5) · **Date:** 2026-09-22
-**Branch:** `arena/01a0c94a-simple-finance` · **Base:** `main` @ `6db4fe2` (v0.1.4 published)
-Supersedes the session 8 handoff. That file is preserved in git history.
+**Session:** v0.1.9 — documentation carry-over (sandbox notes, working ethos) · **Date:** 2026-09-23
+**Branch:** `arena/01a0cc97-simple-finance` · **Base:** `main` @ `921233a` (v0.1.8 published, tag `v0.1.8` on `00976f7`)
+Supersedes the v0.1.5 handoff. That file is preserved in git history.
 
 Read `docs/SPEC.md` for the product, and this file before changing the app. `docs/IMPLEMENTATION_PLAN.md` is
-the decision log — read the decisions that touch the area you are changing, especially decision 92.
+the decision log — read the decisions that touch the area you are changing.
+Sandbox constraints and proven workarounds live in [`docs/SANDBOX.md`](SANDBOX.md) — check it before you chase
+a failing `npm ci` or `playwright install`.
 `AGENT_APP_BLUEPRINT.md` supported the initial build through the first release; it is historical context,
 **not required reading**. Do not send a later session back to it first.
+
+`AGENTS.md` carries the working ethos: these docs are a guiding hand, not a pact. If one is getting in the
+way, say so and propose an alternative before deviating. `docs/RELEASE_PROCESS.md` is the one strict rule.
 
 ---
 
@@ -15,37 +20,49 @@ the decision log — read the decisions that touch the area you are changing, es
 
 This sandbox **can** run the Node suite. `npm ci --ignore-scripts` is enough: the `better-sqlite3` package
 ships a linux-x64 / Node 22 prebuild. Re-check rather than copy a previous session's "cannot run tests" note.
+The full list of blocked hosts and the proven workaround for each is in
+[`docs/SANDBOX.md`](SANDBOX.md) — read that before retrying a failing install.
+
+Re-verified in this sandbox on 2026-09-23, not copied from an earlier session:
 
 | Capability | Status here | Consequence |
 | --- | --- | --- |
-| `npm test` | **ran** | 239 tests, 66 suites, all passed |
+| `npm ci --ignore-scripts` | **ran** | 86 packages; `better-sqlite3` prebuild loads (SQLite 3.53.4) |
+| `npm test` | **ran** | 248 tests, 67 suites, all passed |
 | `npx tsc --noEmit` | **ran** | clean |
-| `npx prettier --check .` | **ran** | clean (markdown is excluded) |
-| `npm run build` | **ran** | compiled (Next.js 16.3.5) |
-| Playwright (`npm run test:e2e`) | **not run** | no Chromium binary and no system browser. CI's `browser` job is the evidence |
-| Docker | **absent** | the image is unchanged except the version string in `simple-finance.xml` |
+| `npx prettier --check .` | **ran** | clean (markdown is excluded by `.prettierignore`) |
+| `npm run build` | **ran** | compiled, 15 routes |
+| `npm audit --omit=dev` | **ran** | 0 vulnerabilities |
+| Playwright (`npm run test:e2e`) | **not run** | `cdn.playwright.dev` and `deb.debian.org` blocked, no system browser libs. CI's `browser` job is the evidence |
+| Docker | **absent** | no daemon here. CI's `docker` job is the evidence |
 
 **Hard rule:** never commit, screenshot or fixture real receipts or household financial data (SPEC §19, §23.3).
 
-**Do not retag v0.1.4.** That release is published. This release line is v0.1.5. Tag only after merge,
-lower-case `v0.1.5`, merge commit not squash (decision 91). Merging does not publish.
+**Tag casing.** Always lower-case `vX.Y.Z`, annotated, on the merge commit. Never move a published tag —
+v0.1.8 is published. This release line is **v0.1.9**. Merging does not publish; the tag does.
 
 ---
 
 ## 1. What this session did
 
-Phone layout for the Purchases filter card. Decision 92.
+Documentation only. No application behaviour changed. This is the carry-over that could not ride in the
+v0.1.8 pull request because it was written after that merge.
 
-- `PurchaseFilterForm` lives in `src/components/purchase-filter-form.tsx` (client component). The GET form
-  and the field names are unchanged.
-- On viewports below `sm`, a full-width **Show filters** / **Hide filters** button collapses the panel.
-  Default is collapsed; any already-applied filter (dates, pot, supplier, category, paid-by, tags) starts
-  the panel open. From `sm` up the toggle is hidden and the fields stay visible.
-- From date and To date share one row on a phone (`grid-cols-2`). Pot / Supplier / Category / Paid by stay
-  one per row (`col-span-2 sm:col-span-1`). Every control is `w-full min-w-0 max-w-full` so native date and
-  select widgets cannot overflow the rounded card.
-- Version `0.1.5` in `package.json`, `package-lock.json` (both root fields), `src/lib/version.ts` and
-  `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.5.md`.
+- **`docs/SANDBOX.md` (new).** Append-only field notes on the sandbox: `nodejs.org` blocked but
+  `better-sqlite3` ships prebuilds, so `npm ci --ignore-scripts` is the answer; `cdn.playwright.dev` and
+  `deb.debian.org` blocked and no system libs, so browsers cannot run locally; `codeload.github.com`
+  reachable where `objects.githubusercontent.com` is not. A session that hits a **new** limit must record it
+  there before merging — Arena will not accept substantive pushes afterwards.
+- **`AGENTS.md`.** Added "Working ethos — how to use the docs": SPEC / IMPLEMENTATION_PLAN / BLUEPRINT are a
+  guiding hand, not an unbreakable pact. Challenge the spec and propose alternatives; have the short
+  conversation before deviating rather than working around a doc silently. `docs/RELEASE_PROCESS.md` is the
+  explicit exception — strict, and owned end to end by the agent without pulling in the household.
+- **`docs/HANDOFF.md`.** This rewrite: points at `docs/SANDBOX.md`, supersedes the v0.1.5 header, and carries
+  the still-open list forward **re-verified against the code** rather than copied.
+- **Version `0.1.9`** in `package.json`, `package-lock.json` (both root fields), `src/lib/version.ts` and
+  `simple-finance.xml`. Release notes: `docs/RELEASE_NOTES_v0.1.9.md`.
+
+`docs/RELEASE_PROCESS.md` was deliberately left untouched.
 
 ---
 
@@ -53,45 +70,68 @@ Phone layout for the Purchases filter card. Decision 92.
 
 | Check | Run here | Result |
 | --- | --- | --- |
-| `npm test` | yes | 239 passed, 66 suites, 0 failed |
+| `npm ci --ignore-scripts` | yes | 86 packages, no compile needed |
+| `npm test` | yes | 248 passed, 67 suites, 0 failed |
 | `npx tsc --noEmit` | yes | clean |
 | `npx prettier --check .` | yes | clean |
-| `npm run build` | yes | compiled (Next.js 16.3.5, Turbopack) |
-| `npm run test:e2e` | no | no browser binary |
+| `npm run build` | yes | compiled, 15 routes |
+| `npm audit --omit=dev` | yes | 0 vulnerabilities |
+| `npm run test:e2e` | no | no browser binary, no system libs |
 
-New browser coverage: `e2e/home.spec.ts` (mobile: collapse, From/To on one row, controls inside the card,
-panel stays open after Apply) and `e2e/desktop.spec.ts` (Show filters stays hidden). Those run in CI's
-`browser` job.
+No new browser coverage — nothing in `src/` changed except the version string, so the existing `e2e/` specs
+are unchanged and CI's `browser` job should pass on them as before.
+
+Note that `npm run format` does **not** reformat markdown: `.prettierignore` excludes `*.md` because the docs
+are hand-authored. Formatting a new doc is a no-op, not a check.
 
 ---
 
 ## 3. What is not open
 
-The filter query itself is unchanged. Do not treat the previous session's receipt-removal work as current.
+The v0.1.8 category-tree revalidation fix is published and is not this session's work. Do not treat the
+v0.1.5 mobile-filter handoff content as current; it is preserved in git history only.
 
 ---
 
 ## 4. Still open — not done, do not sneak them in
 
-These were recorded in session 7/8 and were left alone on purpose.
+Carried forward from earlier sessions. **Each was re-verified against the code on 2026-09-23**, so this list
+is current rather than inherited. v0.1.8's release notes explicitly deferred all four.
 
-1. **Refunds are not version-guarded.** `RefundForm` posts `expectedVersion`; `addRefundAction` never reads it.
-2. **Upload still rethrows non-domain errors.** `deleteAttachmentAction` returns a friendly message instead.
-   `uploadAttachmentAction` still rethrows anything that is not `AttachmentInputError`.
-3. **`logging/` is created and its ownership repaired, but nothing in the app writes to it.**
-4. **`documents/` mode.** The pipeline asks for `0700`; the entrypoint's `mkdir -p` leaves `0755`.
+1. **Refunds are not version-guarded.** `RefundForm` posts `expectedVersion`, but `addRefundAction`
+   (`src/app/actions.ts:1016`) never reads it — the field is absent from its schema parse, so a concurrent
+   edit is not detected.
+2. **Upload still rethrows non-domain errors.** `uploadAttachmentAction` (`src/app/actions.ts:266`) returns a
+   friendly message only for `AttachmentInputError` and rethrows everything else.
+   `deleteAttachmentAction` (`:315`) already logs and returns a message instead.
+3. **`logging/` is created and its ownership repaired, but nothing in the app writes to it.** Created at
+   `docker-entrypoint.sh:38` and `Dockerfile:54`; there are no references to it anywhere in `src/`.
+4. **`documents/` mode.** `src/lib/records/attachments.ts:172` asks for `0o700`, but `mkdir` with `recursive`
+   does not tighten an existing directory and the entrypoint contains no `chmod`, so the mode depends on the
+   umask.
 5. **`/data/.env` lives in a directory the app user owns.** Pre-existing.
 6. **Tag casing.** Always lower-case `vX.Y.Z`. Do not move a published tag.
 
 ---
 
-## 5. v0.1.5 — published (2026-09-22)
+## 5. v0.1.9 — pending publish
 
-**Done.** Annotated tag `v0.1.5` → `129ecea` (`main`, the PR #16 merge). Publish run
-[35739057844](https://github.com/dougalbob/simple-finance/actions/runs/35739057844) was green: metadata
-check, build, smoke test, push, registry tags resolve. GHCR now carries `v0.1.5`, `latest` and
-`sha-129ecea` on one digest, `sha256:dd6d50579f52454cd6978fae504d8d687695d1b8ed5b4b65c98bdcccc5ef68ed`,
-replacing the v0.1.4 digest `sha256:36a70c3531aec232a85db76777e2e3521fd8a351c18efd09f99b2cc0b32e9343` that
-`latest` previously pointed at. The GitHub release `v0.1.5` is marked Latest.
+Docs-only release. Delivery follows `docs/RELEASE_PROCESS.md` exactly: merge commit not squash, wait for
+`gates` / `browser` / `docker` on the pull request and then on the `main` merge commit, annotated lower-case
+tag `v0.1.9` on that merge commit, publish workflow, registry verification of all three tags against one
+digest that differs from v0.1.8's, then the GitHub release marked Latest.
 
-The household Force Updates in Unraid and follows `docs/RELEASE_NOTES_v0.1.5.md`. Take a backup first.
+`docs/RELEASE_NOTES_v0.1.9.md` ships with the merge SHA and the `sha256` digest marked **pending**. They are
+completed by the follow-up `docs: complete RELEASE_NOTES_v0.1.9 publish metadata` pull request, matching the
+v0.1.7 (#21) and v0.1.8 (#23) pattern.
+
+The household takes a backup, then Force Updates in Unraid, and follows
+[`docs/RELEASE_NOTES_v0.1.9.md`](RELEASE_NOTES_v0.1.9.md). The badge should read **v0.1.9 · pre-release**.
+
+---
+
+## Next session
+
+Not yet decided — ask the household what they'd like to do.
+
+The four verified open items in section 4 are the natural candidates, but none was chosen this session.
