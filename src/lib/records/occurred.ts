@@ -5,9 +5,10 @@ import { endOfLocalDate, isValidLocalDate, toLocalDateString } from '../time';
  * carries both an instant (occurred_at, for checkpoint comparison) and the
  * local calendar date it belongs to (occurred_date, backdatable, never in
  * the future). Mobile entry stamps now; a bare date takes effect at the end
- * of that local date — the same rule as date-only checkpoints (SPEC §5) —
- * so a same-day record sorts after an earlier-timed checkpoint, the
- * conservative direction (SPEC §7.1).
+ * of that local date — the same rule as date-only checkpoints (SPEC §5).
+ * Against a same-day timed checkpoint the tie-break is sign-aware (SPEC
+ * §7.1): date-only debits count as after, date-only credits as absorbed, so
+ * the estimate can only understate.
  */
 
 export class InvalidOccurredError extends Error {

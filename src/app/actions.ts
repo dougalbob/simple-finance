@@ -90,9 +90,11 @@ import {
 import {
   createExternalMovement,
   createSwap,
+  editExternalMovement,
   ExternalMovementNotFoundError,
   InvalidExternalMovementInputError,
   voidExternalMovement,
+  voidSwap,
 } from '@/lib/records/external-movements';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from '@/lib/records/errors';
 import {
@@ -106,6 +108,7 @@ import {
   editPurchaseEntrySchema,
   editRenewalEntrySchema,
   editScheduleEntrySchema,
+  editExternalMovementEntrySchema,
   externalMovementEntrySchema,
   fuelEntrySchema,
   potIdSchema,
@@ -123,6 +126,7 @@ import {
   swapEntrySchema,
   transferEntrySchema,
   voidRecordEntrySchema,
+  voidSwapEntrySchema,
   warningLeadsEntrySchema,
 } from '@/lib/validation';
 import {
@@ -372,10 +376,16 @@ export async function createPotAction(
   } catch {
     return { status: 'error', message: 'The pot could not be saved. Please try again.' };
   }
-  revalidatePath('/');
+  revalidatePages();
   return { status: 'ok', message: `Pot “${label.data}” created.` };
 }
 
+/**
+ * Record a balance checkpoint. A checkpoint is the freshest user-reported
+ * balance, so every page that renders an estimate must reflect it in place —
+ * revalidating only the home path left /pots and /overview stale after a
+ * checkpoint taken there (v0.2.0 field report). Use the shared set.
+ */
 export async function addCheckpointAction(
   _previous: ActionState,
   formData: FormData,
@@ -422,7 +432,7 @@ export async function addCheckpointAction(
     }
     return { status: 'error', message: 'The checkpoint could not be saved. Please try again.' };
   }
-  revalidatePath('/');
+  revalidatePages();
   return { status: 'ok', message: `Checkpoint saved: ${formatPence(parsed.data.amountPence)}.` };
 }
 
@@ -454,7 +464,7 @@ export async function addPurchaseAction(
       lines: raw.data.lines,
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return purchaseOk(
       `Purchase saved: ${formatPence(result.purchase.totalPence)}.`,
       result.duplicateNotice === null
@@ -515,7 +525,7 @@ export async function addFuelAction(
       ],
       actor: user.email,
     });
-    revalidatePath('/');
+    revalidatePages();
     return purchaseOk(
       `Fuel saved: ${formatPence(result.purchase.totalPence)}.`,
       result.duplicateNotice === null
@@ -551,7 +561,7 @@ export async function voidDuplicatePurchaseAction(
       actor: user.email,
       reason: 'Duplicate entry resolved from the quick-entry notice.',
     });
-    revalidatePath('/');
+    revalidatePages();
     return { status: 'ok', message: `Entry #${id} voided. The saved history is retained.` };
   } catch (err) {
     if (
@@ -665,7 +675,7 @@ export async function addPersonAction(
     return { status: 'error', message: 'Give the person a name.' };
   try {
     createPerson(getDbHandle().db, { label, actor: user.email });
-    revalidatePath('/');
+    revalidatePages();
     return { status: 'ok', message: 'Person added.' };
   } catch (err) {
     return { status: 'error', message: domainMessage(err, 'The person could not be saved.') };
@@ -859,7 +869,7 @@ export async function saveProjectionSettingsAction(
     for (const [vehicleId, pence] of Object.entries(parsed.data.monthlyFuelPence)) {
       setMonthlyFuelPence(db, Number(vehicleId), pence, user.email);
     }
-    revalidatePath('/');
+    revalidatePages();
     return { status: 'ok', message: 'Projection figures saved. The forecast updates immediately.' };
   } catch (err) {
     if (err instanceof InvalidSettingValueError) {
@@ -1447,6 +1457,120 @@ export async function voidExternalMovementAction(
       status: 'error',
       message: 'That movement could not be voided. Refresh and try again.',
     };
+  }
+}
+
+/**
+ * Correct a boundary movement's pot, amount, date, counterparty or note
+ * (SPEC §10.2). Kind, direction, debt link and exchange key are immutable —
+ * the domain refuses those; a blank field means "unchanged". For a swap leg
+ * the pair's net-zero can be broken on purpose (an honest correction, e.g.
+ * the transfer went to a different pot); the Pots page shows the result.
+ */
+export async function editExternalMovementAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = editExternalMovementEntrySchema.safeParse({
+    movementId: numberOrNull(formData.get('movementId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    potId: numberOrNull(formData.get('potId')),
+    amountPence: amount,
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    counterparty: textOrNull(formData.get('counterparty')),
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the money fields.') };
+  }
+  const data = parsed.data;
+  try {
+    const movement = editExternalMovement(getDbHandle().db, {
+      id: data.movementId,
+      expectedVersion: data.expectedVersion,
+      actor: user.email,
+      patch: {
+        ...(data.potId === null ? {} : { potId: data.potId }),
+        ...(data.amountPence === null ? {} : { amountPence: data.amountPence }),
+        ...(data.occurredDate === null ? {} : { occurredDate: data.occurredDate }),
+        ...(data.counterparty === null ? {} : { counterparty: data.counterparty }),
+        // Blank keeps the current note (a swap-leg note cannot be cleared
+        // from the form; "other" movements must keep one — the domain rule).
+        ...(data.note === '' ? {} : { note: data.note }),
+      },
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Movement #${movement.id} saved: ${formatPence(movement.amountPence)}.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidExternalMovementInputError ||
+      err instanceof ExternalMovementNotFoundError ||
+      err instanceof RecordVoidedError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The movement could not be saved. Please try again.' };
+  }
+}
+
+/**
+ * Void a swap as a pair — both legs in one transaction, one shared reason
+ * (SPEC §10.2). The single-leg VoidForm stays for honest corrections where
+ * one half genuinely did not happen; the pair void is for "the whole swap
+ * was a mistake".
+ */
+export async function voidSwapAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = voidSwapEntrySchema.safeParse({
+    exchangeKey: String(formData.get('exchangeKey') ?? ''),
+    inLegId: numberOrNull(formData.get('inLegId')),
+    outLegId: numberOrNull(formData.get('outLegId')),
+    inLegVersion: numberOrNull(formData.get('inLegVersion')),
+    outLegVersion: numberOrNull(formData.get('outLegVersion')),
+    reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The void link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    voidSwap(getDbHandle().db, {
+      exchangeKey: parsed.data.exchangeKey,
+      inLegId: parsed.data.inLegId,
+      outLegId: parsed.data.outLegId,
+      expectedInVersion: parsed.data.inLegVersion,
+      expectedOutVersion: parsed.data.outLegVersion,
+      reason: parsed.data.reason === '' ? null : parsed.data.reason,
+      actor: user.email,
+    });
+    revalidatePages();
+    return { status: 'ok', message: 'Swap voided — both legs, history kept.' };
+  } catch (err) {
+    if (
+      err instanceof AlreadyVoidError ||
+      err instanceof VersionConflictError ||
+      err instanceof RecordVoidedError ||
+      err instanceof ExternalMovementNotFoundError ||
+      err instanceof InvalidExternalMovementInputError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The swap could not be voided. Refresh and try again.' };
   }
 }
 

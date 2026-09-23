@@ -661,9 +661,36 @@ covering attachments).
     closed. Excluded from Insights by construction — the Insights join is over `allocations`, and
     boundary money never has one.
 97. **Entry lives in the moment, on both clients.** A fourth quick-entry tab (Move: pots, a debt,
-    a swap, or other) and matching sections on the Pots page share the same form components, so
-    thumb and keyboard take the same path. Pots gain `archivePot`, which refuses any pot a live
-    record still points at — archiving is a tidy-up for empties, never a deletion.
+a swap, or other) and matching sections on the Pots page share the same form components, so
+thumb and keyboard take the same path. Pots gain `archivePot`, which refuses any pot a live
+record still points at — archiving is a tidy-up for empties, never a deletion.
+98. **The same-day comparison is sign-aware (v0.2.1, 2026-09-23).** v0.2.0 counted every
+    date-only record sharing a checkpoint's date as *after*; safe for debits (understating
+    self-corrects) but it double-counted same-day credits — swap in-legs, receipts, transfer-ins,
+    refunds — and a same-day checkpoint could never self-correct, because the counted credit was
+    already inside the counted balance (field report: a cash pot read £180.00 instead of £100.00;
+    SPEC E13). The rejected alternative — flipping `>=` to `>` for everything — would have absorbed
+    same-day *spending* after a checkpoint (overstating, and it lies about the bank pot). Rule now:
+    same-day date-only credits are absorbed; same-day date-only debits still count. The known cost,
+    accepted with the household: a same-day swap makes the household total read one leg LOW until
+    the next checkpoint (the out-leg dips, the in-leg is absorbed) — no rule is both per-pot-safe
+    and household-net-zero on the day, and low was chosen over high. Debits self-correct at the
+    next later-dated checkpoint; live v0.2.0 data self-heals under the new rule, so no migration.
+99. **A checkpoint refreshes every page it can move (v0.2.1, 2026-09-23).**
+    `addCheckpointAction` — and six sibling actions — revalidated only `/`, so checkpointing from
+    /pots or /overview left those pages stale until a manual reload. All server actions now use the
+    shared `revalidatePages()` set, so the simple estimate figure (≈ £100.00) updates in place
+    everywhere. An itemised "since the last checkpoint" breakdown was first added to the pot cards
+    but withdrawn before the PR: the household confirmed the card should show the simple figure
+    only — the estimate badge and the "Last reported" line are the display.
+100. **Swaps are managed where they were made (v0.2.1, 2026-09-23).** The boundary list at the foot
+    of /pots existed but the household never found it; the missing capabilities were edit (domain
+    `editExternalMovement` existed without a surface) and an honest whole-pair correction. The
+    "Swap with someone outside" section now lists recent pairs grouped by exchange key with the net
+    total (green £0.00 balanced, amber "legs differ" when one leg was edited or voided alone, grey
+    voided), per-leg edit and single-leg void under "Correct or void one leg", and a two-click
+    "Void both legs" that voids the pair in one transaction with one shared reason (`voidSwap`,
+    version-guarded per leg). Pot cards link to the list when they are involved in a pair.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 

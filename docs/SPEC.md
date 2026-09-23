@@ -164,8 +164,18 @@ total genuinely moves, because the money really entered or left (unlike an inter
 internal transfers can never distort it.
 
 Comparison precision: where both a record and a checkpoint carry times of day, compare by timestamp (mobile
-entry auto-timestamps). Where a record is date-only and shares the checkpoint's date, the record counts as
-*after* (subtracted) — the conservative direction; it self-corrects at the next checkpoint.
+entry auto-timestamps). Where a record is date-only and shares the checkpoint's date, the direction is
+decided by the record's **sign** (amended v0.2.1):
+
+- a date-only *credit* (money into the pot — a receipt, transfer-in, refund, external money in, or the
+  in-leg of a swap) counts as *absorbed*: the checkpointed balance plausibly already includes it, and a
+  same-day checkpoint can never confirm it arrived, so counting it would leave the estimate permanently
+  high until the next checkpoint (the v0.2.0 field report — the "£180" bug, E13);
+- a date-only *debit* (money out of the pot) counts as *after*: a missed same-day debit only dips the
+  estimate low, and it self-corrects at the next (later-dated) checkpoint.
+
+The asymmetry is deliberate: the estimate may read **low** for a day (a same-day swap shows its out-leg
+and absorbs its in-leg), but it never reads **high** on the day of a same-day checkpoint.
 
 ### 7.2 Projected low before payday (projection)
 
@@ -347,9 +357,13 @@ world of §10.1 cannot represent these, so they get their own honest boxes:
   `they_owe` debt.) Loan movements always link to a debt and carry the debt's name.
 - **Swaps.** Cash in one hand and a bank transfer in the other (the son's wages scenario): the two legs
   are created **atomically as one pair** sharing an exchange key — the same amount into one pot and out
-  of another — so the household total provably does not move and the halves can never be orphaned. Each
-  leg stays an independent correctable record afterwards: voiding one leg leaves the other visible as
-  the survivor, honestly, rather than cascading. Swaps never touch spending or income.
+  of another — so no money crosses the boundary and the halves can never be orphaned. On a later date
+  the pair is net zero against `household_available_now`; on the same day as a timed checkpoint the
+  estimate may read one leg low until the next checkpoint absorbs the in-leg — the safe direction
+  (§7.1, E13). Pairs are managed where they were made: the Pots page lists each pair with its net
+  total, per-leg edit, single-leg void (an honest correction) and one-step void-of-both-legs. Each leg
+  stays an independent correctable record afterwards: voiding one leg leaves the other visible as the
+  survivor, honestly, rather than cascading. Swaps never touch spending or income.
 - **Other money in/out.** Anything else across the boundary, with a counterparty and **always a note
   saying what it was** — the note is what keeps miscellaneous money honest.
 - Estimates, checkpoints, Insights: external money in adds like a receipt and money out subtracts like
@@ -658,10 +672,33 @@ until the debt reads "settled" and stays as history.
 
 Their son is paid £120 in cash and hands it over; the household transfers £120 from Main to his
 bank account. One action (Move → Swap): money in £120 to Alex's cash, money out £120 from Main,
-counterparty "our son", recorded as an atomic pair. Both pot estimates move, `household_available_now`
-is provably unchanged, and Insights see nothing — no phantom income, no phantom spending. If the
-cash never arrives, voiding the in-leg leaves the out-leg visible as the survivor rather than
-vanishing by cascade.
+counterparty "our son", recorded as an atomic pair. Both pot estimates move in opposite directions by
+£120; on a later date `household_available_now` is unchanged, and if the swap and a checkpoint land on
+the same day the total may read £120 low until the next checkpoint (E13 — the safe direction).
+Insights see nothing — no phantom income, no phantom spending. If the cash never arrives, the pair can
+be voided in one step with a shared reason, or one leg voided alone, leaving the other visible as the
+survivor rather than vanishing by cascade.
+
+### E13 — Same-day swap, same-day checkpoint (v0.2.1 acceptance scenario)
+
+Alex's cash is checkpointed at £20.00 on the 22nd. On the 23rd the son's wages arrive: a swap of
+£80.00, recorded date-only (in-leg into Alex's cash, out-leg from Main).
+
+1. 22nd, 10:00 checkpoint £20.00 → Alex's cash estimate **£20.00**.
+2. 23rd swap in £80.00 (later date than the 22nd's checkpoint) → **£100.00** (£20 + £80).
+3. 23rd, 12:00 the cash is counted and checkpointed at £100.00 — the count already includes the £80
+   in hand → estimate **£100.00**, not £180.00 (the v0.2.0 bug: the date-only credit shared the
+   checkpoint's date and was counted again).
+4. 23rd, 18:00 a second £100.00 checkpoint → still **£100.00** — no same-day checkpoint could ever
+   confirm the credit under the old rule, so the estimate stayed wrong all day.
+5. 24th, 09:00 a £100.00 checkpoint → **£100.00**, as it always was.
+
+The out-leg sits in Main: with Main uncheckpointed it produces no estimate (a pot without a checkpoint
+has no estimate — no phantom number is invented). Had Main been checkpointed at 12:00 on the 23rd, the
+out-leg (a same-day debit) counts against it and Main reads £80 low until Main's next checkpoint — the
+safe direction, self-correcting, while the in-leg is absorbed. Acceptance: steps read
+2000 / 10000 / 10000 / 10000 / 10000 pence; live v0.2.0 data self-heals under the new rule — no
+migration.
 
 ## 18. Backup, restore and data locations
 

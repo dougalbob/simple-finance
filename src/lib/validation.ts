@@ -603,6 +603,42 @@ export const externalMovementEntrySchema = z
     }
   });
 
+/**
+ * Correcting a boundary movement (SPEC §10.2): pot, amount, date,
+ * counterparty and note are editable; kind, direction, debt link and
+ * exchange key are immutable (the domain enforces — void and re-record to
+ * change those). A blank field means "unchanged", except note, where blank
+ * keeps the current note (clearing a swap-leg note is not offered).
+ */
+export const editExternalMovementEntrySchema = z.object({
+  movementId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  potId: positiveIdSchema.nullable().default(null),
+  amountPence: positivePenceSchema.nullable().default(null),
+  occurredDate: localDateSchema.nullable().default(null),
+  counterparty: z
+    .string()
+    .trim()
+    .max(120, 'Keep the name to 120 characters or fewer.')
+    .nullable()
+    .default(null),
+  note: nullableText(280, 'Note'),
+});
+
+/** Void a swap as a pair — both legs, one shared reason (SPEC §10.2). */
+export const voidSwapEntrySchema = z.object({
+  exchangeKey: z
+    .string()
+    .trim()
+    .min(1, 'The swap pair is incomplete.')
+    .max(64, 'The swap pair is incomplete.'),
+  inLegId: positiveIdSchema,
+  outLegId: positiveIdSchema,
+  inLegVersion: positiveIdSchema,
+  outLegVersion: positiveIdSchema,
+  reason: nullableText(280, 'Void reason'),
+});
+
 /** A swap with someone outside the household — one amount, two pots (SPEC §10.2). */
 export const swapEntrySchema = z.object({
   inPotId: positiveIdSchema,

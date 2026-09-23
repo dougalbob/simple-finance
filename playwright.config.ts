@@ -70,6 +70,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Checkpointing on /pots must update that page in place. Uses the
+      // Salary account, which no other spec touches, but still runs after
+      // external so shared-pot mutations never precede it in reverse.
+      name: 'checkpoint',
+      testMatch: /checkpoint\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

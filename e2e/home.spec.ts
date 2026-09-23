@@ -6,6 +6,14 @@ import { APP_RELEASE_STAGE, APP_VERSION } from '../src/lib/version';
  * checked"). This is the run earlier sessions could not claim — the sandbox had
  * no browser binaries.
  */
+
+function parsePounds(text: string): number {
+  const match = text.match(/£([\d,]+\.\d{2})/);
+  const value = match?.[1];
+  if (value === undefined) throw new Error(`no £ amount in ${JSON.stringify(text)}`);
+  return Number(value.replace(/,/g, ''));
+}
+
 test.describe('mobile quick entry', () => {
   test('records a purchase at the till, then refuses an unbalanced split', async ({ page }) => {
     await page.goto('/');
@@ -293,10 +301,11 @@ test.describe('mobile quick entry', () => {
     await expect(filters.getByLabel('Supplier')).toBeVisible();
   });
 
-  test('the Move tab records a transfer without moving the household total', async ({ page }) => {
+  test('the Move tab records a transfer; a same-day pair reads one leg low', async ({ page }) => {
     await page.goto('/');
-    const household = page.getByRole('heading', { name: /household:/i });
-    const before = await household.textContent();
+    const before = await page.getByRole('heading', { name: /household:/i }).textContent();
+    if (before === null) throw new Error('household heading missing');
+    const beforePence = Math.round(parsePounds(before) * 100);
 
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await entry.getByRole('tab', { name: 'Move' }).click();
@@ -306,7 +315,12 @@ test.describe('mobile quick entry', () => {
     await entry.getByRole('button', { name: 'Record transfer' }).click();
     await expect(entry.getByRole('status')).toContainText(/recorded/i, { timeout: 30_000 });
 
-    // Between our own pots: the household total does not move.
-    await expect(page.getByRole('heading', { name: /household:/i })).toHaveText(before ?? '');
+    // SPEC §7.1 (v0.2.1): a same-day date-only pair (a transfer, like a swap)
+    // is not net zero against the household total for the day — the out-leg
+    // (a debit) counts and the in-leg (a credit) is absorbed until the next
+    // checkpoint. The total reads exactly one leg low: the safe direction.
+    const after = await page.getByRole('heading', { name: /household:/i }).textContent();
+    if (after === null) throw new Error('household heading missing');
+    expect(Math.round(parsePounds(after) * 100)).toBe(beforePence - 500);
   });
 });

@@ -26,11 +26,12 @@ import {
   listExchanges,
   listExternalMovements,
   voidExternalMovement,
+  voidSwap,
 } from '../src/lib/records/external-movements';
 import { getMonthComparisonView } from '../src/lib/records/insights-view';
 import { getMoneySnapshot } from '../src/lib/records/money-view';
 import { addCheckpoint, archivePot, InvalidPotInputError, listPots } from '../src/lib/records/pots';
-import { createPurchase } from '../src/lib/records/purchases';
+import { createPurchase, createRefund } from '../src/lib/records/purchases';
 import { createReceipt } from '../src/lib/records/receipts';
 import { createSchedule } from '../src/lib/records/schedules';
 import { createTransfer } from '../src/lib/records/transfers';
@@ -686,6 +687,119 @@ describe('swaps: one pair, household net zero (SPEC §10.2)', () => {
       fx.close();
     }
   });
+
+  it('voidSwap voids both legs atomically, with one shared reason and version guards', async () => {
+    const fx = await createHouseholdFixture();
+    try {
+      const swap = createSwap(fx.db, {
+        inPotId: fx.pots.alexCash.id,
+        outPotId: fx.pots.main.id,
+        amountPence: 12000,
+        counterparty: 'our son',
+        occurredDate: '2026-09-20',
+        actor: ACTOR,
+        now: NOW,
+      });
+      const result = voidSwap(fx.db, {
+        exchangeKey: swap.exchangeKey,
+        inLegId: swap.inLeg.id,
+        outLegId: swap.outLeg.id,
+        expectedInVersion: 1,
+        expectedOutVersion: 1,
+        reason: 'the swap never happened',
+        actor: ACTOR,
+        now: NOW,
+      });
+      assert.notEqual(result.inLeg.voidedAt, null);
+      assert.notEqual(result.outLeg.voidedAt, null);
+      assert.equal(result.inLeg.voidReason, 'the swap never happened');
+      assert.equal(result.outLeg.voidReason, 'the swap never happened');
+      assert.equal(result.inLeg.version, 2);
+      assert.equal(result.outLeg.version, 2);
+      // Both legs, one step: the pair is gone from the live list…
+      assert.equal(listExchanges(fx.db).length, 0);
+      // …but stays in history, as a voided pair.
+      const history = listExchanges(fx.db, { includeVoided: true });
+      assert.equal(history.length, 1);
+      assert.notEqual(history[0]?.inLeg?.voidedAt, null);
+      assert.notEqual(history[0]?.outLeg?.voidedAt, null);
+
+      // Guards: already-voided pair, stale version, wrong exchange key,
+      // and a leg that is not a swap leg all fail, nothing half-applied.
+      assert.throws(
+        () =>
+          voidSwap(fx.db, {
+            exchangeKey: swap.exchangeKey,
+            inLegId: swap.inLeg.id,
+            outLegId: swap.outLeg.id,
+            expectedInVersion: 2,
+            expectedOutVersion: 2,
+            actor: ACTOR,
+          }),
+        AlreadyVoidError,
+      );
+      const second = createSwap(fx.db, {
+        inPotId: fx.pots.samCash.id,
+        outPotId: fx.pots.main.id,
+        amountPence: 500,
+        counterparty: 'the bank',
+        occurredDate: '2026-09-20',
+        actor: ACTOR,
+        now: NOW,
+      });
+      assert.throws(
+        () =>
+          voidSwap(fx.db, {
+            exchangeKey: second.exchangeKey,
+            inLegId: second.inLeg.id,
+            outLegId: second.outLeg.id,
+            expectedInVersion: 99,
+            expectedOutVersion: 1,
+            actor: ACTOR,
+          }),
+        VersionConflictError,
+      );
+      assert.throws(
+        () =>
+          voidSwap(fx.db, {
+            exchangeKey: 'not-the-key',
+            inLegId: second.inLeg.id,
+            outLegId: second.outLeg.id,
+            expectedInVersion: 1,
+            expectedOutVersion: 1,
+            actor: ACTOR,
+          }),
+        InvalidExternalMovementInputError,
+      );
+      const loanMovement = createExternalMovement(fx.db, {
+        potId: fx.pots.main.id,
+        direction: 'out',
+        kind: 'other',
+        amountPence: 200,
+        counterparty: 'the plumber',
+        note: 'deposit',
+        occurredDate: '2026-09-20',
+        actor: ACTOR,
+        now: NOW,
+      });
+      assert.throws(
+        () =>
+          voidSwap(fx.db, {
+            exchangeKey: second.exchangeKey,
+            inLegId: loanMovement.id,
+            outLegId: second.outLeg.id,
+            expectedInVersion: 1,
+            expectedOutVersion: 1,
+            actor: ACTOR,
+          }),
+        InvalidExternalMovementInputError,
+      );
+      // A failed pair void leaves the pair fully live (atomic).
+      assert.equal(listExchanges(fx.db).length, 1);
+    } finally {
+      fx.close();
+    }
+  });
 });
 
 describe('external money in the estimate, never in Insights', () => {
@@ -989,6 +1103,291 @@ describe('archivePot: only empty pots leave the lists', () => {
         now: NOW,
       });
       assert.notEqual(archived.archivedAt, null);
+    } finally {
+      fx.close();
+    }
+  });
+});
+
+/**
+ * E13 — the same-day credit double-count (the £180 bug, fixed in v0.2.1 by
+ * the sign-aware tie-break in SPEC §7.1). DB-level, over the real domain
+ * paths: createSwap + addCheckpoint + getMoneySnapshot. The shape of the
+ * household's real chronology: swap legs are date-only (form date input),
+ * Pots-page checkpoints are timed (effectiveAt = now).
+ */
+describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fix)', () => {
+  function estimatePence(
+    fx: Awaited<ReturnType<typeof createHouseholdFixture>>,
+    potId: number,
+    now: Date,
+  ): number {
+    const view = getMoneySnapshot(fx.db, now).pots.find((entry) => entry.pot.id === potId);
+    if (view?.estimatePence === null || view === undefined) {
+      throw new Error(`pot ${potId} has no estimate at this stage`);
+    }
+    return view.estimatePence;
+  }
+
+  it('the five-step repro reads 2000 / 10000 / 10000 / 10000 / 10000', async () => {
+    const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-22T09:00:00Z'));
+    try {
+      const cash = fx.pots.alexCash;
+      const main = fx.pots.main;
+
+      // Step 1: the cash pot is checkpointed at £20 on the 22nd.
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 2000,
+        effectiveAt: new Date('2026-09-22T10:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-22T10:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-22T10:00:00Z')),
+        2000,
+        'step 1: the 22nd checkpoint reads £20',
+      );
+
+      // Step 2: a swap IN of £80, date-only on the 23rd (in → cash, out → Main).
+      const swap = createSwap(fx.db, {
+        inPotId: cash.id,
+        outPotId: main.id,
+        amountPence: 8000,
+        counterparty: 'our son',
+        occurredDate: '2026-09-23',
+        actor: ACTOR,
+        now: new Date('2026-09-23T10:00:00Z'),
+      });
+      assert.equal(swap.inLeg.occurredDate, '2026-09-23');
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-23T10:00:00Z')),
+        10000,
+        'step 2: £20 + £80 (the leg is on a later date) = £100',
+      );
+
+      // Step 3: a TIMED checkpoint of £100 at 23 Sept 12:00 — the counted
+      // figure already includes the £80 cash in hand. Pre-fix: £180.
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 10000,
+        effectiveAt: new Date('2026-09-23T12:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-23T12:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-23T12:00:00Z')),
+        10000,
+        'step 3: the same-day credit is absorbed, not double-counted',
+      );
+
+      // Step 4: a second timed £100 checkpoint — pre-fix still £180, because
+      // no same-day checkpoint could absorb the date-only credit.
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 10000,
+        effectiveAt: new Date('2026-09-23T18:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-23T18:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-23T18:00:00Z')),
+        10000,
+        'step 4: still £100 — the same-day credit stays absorbed',
+      );
+
+      // Step 5: the next-day £100 checkpoint — £100, as it always was.
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 10000,
+        effectiveAt: new Date('2026-09-24T09:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-24T09:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-24T09:00:00Z')),
+        10000,
+        'step 5: the next-day checkpoint reads £100',
+      );
+
+      // The out-leg of the swap sits in Main. With Main uncheckpointed there
+      // is no estimate (null) — the leg still exists and shows in history.
+      const mainView = getMoneySnapshot(fx.db, new Date('2026-09-24T09:00:00Z')).pots.find(
+        (entry) => entry.pot.id === main.id,
+      );
+      assert.equal(mainView?.estimatePence ?? null, null);
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('the out-leg understates the bank pot safely until its next checkpoint', async () => {
+    const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-22T09:00:00Z'));
+    try {
+      const cash = fx.pots.alexCash;
+      const main = fx.pots.main;
+      addCheckpoint(fx.db, {
+        potId: main.id,
+        amountPence: 50000,
+        effectiveAt: new Date('2026-09-22T10:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-22T10:00:00Z'),
+      });
+      createSwap(fx.db, {
+        inPotId: cash.id,
+        outPotId: main.id,
+        amountPence: 8000,
+        counterparty: 'our son',
+        occurredDate: '2026-09-23',
+        actor: ACTOR,
+        now: new Date('2026-09-23T10:00:00Z'),
+      });
+      // The date-only out-leg counts as after the 22nd checkpoint: Main
+      // reads £420 (understated if the bank already debited it — the safe
+      // direction), while the cash in-leg is absorbed, never overstated.
+      assert.equal(
+        estimatePence(fx, main.id, new Date('2026-09-23T10:00:00Z')),
+        42000,
+        'the same-day debit leg counts (understates, safely)',
+      );
+      // Asymmetry, both safe: a same-day CREDIT is absorbed by a same-day
+      // checkpoint (the in-leg case), but a same-day DEBIT keeps counting —
+      // a £420 checkpoint at 12:00 still reads £340 (understated, never
+      // overstated). The debit is absorbed only by a LATER-date checkpoint.
+      addCheckpoint(fx.db, {
+        potId: main.id,
+        amountPence: 42000,
+        effectiveAt: new Date('2026-09-23T12:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-23T12:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, main.id, new Date('2026-09-23T12:00:00Z')),
+        34000,
+        'a same-day checkpoint does not absorb a same-day debit (safe: understates)',
+      );
+      addCheckpoint(fx.db, {
+        potId: main.id,
+        amountPence: 42000,
+        effectiveAt: new Date('2026-09-24T09:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-24T09:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, main.id, new Date('2026-09-24T09:00:00Z')),
+        42000,
+        'the next-day checkpoint absorbs the debit leg (self-correction)',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('receipts, transfer-ins, refunds and loan-ins: every same-day credit path is absorbed', async () => {
+    const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-23T08:00:00Z'));
+    try {
+      const cash = fx.pots.alexCash;
+      const main = fx.pots.main;
+      const morning = new Date('2026-09-23T09:00:00Z');
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 5000,
+        effectiveAt: morning,
+        actor: ACTOR,
+        now: morning,
+      });
+      const at = new Date('2026-09-23T11:00:00Z');
+      const onThe23rd = '2026-09-23';
+
+      // All same-day credits below must be ABSORBED by the 09:00 checkpoint;
+      // the one same-day debit (the purchase) stays counted. Pre-v0.2.1 every
+      // credit in this list would have been added again.
+      createReceipt(fx.db, {
+        potId: cash.id,
+        amountPence: 3000,
+        occurredDate: onThe23rd,
+        note: 'cash gift',
+        actor: ACTOR,
+        now: at,
+      });
+      assert.equal(estimatePence(fx, cash.id, at), 5000, 'same-day receipt absorbed');
+      createTransfer(fx.db, {
+        fromPotId: main.id,
+        toPotId: cash.id,
+        amountPence: 2000,
+        occurredDate: onThe23rd,
+        note: 'from the bank',
+        actor: ACTOR,
+        now: at,
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, at),
+        5000,
+        'same-day transfer-in leg absorbed (the out leg sits in uncheckpointed Main)',
+      );
+      const purchase = createPurchase(fx.db, {
+        potId: cash.id,
+        totalPence: 1000,
+        occurredDate: onThe23rd,
+        paidByPersonId: fx.people.alex.id,
+        supplierName: 'Cafe',
+        actor: ACTOR,
+        lines: [
+          {
+            amountPence: 1000,
+            categoryId: fx.categoryId('Groceries', 'Top-up Shops'),
+            targetKind: 'household',
+          },
+        ],
+        now: at,
+      });
+      assert.equal(estimatePence(fx, cash.id, at), 4000, 'same-day purchase still counted (debit)');
+      const topUp = fx.categoryId('Groceries', 'Top-up Shops');
+      createRefund(fx.db, {
+        refundOfPurchaseId: purchase.purchase.id,
+        totalPence: -1000,
+        lines: [{ amountPence: -1000, categoryId: topUp, targetKind: 'household' }],
+        occurredDate: onThe23rd,
+        actor: ACTOR,
+        now: at,
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, at),
+        4000,
+        'the refund (a same-day credit) is absorbed, so it nets to the purchase',
+      );
+      const debt = createDebt(fx.db, {
+        counterparty: 'Mum',
+        direction: 'we_owe',
+        actor: ACTOR,
+        now: at,
+      });
+      createExternalMovement(fx.db, {
+        potId: cash.id,
+        direction: 'in',
+        kind: 'loan',
+        amountPence: 4000,
+        debtId: debt.id,
+        occurredDate: onThe23rd,
+        actor: ACTOR,
+        now: at,
+      });
+      assert.equal(estimatePence(fx, cash.id, at), 4000, 'same-day loan-in absorbed');
+
+      // And a next-day checkpoint of the true figure reads it exactly —
+      // nothing double-counted anywhere along the way.
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 4000,
+        effectiveAt: new Date('2026-09-24T09:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-24T09:00:00Z'),
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, new Date('2026-09-24T09:00:00Z')),
+        4000,
+        'next-day checkpoint: every movement absorbed exactly once',
+      );
     } finally {
       fx.close();
     }
