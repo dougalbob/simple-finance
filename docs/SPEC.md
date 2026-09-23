@@ -507,6 +507,7 @@ Menu pages:
 |---|---|
 | **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
 | **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag (on a phone the filter card collapses behind **Show filters**, starts open if any filter is already applied, and From/To date share a row); inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
+| **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
 | **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
 | **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
@@ -520,6 +521,85 @@ day's instances and opens the ordinary schedule editor. **No drag-and-drop**, an
 changing a date in the app changes only the app's expectation, never a bank instruction.
 
 **Version display:** the app version is visible unobtrusively on desktop and mobile (blueprint §1).
+
+### 15.3 All Transactions — read-only activity for one pot (v0.3.0 line; household sketch 2026-09-23)
+
+One page, one pot at a time: every movement that touched the selected pot inside a date window, in
+one dense table. It is a **pure projection of existing records** — it stores nothing, renders no
+forms, and every row links to the canonical record that owns the add/edit/void behaviour and the
+retained history. It is not statement import and not bank reconciliation, both of which remain
+non-goals (§2): the rows are the household's own records, not a bank's lines.
+
+**Filters.** A target selector (the household's live pots; the default is the pot labelled
+`Main account`, else the first pot) and a start/end date pair compared against each record's local
+`occurred_date` — never against an instant. Quick picks: **last 30 days** (the default), **since last
+checkpoint** (that pot's most recent checkpoint's effective date; a never-checkpointed pot falls
+back to 30 days and says so) and **this month**. The end date cannot be in the future, because no
+record can be (§9.1). The list caps at the newest 500 rows and says so, rather than truncating
+silently.
+
+Archived pots are not offered, and that strands no history: a pot can only be archived when it has
+no records at all — no checkpoints, purchases, transfers, receipts, external movements or schedules
+(§4) — so an archived pot's activity view is empty by construction.
+
+**Columns.** Date · Type · Source · Category · Amount · Notes. The date column is **date-only,
+`YYYY-MM-DD`** (household choice, 2026-09-23): a record entered without a time carries the
+end-of-local-date marker as its instant, so printing that instant would show a `23:59` that never
+happened. Other pages keep their existing date rendering; this is not an app-wide change.
+
+There is **one row per record, never one per allocation line**, so the amount column always sums to
+the stated total. A split purchase shows its first allocation line and "+N more"; the whole split is
+behind the row's link. The amount column is single and coloured by sign: **green = money into the
+selected pot, red = money out**, so one pot→pot transfer is automatically green on one side and red
+on the other with no data change anywhere.
+
+| Code | Record | Source cell | Category cell | Notes cell |
+|---|---|---|---|---|
+| `PUR` | `purchases`, manual entry | supplier name | allocation: `Parent / Child (Target)` | `purchase.note` |
+| `REF` | `purchases` with `refund_of_purchase_id` set — a credit, shown green | supplier name | as above | `purchase.note` |
+| `DD` | purchase converted from a schedule of kind `dd` | the schedule's supplier | the schedule's category + target | `purchase.note` (`From schedule "…"`) |
+| `SO` | purchase converted from a schedule of kind `so` | the schedule's supplier; a standing order may have none (§11.1), in which case the schedule's own name is shown | as above | `purchase.note` |
+| `TX<` `TX>` | `transfers` (internal) and `external_movements` kind `other` | the other pot's label, or the counterparty | — | `note` (mandatory for `other`, §10.2) |
+| `LN<` `LN>` | `external_movements` kind `loan` | the counterparty (the debt's name) | — | `note` |
+| `SW<` `SW>` | `external_movements` kind `swap`, one row per leg on the pot it touched | the counterparty | — | `note`, plus a `swap (paired, £X with <pot>)` badge |
+| `BAC` | `receipts` (income) — **reserved, not rendered in v1** | — | — | — |
+
+`POS` and `BYP` from the household sketch stay unallocated: purchases carry no payment channel and
+no channel field is added for this page (§9.1's three concepts are entered-by, paid-by and
+for-whom; a fourth, typed at the till and read by one column, is not worth its cost). Income is
+deferred with income itself: §11.3 records income only by schedule conversion, so a one-off
+third-party credit is recorded as other money in — counterparty plus mandatory note — and therefore
+appears as `TX<`.
+
+**Voided records are excluded** (`voided_at IS NULL` on every family) and no void or history
+machinery is rendered; corrections happen on the canonical page behind the link. **Refunds are
+shown** as green `REF` rows: a refund is already just a purchase with a negative total and the
+estimate counts it (§7.1), so hiding it would make this page disagree with the pot for no gain.
+
+**Checkpoints render as divider rows** inside the window — effective date, the reported figure and
+the note — visually distinct from transactions, excluded from the total, and labelled *reported*,
+never *balance*.
+
+**The total row reads "movements shown", not "estimate change".** It is the sum of the rows above,
+and it can legitimately differ from the movement in the pot's estimate: voided records are invisible
+here, and §7.1's sign-aware rule absorbs a date-only credit that shares a checkpoint's local date
+while counting a date-only debit. The page says so rather than implying an equality it cannot keep.
+
+**Deep links.** Each row links to its record's canonical form: purchases to
+`/purchases?potId&from&to#purchase-{id}`; `DD`/`SO` rows additionally to `/recurring#schedule-{id}`;
+internal transfers to `/overview?transfer={id}#transfer-{id}`; boundary money (other, loan, swap
+legs) to `/pots?external={id}#external-{id}`, swaps also under `/pots#swaps`. Those anchors and the
+`?transfer=` / `?external=` parameters exist so that a linked record lying outside a page's recent
+list is still rendered and findable, instead of the link landing on a list that no longer contains
+it.
+
+**Running balance is not shown** (deferred, not rejected): every pot balance is checkpoint-based, so
+any running figure is relative to the last checkpoint only — and on a checkpoint's own day §7.1
+makes even that ambiguous.
+
+**The lazy due pass still runs** on this page as on every read page (§11.2), so a direct debit that
+came due today appears. "Read-only" means no user-facing writes: no form on this page can create,
+edit or void anything.
 
 ## 16. Insights (initial scope — small and useful)
 

@@ -7,6 +7,7 @@ import { APP_NAME, APP_RELEASE_STAGE, APP_VERSION } from '@/lib/version';
 const NAV_ITEMS = [
   { href: '/overview', label: 'Overview' },
   { href: '/purchases', label: 'Purchases' },
+  { href: '/transactions', label: 'All Transactions' },
   { href: '/recurring', label: 'Recurring' },
   { href: '/pots', label: 'Accounts & Pots' },
   { href: '/insights', label: 'Insights' },

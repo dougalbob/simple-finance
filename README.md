@@ -96,6 +96,11 @@ configured development identity; a production build ignores the bypass entirely.
   Suppliers; that removal is in the purchase's History, the file leaves `documents/`, and an older backup
   is the only way to get it back. `/recurring` shows the month calendar and the schedule list,
   `/contracts` shows contract ends and renewals with the follow-ups you promised.
+- **All activity in one pot:** `/transactions` — a read-only list of everything that touched a chosen
+  account or cash pot between two dates: purchases, direct debits and standing orders, transfers,
+  borrowing and repayments, swaps and other money, in one amount column (green in, red out relative to
+  that pot), with the original note, checkpoint dividers and a link from every row to the page that can
+  still edit or void it. Nothing on that page writes anything.
 - **Insights:** `/insights` — month comparison, per-person attribution, vehicle running costs, and the
   honesty loop that compares configured figures with recent complete periods.
 
@@ -141,7 +146,7 @@ The same commands CI runs, all from the repository root:
 npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
 npm run format:check   # Prettier (markdown is excluded deliberately)
 npm run typecheck      # tsc --noEmit
-npm test               # Node test runner: 279 tests across 75 suites
+npm test               # Node test runner: 286 tests across 76 suites
 npm run build          # production build (Turbopack)
 npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
 npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)
