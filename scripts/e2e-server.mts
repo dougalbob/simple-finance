@@ -49,7 +49,8 @@ function seed(): void {
     now,
   });
   const salary = createPot(db, { label: 'Salary account', kind: 'bank', actor: ACTOR, now });
-  const jar = createPot(db, { label: 'Household jar', kind: 'cash', actor: ACTOR, now });
+  const alexCash = createPot(db, { label: "Alex's cash", kind: 'cash', actor: ACTOR, now });
+  const samCash = createPot(db, { label: "Sam's cash", kind: 'cash', actor: ACTOR, now });
 
   const alex = createPerson(db, { label: 'Alex', actor: ACTOR, now });
   const sam = createPerson(db, { label: 'Sam', actor: ACTOR, now });
@@ -74,7 +75,8 @@ function seed(): void {
     now,
   });
   addCheckpoint(db, { potId: salary.id, amountPence: 120000, actor: ACTOR, now });
-  addCheckpoint(db, { potId: jar.id, amountPence: 4210, actor: ACTOR, now });
+  addCheckpoint(db, { potId: alexCash.id, amountPence: 4210, actor: ACTOR, now });
+  addCheckpoint(db, { potId: samCash.id, amountPence: 2862, actor: ACTOR, now });
 
   const groceries = findChildCategory(db, 'Groceries', 'Weekly Shop');
   const fuel = findChildCategory(db, 'Vehicle Running', 'Fuel');
@@ -123,7 +125,7 @@ function seed(): void {
     now,
   });
   createPurchase(db, {
-    potId: jar.id,
+    potId: samCash.id,
     totalPence: 349,
     occurredAt: new Date(now.getTime() - 3 * 60 * 60 * 1000),
     paidByPersonId: sam.id,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useActionState } from 'react';
 import {
   addFuelAction,
@@ -17,6 +17,13 @@ import {
 } from '@/lib/action-state';
 import { formatPence, parsePence, penceInput } from '@/lib/money';
 import { followedLineAmount } from '@/lib/records/quick-entry';
+import { TransferForm } from '@/components/record-forms';
+import {
+  DebtForm,
+  LoanMovementForm,
+  OtherMovementForm,
+  SwapForm,
+} from '@/components/external-forms';
 
 export interface EntryCategoryOption {
   id: number;
@@ -46,12 +53,19 @@ export interface EntryPotOption {
   label: string;
 }
 
+export interface EntryDebtOption {
+  id: number;
+  counterparty: string;
+  direction: 'we_owe' | 'they_owe';
+}
+
 export interface QuickEntryData {
   pots: EntryPotOption[];
   people: EntryPersonOption[];
   vehicles: EntryVehicleOption[];
   categories: EntryCategoryOption[];
   suppliers: EntrySupplierOption[];
+  debts: EntryDebtOption[];
   defaultPotId: number | null;
   defaultPersonId: number | null;
   defaultCategoryId: number | null;
@@ -68,7 +82,7 @@ type LineDraft = {
 };
 
 export function QuickEntry({ data }: { data: QuickEntryData }) {
-  const [mode, setMode] = useState<'purchase' | 'fuel' | 'balance'>('purchase');
+  const [mode, setMode] = useState<'purchase' | 'fuel' | 'balance' | 'move'>('purchase');
   return (
     <section
       aria-labelledby="quick-entry-heading"
@@ -101,6 +115,9 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
           <TabButton active={mode === 'balance'} onClick={() => setMode('balance')}>
             Balance
           </TabButton>
+          <TabButton active={mode === 'move'} onClick={() => setMode('move')}>
+            Move
+          </TabButton>
         </div>
       </div>
 
@@ -108,8 +125,112 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
         {mode === 'purchase' ? <PurchaseForm data={data} /> : null}
         {mode === 'fuel' ? <FuelForm data={data} /> : null}
         {mode === 'balance' ? <BalanceForm data={data} /> : null}
+        {mode === 'move' ? <MoveForm data={data} /> : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * Move money while it is fresh (SPEC §10.2): between the household's own
+ * pots, borrowing and repayments, swaps with someone outside the household,
+ * and other money in or out. The light card keeps the shared desktop forms
+ * legible inside the dark quick-entry panel — one form component, both
+ * pages, no drift.
+ */
+function MoveForm({ data }: { data: QuickEntryData }) {
+  const [mode, setMode] = useState<'transfer' | 'loan' | 'swap' | 'other'>('transfer');
+  return (
+    <div className="rounded-xl bg-white p-3 text-slate-900 sm:p-4">
+      <div
+        className="mb-3 flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 text-sm"
+        role="tablist"
+        aria-label="Move money type"
+      >
+        <MoveTabButton active={mode === 'transfer'} onClick={() => setMode('transfer')}>
+          Between pots
+        </MoveTabButton>
+        <MoveTabButton active={mode === 'loan'} onClick={() => setMode('loan')}>
+          Borrow &amp; repay
+        </MoveTabButton>
+        <MoveTabButton active={mode === 'swap'} onClick={() => setMode('swap')}>
+          Swap
+        </MoveTabButton>
+        <MoveTabButton active={mode === 'other'} onClick={() => setMode('other')}>
+          Other
+        </MoveTabButton>
+      </div>
+      {mode === 'transfer' ? (
+        <div>
+          <p className="mb-3 text-xs text-slate-500">
+            Between your own pots — the household total does not move, and spending is untouched.
+          </p>
+          <TransferForm pots={data.pots} today={data.today} idPrefix="quick-transfer" />
+        </div>
+      ) : null}
+      {mode === 'loan' ? (
+        <div>
+          <p className="mb-3 text-xs text-slate-500">
+            Borrowing raises what you owe; repayments reduce it. Never income, never spending.
+          </p>
+          <LoanMovementForm
+            idPrefix="quick-loan"
+            pots={data.pots}
+            debts={data.debts}
+            today={data.today}
+          />
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              Someone new? Track them first
+            </summary>
+            <div className="mt-2">
+              <DebtForm idPrefix="quick-debt" />
+            </div>
+          </details>
+        </div>
+      ) : null}
+      {mode === 'swap' ? (
+        <div>
+          <p className="mb-3 text-xs text-slate-500">
+            Cash in one hand, a bank transfer in the other — recorded as one pair, so the household
+            total provably does not move.
+          </p>
+          <SwapForm idPrefix="quick-swap" pots={data.pots} today={data.today} />
+        </div>
+      ) : null}
+      {mode === 'other' ? (
+        <div>
+          <p className="mb-3 text-xs text-slate-500">
+            Anything else across the household boundary — always with a note saying what it was.
+          </p>
+          <OtherMovementForm idPrefix="quick-other" pots={data.pots} today={data.today} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MoveTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`flex-1 rounded-md px-2 py-1.5 font-medium whitespace-nowrap ${
+        active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

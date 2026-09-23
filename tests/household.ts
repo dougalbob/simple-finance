@@ -8,10 +8,11 @@ import { createVehicle, type Vehicle } from '../src/lib/records/vehicles';
 import { makeTempDir } from './helpers';
 
 /**
- * Isolated household fixture for Phase 2a integration tests: a fresh
- * migrated database with the SPEC §4 pots, the fictional personas Alex and
- * Sam (SPEC §3), and their vehicles. Category ids resolve from the seeded
- * SPEC §12 tree — tests never hard-code them.
+ * Isolated household fixture for integration tests: a fresh migrated
+ * database with the SPEC §4 pots (two joint bank accounts, one cash pot
+ * each — the shared jar was retired, SPEC §10.2), the fictional personas
+ * Alex and Sam (SPEC §3), and their vehicles. Category ids resolve from
+ * the seeded SPEC §12 tree — tests never hard-code them.
  */
 export interface HouseholdFixture {
   handle: DbHandle;
@@ -19,9 +20,8 @@ export interface HouseholdFixture {
   pots: {
     main: Pot;
     salary: Pot;
-    alexWallet: Pot;
-    samWallet: Pot;
-    jar: Pot;
+    alexCash: Pot;
+    samCash: Pot;
   };
   people: {
     alex: Person;
@@ -60,21 +60,20 @@ export async function createHouseholdFixture(
     actor,
     now,
   });
-  const alexWallet = createPot(handle.db, {
-    label: "Alex's wallet",
+  const alexCash = createPot(handle.db, {
+    label: "Alex's cash",
     kind: 'cash',
     sortOrder: 2,
     actor,
     now,
   });
-  const samWallet = createPot(handle.db, {
-    label: "Sam's wallet",
+  const samCash = createPot(handle.db, {
+    label: "Sam's cash",
     kind: 'cash',
     sortOrder: 3,
     actor,
     now,
   });
-  const jar = createPot(handle.db, { label: 'Shared jar', kind: 'cash', sortOrder: 4, actor, now });
 
   const alex = createPerson(handle.db, { label: 'Alex', actor, now });
   const sam = createPerson(handle.db, { label: 'Sam', actor, now });
@@ -95,7 +94,7 @@ export async function createHouseholdFixture(
   return {
     handle,
     db,
-    pots: { main, salary, alexWallet, samWallet, jar },
+    pots: { main, salary, alexCash, samCash },
     people: { alex, sam },
     vehicles: { vehicleA, vehicleB },
     categoryId(parentName: string, childName: string): number {

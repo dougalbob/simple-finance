@@ -5,6 +5,7 @@ import {
   addRefundAction,
   addTransferAction,
   editPurchaseAction,
+  voidExternalMovementAction,
   voidPurchaseAction,
   voidTransferAction,
 } from '@/app/actions';
@@ -364,7 +365,7 @@ export function RefundForm(props: RefundFormProps) {
 }
 
 interface VoidFormProps {
-  kind: 'purchase' | 'transfer';
+  kind: 'purchase' | 'transfer' | 'external';
   recordId: number;
   expectedVersion: number;
   summary: string;
@@ -377,12 +378,16 @@ interface VoidFormProps {
  */
 export function VoidForm({ kind, recordId, expectedVersion, summary }: VoidFormProps) {
   const [state, formAction, pending] = useActionState(
-    kind === 'purchase' ? voidPurchaseAction : voidTransferAction,
+    kind === 'purchase'
+      ? voidPurchaseAction
+      : kind === 'transfer'
+        ? voidTransferAction
+        : voidExternalMovementAction,
     initialActionState,
   );
   return (
     <form action={(formData: FormData) => formAction(formData)} className="flex flex-col gap-2">
-      {/* Field names are the contract with voidPurchaseAction/voidTransferAction:
+      {/* Field names are the contract with the void actions:
           they read `recordId`, `expectedVersion` and `reason`. */}
       <input type="hidden" name="recordId" value={recordId} />
       <input type="hidden" name="expectedVersion" value={expectedVersion} />
@@ -518,13 +523,15 @@ export function RecentEntryActions(props: RecentEntryActionsProps) {
 export interface TransferFormProps {
   pots: TargetOption[];
   today: string;
+  /** Prefix for control ids — the form renders twice on pages that embed quick entry. */
+  idPrefix?: string;
 }
 
 /**
  * Transfer form (money moving between the household's own pots — never a
  * bank sync; transfers never enter Insights, SPEC §10/§15.4).
  */
-export function TransferForm({ pots, today }: TransferFormProps) {
+export function TransferForm({ pots, today, idPrefix = 'transfer' }: TransferFormProps) {
   const [state, formAction, pending] = useActionState(addTransferAction, initialActionState);
   if (pots.length < 2) {
     return (
@@ -537,11 +544,11 @@ export function TransferForm({ pots, today }: TransferFormProps) {
     <form action={formAction} className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="transfer-from" className={labelClass}>
+          <label htmlFor={`${idPrefix}-from`} className={labelClass}>
             From pot
           </label>
           <select
-            id="transfer-from"
+            id={`${idPrefix}-from`}
             name="fromPotId"
             required
             defaultValue={String(pots[0]?.id ?? '')}
@@ -555,11 +562,11 @@ export function TransferForm({ pots, today }: TransferFormProps) {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="transfer-to" className={labelClass}>
+          <label htmlFor={`${idPrefix}-to`} className={labelClass}>
             To pot
           </label>
           <select
-            id="transfer-to"
+            id={`${idPrefix}-to`}
             name="toPotId"
             required
             defaultValue={String(pots[1]?.id ?? '')}
@@ -574,11 +581,11 @@ export function TransferForm({ pots, today }: TransferFormProps) {
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor="transfer-amount" className={labelClass}>
+        <label htmlFor={`${idPrefix}-amount`} className={labelClass}>
           Amount
         </label>
         <input
-          id="transfer-amount"
+          id={`${idPrefix}-amount`}
           name="amount"
           type="text"
           inputMode="decimal"
@@ -592,11 +599,11 @@ export function TransferForm({ pots, today }: TransferFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="transfer-date" className={labelClass}>
+          <label htmlFor={`${idPrefix}-date`} className={labelClass}>
             When
           </label>
           <input
-            id="transfer-date"
+            id={`${idPrefix}-date`}
             name="occurredDate"
             type="date"
             required
@@ -605,11 +612,11 @@ export function TransferForm({ pots, today }: TransferFormProps) {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="transfer-note" className={labelClass}>
+          <label htmlFor={`${idPrefix}-note`} className={labelClass}>
             Note (optional)
           </label>
           <input
-            id="transfer-note"
+            id={`${idPrefix}-note`}
             name="note"
             type="text"
             maxLength={280}

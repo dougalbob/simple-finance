@@ -11,10 +11,14 @@ import { isDateOnlyInstant, toLocalDateString } from '../time';
  *               − Σ transfers out of P after t
  *               + Σ transfers into P after t
  *               + Σ receipts into P after t
+ *               + Σ external money in to P after t
+ *               − Σ external money out of P after t
  *
  * "Signed spending": purchases add, refunds subtract (a refund therefore
  * increases the estimate). Schedule-generated records are ordinary records
- * and appear here once converted (SPEC §11.2). Neither number is ever
+ * and appear here once converted (SPEC §11.2). External movements (SPEC
+ * §10.2) genuinely move the household total — unlike internal transfers —
+ * because the money really entered or left. Neither number is ever
  * called a bank balance (SPEC §7).
  *
  * Comparison precision (SPEC §7.1): where both record and checkpoint carry
@@ -62,7 +66,8 @@ export function recordIsAfterCheckpoint(
 /**
  * A signed movement against one pot's estimate. Sign convention:
  * spending = −totalPence (a refund's negative total becomes positive),
- * transfer out = −amount, transfer in = +amount, receipt = +amount.
+ * transfer out = −amount, transfer in = +amount, receipt = +amount,
+ * external in = +amount, external out = −amount.
  */
 export interface SignedMovement extends OccurredFacts {
   signedPence: number;

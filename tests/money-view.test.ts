@@ -80,22 +80,16 @@ describe('money view: E8 end to end over the database', () => {
       now: new Date('2026-09-26T12:00:00+01:00'),
     });
     addCheckpoint(db, {
-      potId: pots.alexWallet.id,
+      potId: pots.alexCash.id,
       amountPence: p(41.2),
       actor,
       now: new Date('2026-09-26T12:00:00+01:00'),
     });
     addCheckpoint(db, {
-      potId: pots.samWallet.id,
+      potId: pots.samCash.id,
       amountPence: p(28.62),
       actor,
       now: new Date('2026-09-26T12:00:00+01:00'),
-    });
-    addCheckpoint(db, {
-      potId: pots.jar.id,
-      amountPence: p(104.5),
-      actor,
-      now: new Date('2026-09-22T12:00:00+01:00'),
     });
 
     // — E1: Saturday the 27th, 14:10, Tesco £63.47 from Main.
@@ -145,19 +139,19 @@ describe('money view: E8 end to end over the database', () => {
       snapshot.pots.find((pot) => pot.pot.id === potId)?.estimatePence;
     assert.equal(estimateOf(pots.main.id), p(348.88));
     assert.equal(estimateOf(pots.salary.id), p(520.0));
-    assert.equal(snapshot.householdAvailablePence, p(1043.2));
+    assert.equal(snapshot.householdAvailablePence, p(938.7));
 
     const view = getProjectionView(db, now);
     assert.ok(view, 'projection view expected once pots are checkpointed');
     assert.equal(view.paydayScheduleName, 'Salary');
     assert.equal(view.result.paydayDate, '2026-10-26');
     assert.equal(view.result.days, 29);
-    assert.equal(view.result.availableNowPence, p(1043.2));
+    assert.equal(view.result.availableNowPence, p(938.7));
     assert.equal(view.result.totalCommitmentsPence, p(1014.96));
     assert.equal(view.result.totalReceiptsPence, p(2150.0));
     assert.equal(view.result.groceriesPence, p(372.86));
     assert.equal(view.result.fuelPence, p(130.5));
-    assert.equal(view.result.projectedLowPence, p(-475.12));
+    assert.equal(view.result.projectedLowPence, p(-579.62));
     assert.equal(view.result.tier, 'warning');
     assert.equal(view.result.warningThresholdPence, p(250.0));
 
@@ -233,7 +227,7 @@ describe('money view: E8 end to end over the database', () => {
     const { db } = fixture;
     const snapshot = getMoneySnapshot(db, new Date('2026-09-27T20:00:00+01:00'));
     assert.equal(snapshot.householdAvailablePence, null);
-    assert.equal(snapshot.uncheckpointedPotIds.length, 5);
+    assert.equal(snapshot.uncheckpointedPotIds.length, 4);
     assert.equal(getProjectionView(db, new Date('2026-09-27T20:00:00+01:00')), null);
   });
 });

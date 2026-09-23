@@ -232,7 +232,7 @@ describe('transfer editing and voiding', () => {
       });
       createTransfer(fx.db, {
         fromPotId: fx.pots.main.id,
-        toPotId: fx.pots.jar.id,
+        toPotId: fx.pots.alexCash.id,
         amountPence: 2000,
         occurredDate: '2026-09-22',
         actor: 'alex@example.com',

@@ -85,6 +85,15 @@ everywhere; per-period rounding, half-up, once (SPEC §7.3).
   Constraint: Σ allocations = purchase total (enforced in a transaction, tested).
 - `refunds` — modelled as purchases with negative allocation amounts + `refund_of_purchase_id` link.
 - `transfers` — id, from_pot_id, to_pot_id, amount_pence, occurred_at, entered_by, voided_at?, version.
+- `debts` — id, counterparty (who, verbatim), direction (`we_owe`|`they_owe`, immutable), note?,
+  created_by, version. Informal IOUs only — the outstanding balance is always derived from linked
+  loan movements, never stored (SPEC §10.2). Renaming a debt updates the counterparty copy on its
+  linked loan movements in the same transaction.
+- `external_movements` — id, kind (`loan`|`swap`|`other`), direction (`in`|`out`, immutable),
+  pot_id, amount_pence, occurred_at/occurred_date, counterparty, debt_id? (loans only, FK → debts),
+  exchange_key? (swap legs only: one UUID shared by the pair), note? (required for `other`),
+  entered_by, voided_at?, version. Money across the household boundary: in adds / out subtracts
+  in the estimate engine like receipts and spending, never spending or income (SPEC §10.2).
 - `schedules` — id, name, kind (dd|so|receipt), amount_pence, frequency (monthly|annual), due_day_of_month,
   **due_month (annual only — which month it falls in; NULL for monthly; DB-check enforced)**,
   pot_id, category_id? (leaf; NULL required for receipts), target_kind/target_id?, contract_ends_on?,
@@ -194,6 +203,15 @@ covering attachments).
   (`npm run test:e2e`), never claimed from markup rendering (blueprint §9).*
 
 ## Test strategy (domain-specific, on top of blueprint §9)
+
+- Household-boundary money (`tests/external-money.test.ts`, 17 tests) is a first-class worked
+  domain alongside E8: debt balances derive from movements (badges settled/void-only/settled),
+  loan movements link to a live debt and render "settled", swaps are atomic net-zero pairs that
+  survive DB round-trips, estimate ≡ Insights spending on the same fixture, `archivePot` refuses
+  referenced pots. Followed by 4 Zod boundary tests (money-input caps, swap same-pot,
+  archivePot naming) and e2e specs (`e2e/external-money.spec.ts` + a Move-tab test in
+  `e2e/home.spec.ts`).
+
 
 - Pure engine tests: estimate, projection, rounding, tier selection, schedule lifecycle state machine,
   split-total validation, category roll-ups.
@@ -618,6 +636,35 @@ covering attachments).
     change. Coverage: mobile `e2e/home.spec.ts` (collapse, same-row dates, in-card bounds, stays open after
     Apply) and desktop `e2e/desktop.spec.ts` (toggle hidden). Those run in CI; this sandbox has no browser.
 
+*Post-release follow-up (2026-09-23) — money across the household boundary (unreleased):*
+
+93. **The shared cash jar is replaced by one cash pot each, so handovers are tracked.** The users'
+    real-world gap: John giving Janet £200 in cash had no honest home — a jar cannot say who held
+    the notes. Seed, fixtures and E8 now carry four pots (Main, Salary, Alex's cash, Sam's cash);
+    a handover is an ordinary internal transfer with a note, `household_available_now` unchanged.
+    Retired legacy: the jar existed only in seed/fixture/demo data — no live install ever held cash
+    history, so no data migration maps the jar onto anyone.
+94. **Borrowing is loan movements plus a lender, never income.** A `debts` row tracks who and which
+    way round; loan movements (`external_movements`, kind `loan`) move the pot estimate and the
+    derived owed balance together. The Overview shows owed/owing beside "available now". No interest,
+    no schedules — repayments simply reduce the balance, and a settled debt stays as history.
+    Financial-text-fidelity decision (blueprint §6): a debt says "we owe £50.00", borrowing says
+    "borrowed", never "income"; surfaces distinguish *reported* (checkpoints) from *recorded*
+    (movements: money in/out) from *owed* (debts).
+95. **A swap is an atomic net-zero pair, survivable leg by leg.** `createSwap` writes both legs in one
+    transaction under one `exchange_key`, with two audits, and rejects same-pot pairs — the son's
+    wages scenario can never half-record. Each leg keeps its own version for independent correction
+    (voiding one leg leaves the other standing, honestly); kind, direction, debt link and exchange
+    key are immutable, so a swap cannot quietly become borrowing.
+96. **Miscellaneous boundary money needs a note, or it does not happen.** Kind `other` requires a
+    note (Zod refuses the empty form) because an unexplained in/out is exactly the gap being
+    closed. Excluded from Insights by construction — the Insights join is over `allocations`, and
+    boundary money never has one.
+97. **Entry lives in the moment, on both clients.** A fourth quick-entry tab (Move: pots, a debt,
+    a swap, or other) and matching sections on the Pots page share the same form components, so
+    thumb and keyboard take the same path. Pots gain `archivePot`, which refuses any pot a live
+    record still points at — archiving is a tidy-up for empties, never a deletion.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -667,7 +714,8 @@ covering attachments).
 README.md                     — operating truth (Phase 0–4b merged, Phase 5 built; install, Cloudflare,
                                 backup/restore, Unraid update, recovery checklist, gates, sandbox notes)
 AGENT_APP_BLUEPRINT.md        — engineering/delivery contract (from Estate Organiser lessons; user-provided)
-docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E9
+docs/SPEC.md                  — agreed product specification + worked fictional examples E1–E12
+                                (E10–E12: cash handover, family loan, swap)
 docs/IMPLEMENTATION_PLAN.md   — this file (now includes the session map)
 docs/HANDOFF.md               — next-session continuation point (rewritten at each session end)
 .gitignore                    — protects real data/secrets/backups from the public repo
@@ -682,7 +730,8 @@ src/lib/time.ts               — Europe/London rendering + checkpoint age label
 src/lib/db/{client,migrate,schema}.ts — better-sqlite3 + Drizzle (WAL, FKs), migration runner, schema
 src/lib/audit.ts              — in-transaction audit writer
 src/lib/auth/{verify,current-user,next}.ts — jose JWT verification, fail-closed resolution, Next adapter
-src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint (effective-date rule), reads
+src/lib/records/pots.ts       — domain: create pot, add immutable checkpoint (effective-date rule), archive
+                                empties only (post-release), reads
 src/lib/records/{splits,categories,people,vehicles,suppliers,purchases,transfers,occurred,errors}.ts — Phase 2a
                               domain: exact-total splits, category tree, parties, money records, backdating, concurrency
 src/lib/records/dates.ts      — Phase 3 pure local-calendar arithmetic (no instants): clamped due dates (OQ1/OQ13),
@@ -691,12 +740,15 @@ src/lib/records/estimates.ts  — Phase 3 pure estimate engine (SPEC §7.1): com
 src/lib/records/projection.ts — Phase 3 pure payday-projection engine (SPEC §7.2–7.5, §8): pessimistic day-to-day block,
                                 outgoings-before-receipts, two-tier selection, pot-level transfer watch
 src/lib/records/keydates.ts   — Phase 3 pure key-date engine (SPEC §22): inclusive warning windows, today/rolled/past states
+src/lib/records/{debts,external-movements}.ts — post-release domain: informal-IOU derived
+                                balances; loan/swap/other movements, atomic swap pairs, boundary money rules
 src/lib/records/{schedules,receipts,renewals,settings,money-view}.ts — Phase 3 domain + read-side assembly: schedule
                                 lifecycle (sync/convert/self-heal), income records, renewal auto-advance, typed settings,
                                 and the DB-backed money/projection/key-date views that run the lazy due pass first
 src/lib/validation.ts         — Zod schemas at the server boundary, including Phase 2b entry payloads, Phase 3
                                 schedule/cancel/renewal/settings payloads and Phase 4a edit/refund/void/transfer/
-                                pot/category/rename/warning-lead payloads
+                                pot/category/rename/warning-lead payloads and post-release debt/external/
+                                swap/archive payloads
 src/lib/records/insights.ts   — Phase 4a pure Insights v1 engine (SPEC §16): month comparison, per-person
                                 attribution, vehicle rolling-12, honesty loop (complete periods only)
 src/lib/records/insights-view.ts — Phase 4a DB assembly for the four insight views (runs the lazy due pass;

@@ -126,7 +126,7 @@ export function AddCheckpointForm({ pots }: { pots: Array<{ id: number; label: s
           name="note"
           type="text"
           maxLength={280}
-          placeholder="e.g. counted the jar"
+          placeholder="e.g. counted the cash"
           className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
         />
       </div>

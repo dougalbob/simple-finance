@@ -86,6 +86,11 @@ configured development identity; a production build ignores the bypass entirely.
 - **Cash and bank checks:** Quick entry → Balance ("Balance now" = ledger balance for a bank, counted
   amount for cash). Checkpoints are labelled as checkpoints, and never as a bank balance.
 - **Fuel:** Quick entry → Fuel for a vehicle.
+- **Moving money:** Quick entry → Move — between your own pots (a cash handover from one of you to the
+  other is a transfer here, not a mystery), borrowing and repayments against someone you track on
+  `/pots`, a swap with someone outside the household (cash one way, bank transfer the other), or other
+  money in/out with a note saying what it was. Borrowing is always shown as owed beside "available
+  now" — never as income — and repayments are never spending.
 - **Reviewing:** `/purchases` filters and inline edit/refund/void (a purchase record is never deleted —
   the history is kept). A receipt attached to a purchase can be removed from Purchases, Overview or
   Suppliers; that removal is in the purchase's History, the file leaves `documents/`, and an older backup
@@ -136,7 +141,7 @@ The same commands CI runs, all from the repository root:
 npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
 npm run format:check   # Prettier (markdown is excluded deliberately)
 npm run typecheck      # tsc --noEmit
-npm test               # Node test runner: 239 tests across 66 suites
+npm test               # Node test runner: 269 tests across 73 suites
 npm run build          # production build (Turbopack)
 npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
 npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)

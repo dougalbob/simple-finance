@@ -10,9 +10,8 @@ import {
  * Scenario E8 (docs/SPEC.md §17): the forecast acceptance case. Friday the
  * 27th, 20:00. Everything must reproduce to the penny.
  *
- *   household_available_now = £1,043.20 (Main £348.88 + Salary £520.00 +
- *                               Wallet Alex £41.20 + Wallet Sam £28.62 +
- *                               Jar £104.50)
+ *   household_available_now = £938.70 (Main £348.88 + Salary £520.00 +
+ *                               Alex's cash £41.20 + Sam's cash £28.62)
  *   next payday = the 26th → days = 29
  *   commitments  = £84.55 (28th) + £685.00 (1st) + £178.42 (1st) +
  *                  £42.00 (3rd) + £24.99 (10th) = £1,014.96
@@ -20,8 +19,8 @@ import {
  *   fuel         = round(£75.00 × 29/30) = £72.50 (A)
  *                  + round(£60.00 × 29/30) = £58.00 (B) = £130.50
  *   salary       = £2,150.00 on the 26th
- *   projected_low = 1,043.20 − 1,014.96 − 372.86 − 130.50 = −£475.12
- *   tier         = warning (−475.12 ≤ −250.00)
+ *   projected_low = 938.70 − 1,014.96 − 372.86 − 130.50 = −£579.62
+ *   tier         = warning (−579.62 ≤ −250.00)
  *   pot_watch(Main) = £348.88 − £1,014.96 = −£666.08
  */
 
@@ -48,7 +47,7 @@ function e8Commitments(): ProjectionScheduleLine[] {
 describe('projection: scenario E8 reproduces to the penny', () => {
   const result = projectToPayday({
     now: NOW,
-    availableNowPence: p(1043.2),
+    availableNowPence: p(938.7),
     paydayDate: '2026-10-26',
     commitments: e8Commitments(),
     receipts: [
@@ -76,11 +75,11 @@ describe('projection: scenario E8 reproduces to the penny', () => {
   });
 
   it('projected low and its date (just before salary lands)', () => {
-    assert.equal(result.projectedLowPence, p(-475.12));
+    assert.equal(result.projectedLowPence, p(-579.62));
     assert.equal(result.lowDate, '2026-10-10'); // last outgo before the quiet stretch
   });
 
-  it('two-tier warning: tier 2 (warning) at −£475.12 vs threshold £250.00', () => {
+  it('two-tier warning: tier 2 (warning) at −£579.62 vs threshold £250.00', () => {
     assert.equal(result.tier, 'warning');
     assert.equal(result.warningThresholdPence, p(250.0));
   });
@@ -101,19 +100,19 @@ describe('projection: scenario E8 reproduces to the penny', () => {
   it('day-by-day runs match the worked example (outgoings before receipts on the same day)', () => {
     const byDate = new Map(result.perDay.map((day) => [day.date, day]));
     assert.equal(result.perDay.length, 29);
-    assert.equal(byDate.get('2026-09-28')?.runningPence, p(1043.2 - 503.36 - 84.55));
+    assert.equal(byDate.get('2026-09-28')?.runningPence, p(938.7 - 503.36 - 84.55));
     assert.equal(
       byDate.get('2026-10-01')?.runningPence,
-      p(1043.2 - 503.36 - 84.55 - 685.0 - 178.42),
+      p(938.7 - 503.36 - 84.55 - 685.0 - 178.42),
     );
     assert.equal(
       byDate.get('2026-10-03')?.runningPence,
-      p(1043.2 - 503.36 - 84.55 - 685.0 - 178.42 - 42.0),
+      p(938.7 - 503.36 - 84.55 - 685.0 - 178.42 - 42.0),
     );
-    assert.equal(byDate.get('2026-10-10')?.runningPence, p(-475.12));
+    assert.equal(byDate.get('2026-10-10')?.runningPence, p(-579.62));
     const payday = byDate.get('2026-10-26');
     assert.equal(payday?.receiptsPence, p(2150.0));
-    assert.equal(payday?.runningPence, p(-475.12 + 2150.0));
+    assert.equal(payday?.runningPence, p(-579.62 + 2150.0));
   });
 });
 
