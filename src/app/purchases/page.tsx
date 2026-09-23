@@ -262,6 +262,7 @@ function PurchaseRow(props: PurchaseRowProps) {
           : 'bg-emerald-50 text-emerald-700';
   return (
     <tr
+      id={`purchase-${props.purchaseId}`}
       className={`border-t border-slate-100 align-top ${props.voidedAt !== null ? 'text-slate-400' : ''}`}
     >
       <td className="whitespace-nowrap px-3 py-2.5">{formatInstantLocal(props.occurredAt)}</td>

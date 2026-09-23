@@ -7,6 +7,7 @@ import { RecentEntryActions, VoidForm, TransferForm } from '@/components/record-
 import { formatPence } from '@/lib/money';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
+import type { Db } from '@/lib/db/client';
 import { getMonthComparisonView, getVehicleCostsView } from '@/lib/records/insights-view';
 import { categoryTree } from '@/lib/records/categories';
 import { addDaysLocal } from '@/lib/records/dates';
@@ -23,7 +24,12 @@ import { listPeople } from '@/lib/records/people';
 import { listPots, recentCheckpoints } from '@/lib/records/pots';
 import { listPurchases } from '@/lib/records/purchases';
 import { listSuppliersForEntry } from '@/lib/records/suppliers';
-import { listTransfers } from '@/lib/records/transfers';
+import {
+  listTransfers,
+  getTransfer,
+  TransferNotFoundError,
+  type Transfer,
+} from '@/lib/records/transfers';
 import { listVehicles } from '@/lib/records/vehicles';
 import { formatInstantLocal, formatRelativeAge, toLocalDateString } from '@/lib/time';
 import { ProjectionSection } from './projection-panel';
@@ -37,13 +43,18 @@ export const dynamic = 'force-dynamic';
  * with inline edit/void/refund actions. Quick entry is embedded here so the
  * mobile home and this page share the same entry code path.
  */
-export default async function OverviewPage() {
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ transfer?: string }>;
+}) {
   const user = await currentUserFromRequest();
   if (user === null) redirect('/unauthorized');
 
   const { db } = getDbHandle();
   const now = new Date();
   const today = toLocalDateString(now);
+  const params = await searchParams;
 
   const money = getMoneySnapshot(db, now);
   const projection = getProjectionView(db, now);
@@ -67,6 +78,17 @@ export default async function OverviewPage() {
 
   const recentPurchases = listPurchases(db, { limit: 12, includeVoided: true });
   const recentTransfers = listTransfers(db, { limit: 5 });
+  // A deep link from All Transactions (SPEC §15.3) must land on the record it
+  // names, even after that transfer has fallen out of the recent five.
+  const linkedTransferId = Number(params.transfer);
+  const linkedTransfer =
+    Number.isInteger(linkedTransferId) &&
+    linkedTransferId > 0 &&
+    recentTransfers.every((transfer) => transfer.id !== linkedTransferId)
+      ? findTransfer(db, linkedTransferId)
+      : null;
+  const transferRows =
+    linkedTransfer === null ? recentTransfers : [linkedTransfer, ...recentTransfers];
   const potNames = new Map(pots.map((pot) => [pot.id, pot.label]));
   const supplierNames = new Map(
     listSuppliersForEntry(db).map((supplier) => [supplier.id, supplier.name]),
@@ -237,12 +259,17 @@ export default async function OverviewPage() {
               <p className="mb-3 text-xs text-slate-500">
                 Money moving between your own pots — transfers never enter Insights (SPEC §10).
               </p>
-              {recentTransfers.length === 0 ? (
+              {linkedTransfer !== null ? (
+                <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                  Showing the transfer you linked to — it is older than the five most recent.
+                </p>
+              ) : null}
+              {transferRows.length === 0 ? (
                 <p className="mb-3 text-sm text-slate-500">No transfers recorded yet.</p>
               ) : (
                 <ul className="mb-3 divide-y divide-slate-100">
-                  {recentTransfers.map((transfer) => (
-                    <li key={transfer.id} className="py-1.5">
+                  {transferRows.map((transfer) => (
+                    <li key={transfer.id} id={`transfer-${transfer.id}`} className="py-1.5">
                       <div className="flex items-baseline justify-between gap-2 text-sm">
                         <span
                           className={
@@ -589,4 +616,14 @@ function KeyDatesSection({ items }: { items: Array<{ message: string; date: stri
       )}
     </section>
   );
+}
+
+/** The transfer a deep link names, or null when that id is not a transfer. */
+function findTransfer(db: Db, transferId: number): Transfer | null {
+  try {
+    return getTransfer(db, transferId);
+  } catch (error) {
+    if (error instanceof TransferNotFoundError) return null;
+    throw error;
+  }
 }

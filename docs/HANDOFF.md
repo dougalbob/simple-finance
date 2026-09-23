@@ -1,4 +1,91 @@
-# Handoff — v0.2.1 bugfixes (unreleased; supersedes the v0.2.0 boundary handoff)
+# Handoff — "All Transactions" design (v0.3.0 line; docs only, nothing implemented)
+
+Date: 2026-09-23. Branch: `arena/01a0ce41-simple-finance` (from `main` @ `7fc9c7b`, post-v0.2.1 —
+v0.2.1 is published: tag on merge commit `1047d90`, GitHub release `Latest`).
+
+## What this session did
+
+The household sent a hand-drawn sketch (`transactions.txt`) and a discussion note for a one-page,
+read-only activity view per pot/account. This session verified the note against the schema, settled
+four forks with the household (plus two at build time), wrote the design into the spec, built the
+page, tested it and shipped it as v0.3.0.
+
+Changed: `docs/SPEC.md` (§15.2 menu-table row + new §15.3 "All Transactions"),
+`docs/IMPLEMENTATION_PLAN.md` (decisions 101–108), `src/lib/records/activity.ts` (new projection),
+`src/lib/records/pots.ts` (`listPotsIncludingArchived`), `src/app/transactions/page.tsx` (new page),
+`src/components/site-nav.tsx` (nav entry), `src/app/purchases/page.tsx` (`#purchase-{id}` anchors),
+`src/app/overview/page.tsx` (`#transfer-{id}` + `?transfer=` force-render), `src/app/pots/page.tsx`
+(`#external-{id}` + `?external=` force-render), `tests/activity.test.ts` (7 tests),
+`e2e/transactions.spec.ts` + the `transactions` Playwright project, `README.md`, this file.
+
+## The four household answers (2026-09-23)
+
+1. **Type vocabulary: keep the sketch's codes.** `POS`/`BYP` stay unallocated — `PUR` covers all
+   purchases and no channel field is added. `DD`/`SO` split by the schedule's kind; `REF`, `TX<`,
+   `TX>`, `LN<`, `LN>`, `SW<`, `SW>` as sketched; `BAC` reserved.
+2. **Income rows deferred.** The sketch's `BAC` row is not producible today (see below).
+3. **Refunds shown as green `REF` rows; voids excluded silently.** No void/refund machinery.
+4. **Deep links: add the stable row anchors**, not a second transfers/income feature.
+
+## Facts verified against the code (keep these; they cost an hour to find)
+
+- `receipts` has **no supplier/counterparty column and no category column**; `createReceipt` is
+  called only by `schedules.ts:679` (schedule conversion) and tests — there is **no manual income
+  entry**; `listReceipts` has **no caller in `src/`** — no page lists income. That is why the
+  sketch's `BAC` row is a feature, not a display tweak (decision 103).
+- Converted records already carry `note: From schedule "<name>"` (`schedules.ts:685, 712`), so `DD`
+  rows have a populated Notes cell with no change.
+- Deep-link destinations exist only for purchases (`/purchases?potId&from&to`, filters on
+  `occurred_date`) and DD/SO (`/recurring#schedule-{id}`). Transfers sit in a **last-5** list on
+  /overview (`overview/page.tsx:69`), boundary money in a **20-row** list on /pots
+  (`pots/page.tsx:51`, `includeVoided: true`), swap pairs in `listExchanges(... limit: 20)` — and
+  **none of those rows has an anchor id**. Hence decision 105.
+- `formatInstantLocal` on a date-only record prints **"20 Sept 2026, 23:59"** (verified by running
+  `endOfLocalDate('2026-09-20')` → `2026-09-20T22:59:59.999Z`). The new page must render
+  `occurred_date` and use `isRecordDateOnly` for the time. Three date formats already coexist
+  (en-GB medium on four pages, raw ISO on /pots' boundary list, the sketch's DD.MM.YYYY).
+- `listPots` filters `archivedAt === null` (`pots.ts:385-392`), so archived pots must be added to
+  the target selector explicitly or their history disappears.
+- The window total can never be called "estimate change": `recordIsAfterCheckpoint`
+  (`estimates.ts`) absorbs a date-only **credit** sharing a checkpoint's local date and counts a
+  date-only **debit** (§7.1, E13). Hence "movements shown" (decision 106).
+- The category cell convention is `Parent / Child (Target)` — "Vehicle Running / Fuel (Mercedes)",
+  slash and spaces (`purchases/page.tsx`), not the sketch's colon form.
+- Schedules are never deleted (no `.delete()` anywhere in `src/lib/records/`), so a converted
+  purchase's `DD` vs `SO` origin is always resolvable.
+
+## Verification evidence (this sandbox, 2026-09-23)
+
+- `npm test` — **286/286 across 76 suites** (baseline before this feature: 279/75). The 7 new tests
+  in `tests/activity.test.ts` execute `listPotActivity` directly: codes per record family, sign
+  relative to the selected pot, void exclusion, income (`BAC`) exclusion, window edges, checkpoint
+  divider placement, split "+N more", the row cap with an exact hidden count, and the
+  archive-refuses-records rule that makes "live pots only" safe.
+- `npm run format:check`, `npm run typecheck`, `npm run build` — clean; the build lists 16 routes
+  including `/transactions`.
+- Dev-server smoke against the seeded fictional data (`scripts/e2e-server.mts`, port 3100):
+  `/transactions` 200 with the Corner Foods split row (`PUR`, `Groceries / Weekly Shop (household)
+  +1 more`, `−£63.47`, note "Weekly shop"), the `SO` row showing the schedule name where no supplier
+  exists, the `DD` row, a `Checkpoint · reported £1,612.35` divider and a `Movements shown
+  +£15.00 / −£115.46, net −£100.46` total. The same transfer renders `TX> −£5.00` on Main and
+  `TX< +£5.00` on Alex's cash. `/overview?transfer=1` renders `id="transfer-1"` and
+  `/pots?external=1` renders `id="external-1"`. Server stopped afterwards.
+- `npx playwright test --list` — 34 tests in 8 files; the new `transactions` project resolves with
+  its 3 specs between `checkpoint` and `backup`. **The browser specs were NOT run** — no browser in
+  this sandbox (`docs/SANDBOX.md` §2), so CI's `browser` job is their first real run.
+
+## Watch out for
+
+- The projection's per-family fetches are capped, so `hiddenRowCount` comes from `count(*)` over the
+  window, not from what was fetched. A test asserted the fetched count once and was wrong by three.
+- Record ids repeat across tables. Anything matching rows must use the family-qualified key
+  (`purchase-3`, not `3`); two tests initially collided a swap leg with a purchase.
+- `archivePot` refuses a pot that has *any* record, including voided ones. Do not design a feature
+  around "archived pot history" — there is none, by construction.
+
+---
+
+# Previous handoff — v0.2.1 bugfixes (released 2026-09-23; supersedes the v0.2.0 boundary handoff)
 
 Date: 2026-09-23. Branch: `arena/01a0cd32-simple-finance` (from `main` @ `1a16268`, which is
 post-v0.2.0). Environment: this sandbox — no browser binaries, no Playwright download host,

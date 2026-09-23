@@ -78,6 +78,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Read-only activity view (SPEC §15.3). Records a transfer through the
+      // ordinary Move tab, so it runs after checkpoint and before the backup
+      // project's restore.
+      name: 'transactions',
+      testMatch: /transactions\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

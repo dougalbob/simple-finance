@@ -391,6 +391,16 @@ export function listPots(db: Db): Pot[] {
     .filter((pot) => pot.archivedAt === null);
 }
 
+/**
+ * Every pot, archived ones included. Read-only surfaces need this: the
+ * "All Transactions" target selector must still reach an archived pot's
+ * history, and a transfer or swap leg can name a pot that has since been
+ * archived (SPEC §15.3). Never use it where the live-pot list is meant.
+ */
+export function listPotsIncludingArchived(db: Db): Pot[] {
+  return db.select().from(pots).orderBy(pots.sortOrder, pots.label).all();
+}
+
 /** Latest checkpoint per pot (SPEC §5: the freshest user-reported balance). */
 export function latestCheckpointPerPot(db: Db): Map<number, Checkpoint> {
   const latest = new Map<number, Checkpoint>();

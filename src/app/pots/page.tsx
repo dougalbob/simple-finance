@@ -14,10 +14,13 @@ import { VoidForm } from '@/components/record-forms';
 import { PotEditForm } from '@/components/settings-forms';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
+import type { Db } from '@/lib/db/client';
 import { formatPence } from '@/lib/money';
 import { debtBalanceLabel, listDebtsWithBalances } from '@/lib/records/debts';
 import {
   describeExternalMovement,
+  getExternalMovement,
+  ExternalMovementNotFoundError,
   listExchanges,
   listExternalMovements,
   type ExternalMovement,
@@ -38,17 +41,33 @@ export const dynamic = 'force-dynamic';
  * their derived balances, and the borrowing/repayment/swap/other movements
  * that move money across it.
  */
-export default async function PotsPage() {
+export default async function PotsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ external?: string }>;
+}) {
   const user = await currentUserFromRequest();
   if (user === null) redirect('/unauthorized');
 
   const { db } = getDbHandle();
   const now = new Date();
   const today = toLocalDateString(now);
+  const params = await searchParams;
   const pots = listPots(db);
   const money = getMoneySnapshot(db, now);
   const debts = listDebtsWithBalances(db);
   const recentExternal = listExternalMovements(db, { includeVoided: true, limit: 20 });
+  // A deep link from All Transactions (SPEC §15.3) must land on the record it
+  // names, even after that movement has fallen out of the recent twenty.
+  const linkedExternalId = Number(params.external);
+  const linkedExternal =
+    Number.isInteger(linkedExternalId) &&
+    linkedExternalId > 0 &&
+    recentExternal.every((movement) => movement.id !== linkedExternalId)
+      ? findExternalMovement(db, linkedExternalId)
+      : null;
+  const externalRows =
+    linkedExternal === null ? recentExternal : [linkedExternal, ...recentExternal];
   // Swaps grouped as pairs (SPEC §10.2) for the management list: the
   // household records a swap and then looks for it next to the pot cards —
   // this is where that list lives, with edit and void-both-legs.
@@ -507,12 +526,17 @@ export default async function PotsPage() {
         <p className="mb-3 mt-1 text-sm text-slate-600">
           Borrowing, repayments, swaps and other money — newest first. Voiding keeps the history.
         </p>
-        {recentExternal.length === 0 ? (
+        {linkedExternal !== null ? (
+          <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            Showing the record you linked to — it is older than the twenty most recent.
+          </p>
+        ) : null}
+        {externalRows.length === 0 ? (
           <p className="text-sm text-slate-500">Nothing recorded yet.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {recentExternal.map((movement) => (
-              <li key={movement.id} className="py-2">
+            {externalRows.map((movement) => (
+              <li key={movement.id} id={`external-${movement.id}`} className="py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                   <span
                     className={
@@ -556,4 +580,14 @@ export default async function PotsPage() {
       </section>
     </main>
   );
+}
+
+/** The boundary movement a deep link names, or null when the id is not one. */
+function findExternalMovement(db: Db, movementId: number): ExternalMovement | null {
+  try {
+    return getExternalMovement(db, movementId);
+  } catch (error) {
+    if (error instanceof ExternalMovementNotFoundError) return null;
+    throw error;
+  }
 }

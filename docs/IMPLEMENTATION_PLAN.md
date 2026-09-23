@@ -691,6 +691,70 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     voided), per-leg edit and single-leg void under "Correct or void one leg", and a two-click
     "Void both legs" that voids the pair in one transaction with one shared reason (`voidSwap`,
     version-guarded per leg). Pot cards link to the list when they are involved in a pair.
+101. **"All Transactions" is a projection, not a new record type (v0.3.0 line, 2026-09-23).** The
+    household sketched a one-page, read-only view of all activity for one account or cash pot
+    (purchases, direct debits, transfers, boundary money). It is a pure read over the four existing
+    money families plus checkpoints: nothing is written, no add/edit/void is rendered, and every row
+    links to the canonical form that keeps that behaviour. **No schema change is needed**, so the
+    "breaking changes are acceptable" permission stays unspent. One pot target at a time (the
+    household's position, not a pre-existing SPEC rule). SPEC §15.2 table row + new §15.3.
+102. **The sketch's compact codes are kept; `POS`/`BYP` stay unallocated (household choice,
+    2026-09-23).** Offered plain words ("Purchase", "Transfer in") against the sketch's codes, the
+    household kept the codes. Purchases carry no payment channel, so `PUR` covers every purchase and
+    **no channel field is added** — a fourth dimension on the busiest record in the app, typed at the
+    till and read by one column, is not worth its cost. `SO` is split out from `DD` because a
+    schedule's kind is recorded and schedules are never deleted, so a converted purchase's origin is
+    always resolvable. `REF` marks refunds and `SW<`/`SW>` mark swap legs, following the sketch's
+    angle-bracket idiom. `TX<`/`TX>` unify internal transfers and boundary `other` money (the cell
+    shows the other pot's label or the counterparty), which is how the sketch reads.
+103. **Income rows are deferred; `BAC` is reserved (household choice, 2026-09-23).** The sketch's
+    `BAC` row ("Acme windows · Income: Janet") is not producible today: `receipts` has no
+    source-name and no category column, `createReceipt` is called only by schedule conversion (there
+    is no manual income entry), and `listReceipts` has no caller at all (no page lists income).
+    Rendering that row would need schema, an entry form and a list — an income feature, not a
+    display tweak, and one that reopens the income-analysis question §12/§16 deliberately excludes.
+    Scheduled income will slot in later as `BAC`; meanwhile a one-off third-party credit is recorded
+    as other money in (counterparty + mandatory note) and appears as `TX<`.
+104. **Refunds are shown; voids are excluded silently (household choice, 2026-09-23).** "No
+    refund machinery" is about the void/refund *UI*, not the rows: a refund is already a purchase
+    with a negative total, so it projects as a green `REF` row with zero new machinery, and the
+    estimate counts it (`signedPence = −totalPence`). Excluding refunds would make the page disagree
+    with the pot for no gain. Voids stay excluded (`voided_at IS NULL`), and the page renders no
+    count of them either.
+105. **Every row links to a record the app can actually show (household choice, 2026-09-23).**
+    Only purchases had a real destination: transfers live in a last-5 list on /overview, boundary
+    money in a 20-row list on /pots, and none of those rows had an anchor. Chosen fix is the small
+    one — stable row anchors (`purchase-{id}`, `transfer-{id}`, `external-{id}`) plus
+    `?transfer={id}` / `?external={id}` parameters that force-render a referenced record when it
+    falls outside the recent list, so a link can never land on a list that no longer contains it.
+    A full transfers/income history was considered and rejected as a second feature area.
+106. **The page's total is "movements shown", and checkpoints are divider rows (2026-09-23).** The
+    window total cannot be labelled "estimate change": voided records are invisible here, and §7.1's
+    sign-aware rule absorbs a date-only credit sharing a checkpoint's local date while counting a
+    date-only debit — so the two differ even with no voids and refunds shown. Checkpoints therefore
+    render as visually distinct divider rows carrying the **reported** figure (never a computed
+    balance), which is the reconciliation aid the household wanted, and the total row states plainly
+    what it is.
+107. **One row per record, filtered on `occurred_date`, capped at 500, due pass still running
+    (2026-09-23).** One row per record (never per allocation line) is what makes the amount column
+    sum to the stated total; a split shows its first line and "+N more". Date filters use the local
+    `occurred_date`, as every existing list does, so the window matches the sketch's start/end and
+    never depends on an instant. The end date cannot be in the future because no record can be
+    (§9.1). The date column renders `occurred_date` (decision 108 fixes the format): reusing
+    `formatInstantLocal` would print `23:59` for every date-only record, a time that never happened.
+    The lazy due pass runs as on every read page so today's direct debit appears; "read-only" means
+    no user-facing writes.
+108. **The date column is date-only `YYYY-MM-DD`, and purchases are `PUR` (household choice,
+    2026-09-23, at build time).** Asked whether the sketch's dotted date should be per-page or
+    app-wide, the household chose plain ISO with **no time at all** on this page; other pages keep
+    their existing rendering, so this is not an app-wide change. On `PUR` vs `POS` the household
+    left the call to the agent: `PUR` ships, because it cannot be misread as a payment channel, and
+    `POS`/`BYP` stay reserved for the day a real channel field exists. Two corrections landed while
+    building, both now in SPEC §15.3: (a) archived pots are **not** offered as targets — decision
+    101 first said they should be, which was wrong, because `archivePot` refuses any pot with records
+    at all, so an archived pot's activity is empty by construction and there is never history to
+    strand; (b) a standing order with no supplier shows the **schedule's name** in the source cell
+    rather than "Unknown supplier", which would be a dead end on a dense list.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
