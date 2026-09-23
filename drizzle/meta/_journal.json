@@ -43,6 +43,13 @@
       "when": 1790000000000,
       "tag": "0005_external_money",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790100000000,
+      "tag": "0006_income_source",
+      "breakpoints": true
     }
   ]
 }

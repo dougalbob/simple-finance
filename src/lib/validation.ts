@@ -625,6 +625,37 @@ export const editExternalMovementEntrySchema = z.object({
   note: nullableText(280, 'Note'),
 });
 
+/**
+ * One-off income (SPEC §6, §11.3, plan decision 110): money that arrived in
+ * one pot on one day — a sold bicycle, a third-party refund, a gift. A
+ * positive amount, an optional free-text `source` saying what or who it came
+ * from, and an optional note. **No category and no target** — income is not
+ * spending and never enters an insight (plan decision 103).
+ */
+export const receiptEntrySchema = z.object({
+  potId: positiveIdSchema,
+  amountPence: positivePenceSchema,
+  occurredDate: localDateSchema.nullable().default(null),
+  source: nullableText(120, 'Source'),
+  note: nullableText(280, 'Note'),
+});
+
+/**
+ * Correcting an income record (pot, amount, date, source, note). The
+ * schedule link is immutable — a converted salary keeps pointing at the
+ * instance that produced it; void and re-record instead. A blank note keeps
+ * the current note (the purchase-edit convention); a blank source clears it.
+ */
+export const editReceiptEntrySchema = z.object({
+  receiptId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  potId: positiveIdSchema,
+  amountPence: positivePenceSchema,
+  occurredDate: localDateSchema.nullable().default(null),
+  source: nullableText(120, 'Source'),
+  note: nullableText(280, 'Note'),
+});
+
 /** Void a swap as a pair — both legs, one shared reason (SPEC §10.2). */
 export const voidSwapEntrySchema = z.object({
   exchangeKey: z

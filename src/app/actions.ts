@@ -98,6 +98,13 @@ import {
 } from '@/lib/records/external-movements';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from '@/lib/records/errors';
 import {
+  createReceipt,
+  editReceipt,
+  InvalidReceiptInputError,
+  ReceiptNotFoundError,
+  voidReceipt,
+} from '@/lib/records/receipts';
+import {
   archivePotEntrySchema,
   cancelScheduleEntrySchema,
   categoryEntrySchema,
@@ -116,6 +123,8 @@ import {
   potLabelSchema,
   projectionSettingsEntrySchema,
   purchaseEntrySchema,
+  receiptEntrySchema,
+  editReceiptEntrySchema,
   refundEntrySchema,
   renameTargetEntrySchema,
   renewalEntrySchema,
@@ -940,6 +949,7 @@ const PAGE_PATHS = [
   '/suppliers',
   '/pots',
   '/insights',
+  '/income',
   '/settings',
 ];
 
@@ -1571,6 +1581,155 @@ export async function voidSwapAction(
       return { status: 'error', message: err.message };
     }
     return { status: 'error', message: 'The swap could not be voided. Refresh and try again.' };
+  }
+}
+
+/**
+ * Income (SPEC §6, §11.3, plan decisions 109–113): scheduled salary converts
+ * itself; everything else — a sold bicycle paid in cash or by bank transfer,
+ * a third-party refund, a gift — is recorded here. Income is not spending:
+ * it moves a pot's estimate up and never enters an insight.
+ */
+
+export async function addReceiptAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = receiptEntrySchema.safeParse({
+    potId: numberOrNull(formData.get('potId')),
+    amountPence: amount,
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    source: typeof formData.get('source') === 'string' ? formData.get('source') : '',
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the income fields.') };
+  }
+  try {
+    const receipt = createReceipt(getDbHandle().db, {
+      potId: parsed.data.potId,
+      amountPence: parsed.data.amountPence,
+      occurredDate: parsed.data.occurredDate ?? undefined,
+      source: parsed.data.source,
+      note: parsed.data.note,
+      actor: user.email,
+    });
+    revalidatePages();
+    const what = receipt.source === null ? 'income' : `income from ${receipt.source}`;
+    return {
+      status: 'ok',
+      message: `Recorded ${formatPence(receipt.amountPence)} of ${what} — income, not spending.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidReceiptInputError || err instanceof PotNotFoundError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The income could not be saved. Please try again.' };
+  }
+}
+
+/**
+ * Correct an income record (pot, amount, date, source, note). The schedule
+ * link is immutable — a converted salary stays tied to the instance that
+ * produced it; void and re-record to change what actually happened.
+ */
+export async function editReceiptAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const amount = parsePence(
+    typeof formData.get('amount') === 'string' ? String(formData.get('amount')) : '',
+  );
+  const parsed = editReceiptEntrySchema.safeParse({
+    receiptId: numberOrNull(formData.get('receiptId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    potId: numberOrNull(formData.get('potId')),
+    amountPence: amount,
+    occurredDate: textOrNull(formData.get('occurredDate')),
+    source: typeof formData.get('source') === 'string' ? formData.get('source') : '',
+    note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the income fields.') };
+  }
+  try {
+    const receipt = editReceipt(getDbHandle().db, {
+      id: parsed.data.receiptId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      patch: {
+        potId: parsed.data.potId,
+        amountPence: parsed.data.amountPence,
+        occurredDate: parsed.data.occurredDate ?? undefined,
+        source: parsed.data.source,
+        // A blank note keeps the current note — the convention every other
+        // edit form here follows, so a small correction cannot wipe context.
+        ...(parsed.data.note === null ? {} : { note: parsed.data.note }),
+      },
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message: `Income #${receipt.id} saved: ${formatPence(receipt.amountPence)}.`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidReceiptInputError ||
+      err instanceof ReceiptNotFoundError ||
+      err instanceof RecordVoidedError ||
+      err instanceof VersionConflictError ||
+      err instanceof PotNotFoundError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The income could not be saved. Please try again.' };
+  }
+}
+
+/** Void an income record — the row stays in the history with its reason. */
+export async function voidReceiptAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const parsed = voidRecordEntrySchema.safeParse({
+    recordId: numberOrNull(formData.get('recordId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    reason: typeof formData.get('reason') === 'string' ? formData.get('reason') : '',
+  });
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: firstIssue(parsed.error, 'The void link is incomplete — refresh and try again.'),
+    };
+  }
+  try {
+    voidReceipt(getDbHandle().db, {
+      id: parsed.data.recordId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      reason: parsed.data.reason,
+    });
+    revalidatePages();
+    return { status: 'ok', message: `Income #${parsed.data.recordId} voided. History kept.` };
+  } catch (err) {
+    if (
+      err instanceof AlreadyVoidError ||
+      err instanceof VersionConflictError ||
+      err instanceof RecordVoidedError ||
+      err instanceof ReceiptNotFoundError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'That income could not be voided. Refresh and try again.' };
   }
 }
 

@@ -19,7 +19,7 @@ import {
   listPotsIncludingArchived,
 } from '../src/lib/records/pots';
 import { createPurchase, createRefund, voidPurchase } from '../src/lib/records/purchases';
-import { createReceipt } from '../src/lib/records/receipts';
+import { createReceipt, listReceipts, voidReceipt } from '../src/lib/records/receipts';
 import { createSchedule, materializeAndConvert } from '../src/lib/records/schedules';
 import { createTransfer, voidTransfer } from '../src/lib/records/transfers';
 import { createHouseholdFixture, type HouseholdFixture } from './household';
@@ -42,10 +42,12 @@ import { createHouseholdFixture, type HouseholdFixture } from './household';
  *   09-24  borrowed from Parents £1,000  LN<   in
  *   09-25  swap out to Alex's cash £50   SW>   out  (SW< on the cash pot)
  *   09-26  Energy DD £84.55 (converted)  DD    out
- *   09-26  salary receipt £2,450.00      never rendered (BAC, decision 103)
+ *   09-24  Salary receipt £2,450.00      BAC   in   (converted from schedule)
  *   09-27  Phone plan SO £12.00          SO    out
+ *   09-27  bicycle sale £45.00 in        BAC   in   (one-off, source set)
  *   09-27  voided purchase               never rendered
  *   09-28  Acme Windows £150.00 in       TX<   in
+ *   09-28  voided income £10.00          never rendered
  *   09-28  voided transfer               never rendered
  */
 const ACTOR = 'alex@example.com';
@@ -59,9 +61,12 @@ interface SeededActivity {
   swapExchangeKey: string;
   ddScheduleId: number;
   soScheduleId: number;
+  salaryScheduleId: number;
   voidedPurchaseId: number;
   voidedTransferId: number;
-  receiptId: number;
+  salaryReceiptId: number;
+  oneOffReceiptId: number;
+  voidedReceiptId: number;
   outsidePurchaseId: number;
   energyAmountPence: number;
 }
@@ -212,16 +217,49 @@ async function seedActivity(): Promise<SeededActivity> {
     actor: ACTOR,
     now: at('2026-09-20'),
   });
-  // Local midnight of the 27th has arrived: both instances convert.
-  materializeAndConvert(db, new Date('2026-09-27T00:30:00+01:00'));
-
-  const receipt = createReceipt(db, {
-    potId: fx.pots.main.id,
+  const salary = createSchedule(db, {
+    name: 'Salary',
+    kind: 'receipt',
+    frequency: 'monthly',
+    dueDayOfMonth: 24,
     amountPence: 245000,
-    occurredDate: '2026-09-26',
-    note: 'From schedule “Salary”',
+    potId: fx.pots.main.id,
+    targetKind: 'household',
+    activeFrom: '2026-08-01',
     actor: ACTOR,
-    now: at('2026-09-26'),
+    now: at('2026-09-20'),
+  });
+  // Local midnight of the 27th has arrived: all three instances convert.
+  materializeAndConvert(db, new Date('2026-09-27T00:30:00+01:00'));
+  // The converted salary: a real receipt back-referencing its instance.
+  const salaryReceipt = listReceipts(db, { potId: fx.pots.main.id }).find(
+    (row) => row.scheduleInstanceId !== null,
+  );
+
+  // One-off income: the bicycle sold for cash (plan decision 110).
+  const oneOff = createReceipt(db, {
+    potId: fx.pots.main.id,
+    amountPence: 4500,
+    occurredDate: '2026-09-27',
+    source: 'Sale of bicycle',
+    note: 'Collected in cash',
+    actor: ACTOR,
+    now: at('2026-09-27'),
+  });
+  const voidedReceipt = createReceipt(db, {
+    potId: fx.pots.main.id,
+    amountPence: 1000,
+    occurredDate: '2026-09-28',
+    source: 'Duplicate refund',
+    actor: ACTOR,
+    now: at('2026-09-28'),
+  });
+  voidReceipt(db, {
+    id: voidedReceipt.id,
+    expectedVersion: voidedReceipt.version,
+    reason: 'Entered twice',
+    actor: ACTOR,
+    now: at('2026-09-28'),
   });
 
   const voided = createPurchase(db, {
@@ -278,9 +316,12 @@ async function seedActivity(): Promise<SeededActivity> {
     swapExchangeKey: swap.exchangeKey,
     ddScheduleId: dd.schedule.id,
     soScheduleId: so.schedule.id,
+    salaryScheduleId: salary.schedule.id,
     voidedPurchaseId: voided.purchase.id,
     voidedTransferId: voidedTransfer.id,
-    receiptId: receipt.id,
+    salaryReceiptId: salaryReceipt?.id ?? 0,
+    oneOffReceiptId: oneOff.id,
+    voidedReceiptId: voidedReceipt.id,
     outsidePurchaseId: outside.purchase.id,
     energyAmountPence: 8455,
   };
@@ -306,11 +347,15 @@ describe('All Transactions projection (SPEC §15.3)', () => {
         list.map((row) => `${row.date} ${row.code} ${row.direction}`),
         [
           '2026-09-28 TX< in',
+          '2026-09-27 BAC in',
           '2026-09-27 SO out',
           '2026-09-26 DD out',
           '2026-09-25 SW> out',
           '2026-09-24 REF in',
           '2026-09-24 LN< in',
+          // The converted salary lands at local midnight, so it sorts below
+          // the same day's later-dated rows.
+          '2026-09-24 BAC in',
           '2026-09-23 PUR out',
           '2026-09-23 TX> out',
           '2026-09-22 PUR out',
@@ -352,6 +397,24 @@ describe('All Transactions projection (SPEC §15.3)', () => {
       assert.equal(byCode('TX>')?.source, "Alex's cash");
       assert.equal(byCode('TX>')?.note, 'Son wages');
 
+      // Income (BAC): a one-off shows its typed source; a converted receipt
+      // shows its schedule's name and links to the schedule that produced it.
+      const oneOff = list.find((row) => row.key === `receipt-${seeded.oneOffReceiptId}`);
+      assert.equal(oneOff?.code, 'BAC');
+      assert.equal(oneOff?.source, 'Sale of bicycle');
+      assert.equal(oneOff?.note, 'Collected in cash');
+      assert.equal(oneOff?.direction, 'in');
+      assert.equal(oneOff?.amountPence, 4500);
+      assert.equal(oneOff?.secondaryLink, null);
+      const converted = list.find((row) => row.key === `receipt-${seeded.salaryReceiptId}`);
+      assert.equal(converted?.code, 'BAC');
+      assert.equal(converted?.source, 'Salary');
+      assert.equal(converted?.amountPence, 245000);
+      assert.equal(
+        converted?.secondaryLink?.href,
+        `/recurring#schedule-${seeded.salaryScheduleId}`,
+      );
+
       // Every row links to the canonical form that owns edit/void.
       for (const row of list) {
         if (row.family === 'purchase') {
@@ -361,6 +424,8 @@ describe('All Transactions projection (SPEC §15.3)', () => {
             row.link.href,
             `/overview?transfer=${row.recordId}#transfer-${row.recordId}`,
           );
+        } else if (row.family === 'receipt') {
+          assert.equal(row.link.href, `/income?receipt=${row.recordId}#receipt-${row.recordId}`);
         } else {
           assert.equal(row.link.href, `/pots?external=${row.recordId}#external-${row.recordId}`);
         }
@@ -370,7 +435,7 @@ describe('All Transactions projection (SPEC §15.3)', () => {
     }
   });
 
-  it('excludes voided records, income (BAC) and anything outside the window', async () => {
+  it('renders income (BAC) and excludes voided records and anything outside the window', async () => {
     const seeded = await seedActivity();
     try {
       const view = listPotActivity(seeded.fx.db, {
@@ -382,15 +447,16 @@ describe('All Transactions projection (SPEC §15.3)', () => {
 
       assert.equal(keys.includes(`purchase-${seeded.voidedPurchaseId}`), false, 'voided purchase');
       assert.equal(keys.includes(`transfer-${seeded.voidedTransferId}`), false, 'voided transfer');
+      assert.equal(keys.includes(`receipt-${seeded.voidedReceiptId}`), false, 'voided income');
       assert.equal(keys.includes(`purchase-${seeded.outsidePurchaseId}`), false, 'out of window');
-      // Income is never projected in v1 (decision 103): no BAC code, and the
-      // £2,450 receipt is not inside the credit total asserted below.
-      assert.equal(
-        list.some((row) => row.code === ('BAC' as never)),
-        false,
+      // Income renders as BAC (v0.4.0, plan decision 109): the one-off sale
+      // and the converted salary both appear, and both are inside the total.
+      assert.deepEqual(
+        list.filter((row) => row.code === 'BAC').map((row) => row.source),
+        ['Sale of bicycle', 'Salary'],
       );
-      assert.equal(view.totals.rowCount, 10);
-      assert.equal(view.totals.inPence, 115500);
+      assert.equal(view.totals.rowCount, 12);
+      assert.equal(view.totals.inPence, 365000);
     } finally {
       seeded.fx.close();
     }
@@ -447,7 +513,7 @@ describe('All Transactions projection (SPEC §15.3)', () => {
       assert.equal(below.row.date, '2026-09-21');
 
       // The reported figure never enters "movements shown".
-      assert.equal(view.totals.inPence, 115500);
+      assert.equal(view.totals.inPence, 365000);
       assert.equal(view.totals.outPence, 30652);
 
       // Outside the window, the divider is not rendered at all.
@@ -479,11 +545,11 @@ describe('All Transactions projection (SPEC §15.3)', () => {
       // Cap: the page must say how many rows it hid.
       const capped = listPotActivity(db, { potId, ...WINDOW, limit: 3 });
       assert.equal(capped.totals.rowCount, 3);
-      assert.equal(capped.totals.hiddenRowCount, 7);
+      assert.equal(capped.totals.hiddenRowCount, 9);
       // The total describes only what is shown: the three newest rows are
-      // the 28th's credit, then the SO and the DD.
-      assert.equal(capped.totals.outPence, 8455 + 1200);
-      assert.equal(capped.totals.inPence, 15000);
+      // the 28th's credit, the 27th's one-off income and the SO.
+      assert.equal(capped.totals.outPence, 1200);
+      assert.equal(capped.totals.inPence, 15000 + 4500);
 
       assert.throws(
         () => listPotActivity(db, { potId, dateFrom: '2026-09-30', dateTo: '2026-09-20' }),

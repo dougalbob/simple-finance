@@ -104,6 +104,34 @@ test.describe('all transactions', () => {
     );
   });
 
+  test('income renders as BAC and deep-links to the Income page', async ({ page }) => {
+    // The seeded one-off income: the bicycle sold for cash (plan decision 110).
+    // Income was reserved (`BAC`) but never rendered before v0.4.0.
+    await page.goto('/transactions');
+    const filters = page.getByRole('form', { name: 'Activity filters' });
+    await filters.getByLabel('Target').selectOption({ label: "Alex's cash" });
+    await filters.getByRole('button', { name: 'Show activity' }).click();
+
+    const table = page.locator('section[aria-labelledby="activity-heading"] table');
+    const income = table.locator('tr', { hasText: 'Sale of bicycle' }).first();
+    // No \b after the code, for the same reason as the SO row above.
+    await expect(income.getByRole('cell', { name: /^BAC/ })).toBeVisible();
+    await expect(income).toContainText('+£45.00');
+    await expect(income).toContainText('Collected in cash');
+    // Income carries no category — it is not spending (SPEC §6).
+    await expect(income.getByRole('cell').nth(3)).toHaveText('—');
+
+    // The canonical form for income is the Income page, and the link lands on
+    // the record itself.
+    await income.getByRole('link', { name: /Open this income record/ }).click();
+    await expect(page).toHaveURL(/\/income\?receipt=\d+#receipt-\d+/);
+    await expect(
+      page.locator('section[aria-labelledby="income-history-heading"] li', {
+        hasText: 'Sale of bicycle',
+      }),
+    ).toContainText('+£45.00');
+  });
+
   test('a purchase row deep-links to its filtered row on Purchases', async ({ page }) => {
     await page.goto('/transactions');
     const table = page.locator('section[aria-labelledby="activity-heading"] table');
