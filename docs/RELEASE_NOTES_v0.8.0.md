@@ -1,9 +1,9 @@
 # Release notes — v0.8.0 (installable PWA, no offline access)
 
 **Published:** 2026-09-24.
-**Merge commit:** … (PR …; short SHA …)
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.8.0` · `latest` · `sha-<short>`
-**Digest:** `sha256:…`
+**Merge commit:** 45a1ad0 (PR #41; short SHA 45a1ad0)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.8.0` · `latest` · `sha-45a1ad0`
+**Digest:** `sha256:f2603aa8caa2cc9dd8ae76421f2f487a4f51148d8b923f2534f3c3b94be1258e`
 
 ## What changed
 
