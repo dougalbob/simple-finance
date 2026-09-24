@@ -1,7 +1,10 @@
 # Simple Finance v0.7.0
 
 **Release date:** 2026-09-24
-**Published:** pending — this block is completed at release (merge commit, tag, publish run, digest).
+**Published:** yes — annotated tag `v0.7.0` on merge commit `0a829922f44a7a173f2cac7e1c1c7e9b71b81b24`
+(PR #38), publish run `36042299282`. `v0.7.0`, `latest` and `sha-0a82992` all resolve to one digest,
+different from v0.6.0's. Force Update now brings this release.
+**Image digest:** `sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18`.
 **Type:** feature release — **expected support gets a real start, a changeable day and an end** (SPEC §10.2,
 decisions 120–121). A debt's expectation now pre-projects before the first payment arrives, follows its
 recorded money, ends by itself on an until date, and appears on All Transactions as flagged, expected rows.
