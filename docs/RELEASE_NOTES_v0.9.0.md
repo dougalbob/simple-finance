@@ -1,9 +1,13 @@
 # Release notes — v0.9.0 (the phone-first till form, and what is left before income lands)
 
-**Published:** 2026-09-24.
-**Merge commit:** PENDING (PR PENDING; short SHA PENDING)
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.9.0` · `latest` · `sha-PENDING`
-**Digest:** `sha256:PENDING`
+**Published:** 2026-09-24 (tag pushed 22:44 UTC, image verified in the registry 22:47 UTC).
+**Merge commit:** `19e878c955ed109cbaf234f60b6c317cce1a74c7` (PR #43; short SHA `19e878c`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.9.0` · `latest` · `sha-19e878c`
+**Digest:** `sha256:4384d7d2a4bd789580e733889616eb1d92ab8cd27403419bb73b3affd12aa809` — one digest for all
+three tags, different from v0.8.0's `sha256:f2603aa8…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions`; the `publish` run's own "Verify the registry
+tags resolve" step passed first).
+**Version badge:** `v0.9.0 · pre-release`
 
 ## What changed
 
@@ -95,7 +99,9 @@ and debts are all untouched.
 
 ## Version badge
 
-The app identifies as **v0.9.0 · pre-release**.
+The app identifies as **v0.9.0 · pre-release** — the badge in the navigation and
+on the home page should read exactly that after the update, and it is what the
+acceptance suite asserts.
 
 ## How to update (Unraid)
 

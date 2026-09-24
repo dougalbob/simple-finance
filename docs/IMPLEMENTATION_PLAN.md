@@ -1028,7 +1028,13 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   Settings "Quick entry" section. Decisions **124–130**. Tests: `tests/cycle-outlook.test.ts` (6),
   typeahead ranking in `tests/quick-entry.test.ts`, the setting in `tests/settings-domain.test.ts`,
   `formatShortLocalDate` in `tests/time.test.ts`, and mobile/settings Playwright specs. `npm test`
-  **357 tests / 90 suites green**, format, typecheck and production build clean.
+  **357 tests / 90 suites green**, format, typecheck and production build clean. Second commit on the same
+  branch: the till announces hydration readiness (`data-till-ready` + `inert`) and refuses to save without a
+  pot, after the first `browser` job ran red (decisions 131–133); the browser suite was brought up inside the
+  sandbox to diagnose it (SANDBOX entry 8), 50 tests green locally. **Published 2026-09-24**: annotated tag
+  `v0.9.0` on merge commit `19e878c` (PR #43), publish run `36069116599`, digest
+  `sha256:4384d7d2a4bd789580e733889616eb1d92ab8cd27403419bb73b3affd12aa809` on `v0.9.0` / `latest` /
+  `sha-19e878c` — one digest, different from v0.8.0's ([`docs/RELEASE_NOTES_v0.9.0.md`](RELEASE_NOTES_v0.9.0.md)).
 - **v0.8.0 — installable PWA, no offline access (session `arena/01a0d4f9-simple-finance`, from `main` @ `837845a`)**:
   `public/manifest.webmanifest` (static file, not a Next route), `public/icon-192.png` (192×192),
   `public/icon-512.png` (512×512), `public/apple-touch-icon.png` (180×180), all derived from the existing
