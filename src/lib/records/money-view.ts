@@ -11,6 +11,7 @@ import {
 } from '../db/schema';
 import { toLocalDateString } from '../time';
 import { addDaysLocal, daysBetween } from './dates';
+import { expectedInflowOccurrences, listDebts, type Debt } from './debts';
 import {
   estimatePot,
   householdEstimatePence,
@@ -31,7 +32,12 @@ import {
 } from './settings';
 import { advanceDueRenewals, listRenewals } from './renewals';
 import { debtsSummary, type DebtsSummary } from './debts';
-import { listSchedules, materializeAndConvert, type ScheduleKind } from './schedules';
+import {
+  listSchedules,
+  materializeAndConvert,
+  MATERIALIZATION_HORIZON_DAYS,
+  type ScheduleKind,
+} from './schedules';
 import { latestCheckpointPerPot, listPots, type Checkpoint, type Pot } from './pots';
 import { listPeople } from './people';
 import { listVehicles } from './vehicles';
@@ -195,7 +201,8 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
 
 export interface ProjectionLine extends ProjectionScheduleLine {
   potLabel: string;
-  scheduleKind: ScheduleKind;
+  /** 'dd' | 'so' | 'receipt' for schedule lines; null for debt expected inflows. */
+  scheduleKind: ScheduleKind | null;
 }
 
 export interface ProjectionView {
@@ -224,8 +231,10 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
   const today = toLocalDateString(now);
   const potLabel = new Map(snapshot.pots.map((pot) => [pot.pot.id, pot.pot.label]));
 
-  // The payday is the next expected-receipt due date (SPEC §11.3). After the
-  // due pass, every unconverted instance is strictly in the future.
+  // The payday is the next expected-receipt due date (SPEC §11.3), now
+  // combined with the earliest expected debt inflow — earliest wins (the
+  // planning cycle flips to whichever money is expected next, v0.5.0). After
+  // the due pass, every unconverted instance is strictly in the future.
   const receiptInstances = db
     .select({
       instance: scheduleInstances,
@@ -245,13 +254,24 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     )
     .orderBy(asc(scheduleInstances.dueDate), asc(scheduleInstances.id))
     .all();
+  const expectedInflowDates = expectedInflowLines(db, today, null, null).map(
+    (line) => line.dueDate,
+  );
+  const paydayDate =
+    receiptInstances[0] !== undefined && expectedInflowDates[0] !== undefined
+      ? minDate(receiptInstances[0].instance.dueDate, expectedInflowDates[0])
+      : receiptInstances[0] !== undefined
+        ? receiptInstances[0].instance.dueDate
+        : expectedInflowDates[0] !== undefined
+          ? expectedInflowDates[0]
+          : null;
   const payday = receiptInstances[0] ?? null;
-  if (payday === null) {
-    // No expected-receipt schedule → no planning cycle → no projection.
-    // The estimate still exists; the UI says exactly what is missing.
+  if (paydayDate === null) {
+    // No expected-receipt schedule and no expected debt inflow → no planning
+    // cycle → no projection. The estimate still exists; the UI says exactly
+    // what is missing.
     return null;
   }
-  const paydayDate = payday.instance.dueDate;
 
   const windowUpper = paydayDate;
   const windowLower = addDaysLocal(today, 1);
@@ -331,13 +351,21 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     amountPence: row.amountPence,
     dueDate: row.instance.dueDate,
   }));
-  const receiptLines = receiptRows.map((row) => ({
-    scheduleId: row.scheduleId,
-    name: row.scheduleName,
-    potId: row.potId,
-    amountPence: row.amountPence,
-    dueDate: row.instance.dueDate,
-  }));
+  const receiptLines = [
+    ...receiptRows.map((row) => ({
+      scheduleId: row.scheduleId,
+      name: row.scheduleName,
+      potId: row.potId,
+      amountPence: row.amountPence,
+      dueDate: row.instance.dueDate,
+    })),
+    // Debt expected inflows join the window as receipts flagged expected —
+    // "expected support" is a planning figure, never received income
+    // (SPEC §10.2 stays true: borrowed money is never income). The anchor is
+    // today (exclusive) so a support day due tomorrow (= windowLower) lands
+    // exactly like a receipt instance due tomorrow (gte).
+    ...expectedInflowLines(db, today, today, windowUpper),
+  ];
 
   // Warning threshold (SPEC §8): the most protective configured value.
   const thresholds = snapshot.pots
@@ -377,7 +405,7 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     paydayScheduleName: payday === null ? null : payday.scheduleName,
     paydayScheduleId: payday === null ? null : payday.scheduleId,
     commitmentLines: toLines(commitmentRows),
-    receiptLines: toLines(receiptRows),
+    receiptLines: [...toLines(receiptRows), ...expectedInflowLines(db, today, today, windowUpper)],
     potLabels: potLabel,
     otherPotEstimates: new Map(
       snapshot.pots
@@ -385,6 +413,72 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
         .map((pot) => [pot.pot.id, pot.estimatePence as number]),
     ),
   };
+}
+
+/**
+ * The debt expected-inflow occurrence lines inside an (after, upTo] window,
+ * shaped as `ProjectionLine`s for the UI (the engine takes the same list
+ * with `scheduleKind` ignored). Each carries an `expected` flag and a
+ * "support from {counterparty}" name so the UI never reads it as received.
+ *
+ * Only debts with a live (outstanding > 0) balance and the shared movement
+ * pot are considered; `expectedInflowOccurrences` derives the dates with the
+ * income weekend shift (decision 7). Passing null bounds widens the window
+ * for payday selection.
+ */
+function expectedInflowLines(
+  db: Db,
+  today: string,
+  lower: string | null,
+  upper: string | null,
+): ProjectionLine[] {
+  const after = lower ?? today;
+  const through = upper ?? addDaysLocal(today, MATERIALIZATION_HORIZON_DAYS);
+  const potLabel = new Map(listPots(db).map((pot) => [pot.id, pot.label]));
+  const movementPotByDebt = new Map<number, number>();
+  for (const debt of listDebts(db)) {
+    movementPotByDebt.set(debt.id, firstMovementPotOf(db, debt) ?? 0);
+  }
+  const lines: ProjectionLine[] = [];
+  for (const debt of listDebts(db)) {
+    const potId = movementPotByDebt.get(debt.id) ?? 0;
+    if (potId === 0) continue; // a debt no movement / pot can pin has no home pot
+    for (const occurrence of expectedInflowOccurrences(db, debt, after, through, potId)) {
+      lines.push({
+        scheduleId: debt.id,
+        name: `support from ${debt.counterparty}`,
+        potId: occurrence.potId,
+        amountPence: occurrence.amountPence,
+        dueDate: occurrence.dueDate,
+        potLabel: potLabel.get(occurrence.potId) ?? `Pot ${occurrence.potId}`,
+        scheduleKind: null,
+        expected: true,
+      });
+    }
+  }
+  lines.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name));
+  return lines;
+}
+
+/**
+ * The pot a debt's money actually travels through — the most recent non-void
+ * loan movement's pot. The expectation must land in the same pot the real
+ * deposit uses, or the two layers (expectation vs. actual borrowing) would
+ * describe different money. null when the debt has no live movements yet.
+ */
+function firstMovementPotOf(db: Db, debt: Debt): number | null {
+  const rows = db
+    .select({ potId: externalMovements.potId })
+    .from(externalMovements)
+    .where(and(eq(externalMovements.debtId, debt.id), isNull(externalMovements.voidedAt)))
+    .orderBy(desc(externalMovements.id))
+    .limit(1)
+    .all();
+  return rows[0]?.potId ?? null;
+}
+
+function minDate(a: string, b: string): string {
+  return a <= b ? a : b;
 }
 
 /**
@@ -509,4 +603,247 @@ export function listConvertedInstances(
     recordKind: row.convertedRecordKind as 'purchase' | 'receipt',
     recordId: row.convertedRecordId as number,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Horizon projection (SPEC §7.6, v0.5.0)                              */
+/* ------------------------------------------------------------------ */
+
+export interface HorizonLine extends ProjectionLine {
+  /** True for debt expected inflows, false for receipt schedules. */
+  expected: boolean;
+}
+
+export interface HorizonProjectionView {
+  asOf: Date;
+  throughDate: string;
+  result: ProjectionResult;
+  /** The selected pots (all existing pots when none are specified). */
+  selection: { pot: Pot; selected: boolean }[];
+  includeDayToDay: boolean;
+  /** Every pots' id → label for the selected set. */
+  potLabels: Map<number, string>;
+  commitmentLines: HorizonLine[];
+  receiptLines: HorizonLine[];
+  totalCommitmentsPence: number;
+  totalReceiptsPence: number;
+  /** False when day-to-day is excluded — the page relabels the headline. */
+  dayToDayIncluded: boolean;
+  /** The household's own `availableNowPence` across the selected pots. */
+  availableNowPence: number;
+}
+
+/**
+ * The horizon projection read model (SPEC §7.6): the same pure engine as the
+ * payday panel, given `paydayDate = throughDate` and only the selected pots'
+ * data. Reuses the engine untouched; the window is the days strictly after
+ * today up to and including `throughDate`; expected debt inflows join the
+ * receipt list flagged `expected` so the UI can label them, and day-to-day
+ * is passed as zero when excluded (the "bills only" headline).
+ */
+export function getHorizonProjectionView(
+  db: Db,
+  throughDate: string,
+  potIds: number[],
+  includeDayToDay: boolean,
+  nowArg?: Date,
+): HorizonProjectionView {
+  const now = nowArg ?? new Date();
+  const snapshot = getMoneySnapshot(db, now);
+  const today = toLocalDateString(now);
+
+  const potsAll = listPots(db);
+  const selection =
+    potIds.length === 0
+      ? potsAll.map((pot) => ({ pot, selected: true }))
+      : potsAll.map((pot) => ({ pot, selected: potIds.includes(pot.id) }));
+
+  const selectedIdSet = new Set(
+    potsAll
+      .filter((pot) => selection.find((entry) => entry.pot.id === pot.id)?.selected)
+      .map((pot) => pot.id),
+  );
+  const selectedPots = potsAll.filter((pot) => selectedIdSet.has(pot.id));
+  const potLabels = new Map(selectedPots.map((pot) => [pot.id, pot.label]));
+
+  // A debt's expectation lands in its shared movement pot. A selected-pot
+  // debt whose movements live in a deselected pot has no home in this
+  // horizon and is left out (like every other movement on that pot).
+  const movementPotByDebt = new Map<number, number>();
+  for (const debt of listDebts(db)) {
+    movementPotByDebt.set(debt.id, firstMovementPotOf(db, debt) ?? 0);
+  }
+
+  const dayToDayPence = getConfiguredDayToDay(db);
+
+  const windowLower = addDaysLocal(today, 1);
+  const windowUpper = throughDate;
+
+  // Commitments: unconverted dd/so instances in (today, through].
+  const commitmentRows = db
+    .select({
+      instance: scheduleInstances,
+      scheduleName: schedules.name,
+      scheduleId: schedules.id,
+      scheduleKind: schedules.kind,
+      potId: schedules.potId,
+      amountPence: schedules.amountPence,
+    })
+    .from(scheduleInstances)
+    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
+    .where(
+      and(
+        eq(scheduleInstances.state, 'upcoming'),
+        or(eq(schedules.kind, 'dd'), eq(schedules.kind, 'so')),
+        gte(scheduleInstances.dueDate, windowLower),
+        lte(scheduleInstances.dueDate, windowUpper),
+      ),
+    )
+    .orderBy(asc(scheduleInstances.dueDate), asc(schedules.name))
+    .all();
+
+  // Receipts: unconverted receipt instances in the window.
+  const receiptRows = db
+    .select({
+      instance: scheduleInstances,
+      scheduleName: schedules.name,
+      scheduleId: schedules.id,
+      scheduleKind: schedules.kind,
+      potId: schedules.potId,
+      amountPence: schedules.amountPence,
+    })
+    .from(scheduleInstances)
+    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
+    .where(
+      and(
+        eq(scheduleInstances.state, 'upcoming'),
+        eq(schedules.kind, 'receipt'),
+        gte(scheduleInstances.dueDate, windowLower),
+        lte(scheduleInstances.dueDate, windowUpper),
+      ),
+    )
+    .orderBy(asc(scheduleInstances.dueDate), asc(schedules.name))
+    .all();
+
+  const commitmentLines: HorizonLine[] = commitmentRows
+    .filter((row) => selectedIdSet.has(row.potId))
+    .map((row) => ({
+      scheduleId: row.scheduleId,
+      name: row.scheduleName,
+      potId: row.potId,
+      amountPence: row.amountPence,
+      dueDate: row.instance.dueDate,
+      potLabel: potLabels.get(row.potId) ?? `Pot ${row.potId}`,
+      scheduleKind: row.scheduleKind,
+      expected: false,
+    }));
+
+  const receiptScheduleLines: HorizonLine[] = receiptRows
+    .filter((row) => selectedIdSet.has(row.potId))
+    .map((row) => ({
+      scheduleId: row.scheduleId,
+      name: row.scheduleName,
+      potId: row.potId,
+      amountPence: row.amountPence,
+      dueDate: row.instance.dueDate,
+      potLabel: potLabels.get(row.potId) ?? `Pot ${row.potId}`,
+      scheduleKind: row.scheduleKind as ScheduleKind,
+      expected: false,
+    }));
+
+  const inflowLines: HorizonLine[] = [];
+  for (const debt of listDebts(db)) {
+    const potId = movementPotByDebt.get(debt.id) ?? 0;
+    if (!selectedIdSet.has(potId)) continue;
+    for (const occurrence of expectedInflowOccurrences(db, debt, today, windowUpper, potId)) {
+      inflowLines.push({
+        scheduleId: debt.id,
+        name: `support from ${debt.counterparty}`,
+        potId: occurrence.potId,
+        amountPence: occurrence.amountPence,
+        dueDate: occurrence.dueDate,
+        potLabel: potLabels.get(occurrence.potId) ?? `Pot ${occurrence.potId}`,
+        scheduleKind: null,
+        expected: true,
+      });
+    }
+  }
+
+  const receiptLines = [...receiptScheduleLines, ...inflowLines].sort(
+    (a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name),
+  );
+  const commitments = commitmentLines.map(toBatchLine);
+  const receipts = receiptLines.map(toBatchLine);
+
+  const availablePence = selectedPots
+    .map((pot) => snapshot.pots.find((entry) => entry.pot.id === pot.id)?.estimatePence ?? null)
+    .filter((value): value is number => value !== null);
+  const availableNowPence =
+    availablePence.length === 0 ? 0 : availablePence.reduce((a, b) => a + b, 0);
+
+  const thresholds = selectedPots
+    .map((pot) => pot.warningThresholdPence)
+    .filter((value): value is number => value !== null);
+  const warningThresholdPence = thresholds.length === 0 ? null : Math.min(...thresholds);
+
+  const potWatches: PotWatchInput[] = selectedPots
+    .filter((pot) => snapshot.pots.find((entry) => entry.pot.id === pot.id)?.estimatePence != null)
+    .map((pot) => ({
+      potId: pot.id,
+      estimatePence: snapshot.pots.find((entry) => entry.pot.id === pot.id)
+        ?.estimatePence as number,
+      commitments: commitments.filter((line) => line.potId === pot.id),
+    }));
+
+  const result = projectToPayday({
+    now,
+    availableNowPence,
+    paydayDate: throughDate,
+    commitments,
+    receipts,
+    weeklyGroceriesPence: includeDayToDay ? dayToDayPence.groceries : 0,
+    monthlyFuelPence: includeDayToDay ? dayToDayPence.fuel : [],
+    warningThresholdPence,
+    potWatches,
+  });
+
+  return {
+    asOf: now,
+    throughDate,
+    result,
+    selection,
+    includeDayToDay,
+    potLabels,
+    commitmentLines,
+    receiptLines,
+    totalCommitmentsPence: result.totalCommitmentsPence,
+    totalReceiptsPence: result.totalReceiptsPence,
+    dayToDayIncluded: includeDayToDay,
+    availableNowPence,
+  };
+}
+
+/** The where-we'd-land figure: the final day's running total. */
+export function landPenceOf(result: ProjectionResult): number {
+  const last = result.perDay.at(-1);
+  if (last === undefined) return result.availableNowPence - result.dayToDayPence;
+  return last.runningPence;
+}
+
+/** The configured day-to-day figures, resolved to 0 when unconfigured. */
+export function getConfiguredDayToDay(db: Db): { groceries: number; fuel: number[] } {
+  const groceries = getWeeklyGroceriesPence(db) ?? 0;
+  const fuel = listVehicles(db).map((vehicle) => getMonthlyFuelByVehicle(db).get(vehicle.id) ?? 0);
+  return { groceries, fuel };
+}
+
+function toBatchLine(line: ProjectionLine): ProjectionScheduleLine {
+  return {
+    scheduleId: line.scheduleId,
+    name: line.name,
+    potId: line.potId,
+    amountPence: line.amountPence,
+    dueDate: line.dueDate,
+    ...(line.expected === true ? { expected: true } : {}),
+  };
 }

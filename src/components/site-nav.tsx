@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/purchases', label: 'Purchases' },
   { href: '/transactions', label: 'All Transactions' },
   { href: '/recurring', label: 'Recurring' },
+  { href: '/horizon', label: 'Horizon' },
   { href: '/income', label: 'Income' },
   { href: '/pots', label: 'Accounts & Pots' },
   { href: '/insights', label: 'Insights' },

@@ -299,6 +299,8 @@ export default async function PotsPage({
                         version={debt.version}
                         counterparty={debt.counterparty}
                         note={debt.note}
+                        expectedInflowAmountPence={debt.expectedInflowAmountPence}
+                        expectedInflowDayOfMonth={debt.expectedInflowDayOfMonth}
                       />
                     </div>
                   </details>

@@ -556,7 +556,7 @@ function DueThisWeekSection({
     name: string;
     amountPence: number;
     dueDate: string;
-    scheduleKind: string;
+    scheduleKind: string | null;
     potLabel: string;
   }>;
 }) {

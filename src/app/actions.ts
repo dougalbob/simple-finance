@@ -86,6 +86,7 @@ import {
   DebtNotFoundError,
   editDebt,
   InvalidDebtInputError,
+  type EditDebtPatch,
 } from '@/lib/records/debts';
 import {
   createExternalMovement,
@@ -943,6 +944,7 @@ function parseCompositeTarget(raw: FormDataEntryValue | null): {
 const PAGE_PATHS = [
   '/',
   '/overview',
+  '/horizon',
   '/purchases',
   '/recurring',
   '/contracts',
@@ -1299,21 +1301,43 @@ export async function editDebtAction(
 ): Promise<ActionState> {
   const user = await currentUserFromRequest();
   if (user === null) return NOT_SIGNED_IN;
+  const inflowAmountRaw = formData.get('expectedInflowAmount');
+  const inflowDayRaw = formData.get('expectedInflowDay');
+  const amountText = typeof inflowAmountRaw === 'string' ? inflowAmountRaw.trim() : '';
+  const dayText = typeof inflowDayRaw === 'string' ? inflowDayRaw.trim() : '';
+  // The pair rides together or not at all: both blank clears the expectation,
+  // and a half-set pair fails the boundary schema.
   const parsed = editDebtEntrySchema.safeParse({
     debtId: numberOrNull(formData.get('debtId')),
     expectedVersion: numberOrNull(formData.get('expectedVersion')),
     counterparty: String(formData.get('counterparty') ?? ''),
     note: typeof formData.get('note') === 'string' ? formData.get('note') : '',
+    expectedInflow:
+      amountText === '' && dayText === ''
+        ? null
+        : amountText !== '' && dayText !== ''
+          ? { amountPence: parsePence(amountText), dayOfMonth: Number(dayText) }
+          : { amountPence: null, dayOfMonth: null },
   });
   if (!parsed.success) {
     return { status: 'error', message: firstIssue(parsed.error, 'Check the debt fields.') };
   }
   try {
+    const patch: EditDebtPatch = {
+      counterparty: parsed.data.counterparty,
+      note: parsed.data.note,
+    };
+    if (parsed.data.expectedInflow === null || parsed.data.expectedInflow === undefined) {
+      // Both fields were left blank — stop expecting an inflow.
+      patch.expectedInflow = null;
+    } else {
+      patch.expectedInflow = parsed.data.expectedInflow;
+    }
     const debt = editDebt(getDbHandle().db, {
       id: parsed.data.debtId,
       expectedVersion: parsed.data.expectedVersion,
       actor: user.email,
-      patch: { counterparty: parsed.data.counterparty, note: parsed.data.note },
+      patch,
     });
     revalidatePages();
     return { status: 'ok', message: `Debt “${debt.counterparty}” updated.` };

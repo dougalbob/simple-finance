@@ -94,6 +94,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project: the horizon page only reads, so it runs after income's
+      // additions exist to be projected and before the backup project's
+      // restore rewinds the installation.
+      name: 'horizon',
+      testMatch: /horizon\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

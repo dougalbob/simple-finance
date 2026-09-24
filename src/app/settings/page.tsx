@@ -230,6 +230,19 @@ export default async function SettingsPage() {
             The projection plans to the next expected income schedule. Income is configured as a
             receipt schedule, not as a setting here.
           </p>
+          {projection !== null &&
+          projection.paydayScheduleId === null &&
+          projection.receiptLines.some((line) => line.expected === true) ? (
+            <p className="text-sm">
+              Planning to <span className="font-semibold">the next expected support payment</span> —
+              a debt&rsquo;s expected inflow won this cycle (it is owed money that is expected,
+              never received income). Add an income schedule in{' '}
+              <Link href="/recurring" className="font-medium text-sky-700 hover:underline">
+                Recurring →
+              </Link>{' '}
+              to plan to income instead.
+            </p>
+          ) : null}
           {projection !== null && projection.paydayScheduleId !== null ? (
             <p className="text-sm">
               Planning to <span className="font-semibold">{projection.paydayScheduleName}</span> —{' '}

@@ -24,9 +24,14 @@ test.describe('external money', () => {
   test('borrowing raises the owed balance beside available now', async ({ page }) => {
     await page.goto('/pots');
     const debts = page.locator('section[aria-labelledby="debts-heading"]');
-    await debts.getByLabel('Who is it owed to or by?').fill('E2E Lender');
-    await debts.getByRole('button', { name: 'Track this debt' }).click();
-    await expect(debts.getByRole('status')).toContainText(/now tracking/i);
+    // Scope to the "Track someone new" form: the seeded "Mum" debt's own edit
+    // form (inside its collapsed <details>) carries the same label.
+    const trackForm = debts
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Track this debt' }) });
+    await trackForm.getByLabel('Who is it owed to or by?').fill('E2E Lender');
+    await trackForm.getByRole('button', { name: 'Track this debt' }).click();
+    await expect(trackForm.getByRole('status')).toContainText(/now tracking/i);
 
     const borrow = page.locator('section[aria-labelledby="borrow-heading"]');
     await borrow.getByLabel('Debt').selectOption({ label: 'E2E Lender (we owe)' });
@@ -35,10 +40,14 @@ test.describe('external money', () => {
     await borrow.getByRole('button', { name: 'Record it' }).click();
     await expect(borrow.getByRole('status')).toContainText(/borrowed £50\.00/i);
 
+    // The new debt's own row reads £50.00 (the seeded "Mum" row keeps its
+    // £1,000.00 beside it — both are owed, never income).
     await expect(debts.getByText('we owe £50.00')).toBeVisible();
     await page.goto('/');
-    await expect(page.getByText(/owe others/i)).toBeVisible();
-    await expect(page.getByText('£50.00').first()).toBeVisible();
+    // The household now owes Mum's £1,000 plus the £50 just borrowed.
+    const owedLine = page.locator('p', { hasText: /Owe others/ }).first();
+    await expect(owedLine).toContainText('£1,050.00');
+    await expect(owedLine).toContainText('borrowed, not income');
   });
 
   test('repayments reduce the balance; a same-day swap reads one leg low', async ({ page }) => {
