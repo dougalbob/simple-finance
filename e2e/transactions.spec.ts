@@ -176,8 +176,13 @@ test.describe('all transactions', () => {
     await editForm.getByLabel('Day of the month').fill(String(dayOfMonth));
     await editForm.getByRole('button', { name: 'Save debt' }).click();
     await expect(editForm.getByRole('status')).toContainText(/updated/i);
-    // The panel says what the expectation is and that it moves no money.
-    await expect(row.getByText(/Expected, never received/)).toBeVisible();
+    // The panel says what the expectation is and that it moves no money. The
+    // edit form's own hint carries the same phrase, so match the panel's
+    // distinctive sentence rather than the phrase alone.
+    await expect(row.getByText(/Expecting £250\.00 on day \d+ of each month/)).toBeVisible();
+    await expect(
+      row.getByText(/Expected, never received: it shows in the projections/),
+    ).toBeVisible();
 
     // From its due date the expectation is on All Transactions: flagged,
     // linked to the loan panel, and outside the movements totals.

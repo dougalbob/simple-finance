@@ -307,8 +307,8 @@ export default async function TransactionsPage({
         <p className="mt-3 text-xs text-slate-500">
           &ldquo;Movements shown&rdquo; is the sum of the recorded rows above — expected support
           rows are expectations, never movements, so they are listed but not counted, and they give
-          way when the borrowing is recorded. The total is not the change in this pot&rsquo;s
-          estimate: voided records are not listed here, and a date-only credit recorded on a
+          way when the borrowing is recorded. It is not the change in this pot&rsquo;s estimate:
+          voided records are not listed here, and a date-only credit recorded on a
           checkpoint&rsquo;s own day is treated as already counted by the estimate (SPEC §7.1).
         </p>
       </section>
