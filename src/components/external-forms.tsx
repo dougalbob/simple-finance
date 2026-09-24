@@ -11,6 +11,7 @@ import {
   voidSwapAction,
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
+import { penceInput } from '@/lib/money';
 
 interface PotOption {
   id: number;
@@ -97,19 +98,30 @@ export function DebtForm({ idPrefix }: { idPrefix: string }) {
   );
 }
 
-/** Correct a debt's name or note. The direction never changes (domain rule). */
+/**
+ * Correct a debt's name, note or expected inflow. The direction never
+ * changes (domain rule). The expected inflow (v0.5.0) is a read-only
+ * expectation: it feeds the payday and horizon projections as flagged
+ * "expected" money and never counts as received income — the actual deposit
+ * still goes through Borrow &amp; repay. The day it lands follows the same
+ * payday rule as income: a weekend day shifts back to the Friday before.
+ */
 export function DebtEditForm({
   idPrefix,
   debtId,
   version,
   counterparty,
   note,
+  expectedInflowAmountPence,
+  expectedInflowDayOfMonth,
 }: {
   idPrefix: string;
   debtId: number;
   version: number;
   counterparty: string;
   note: string | null;
+  expectedInflowAmountPence: number | null;
+  expectedInflowDayOfMonth: number | null;
 }) {
   const [state, formAction, pending] = useActionState(editDebtAction, initialActionState);
   return (
@@ -142,6 +154,40 @@ export function DebtEditForm({
           defaultValue={note ?? ''}
           className={inputClass}
         />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${idPrefix}-inflow`} className={labelClass}>
+          Expected support payment
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-slate-500">£</span>
+          <input
+            id={`${idPrefix}-inflow`}
+            name="expectedInflowAmount"
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            defaultValue={
+              expectedInflowAmountPence === null ? '' : penceInput(expectedInflowAmountPence)
+            }
+            className={`${inputClass} w-24`}
+          />
+          <span className="text-sm text-slate-500">on day</span>
+          <input
+            id={`${idPrefix}-inflow-day`}
+            name="expectedInflowDay"
+            type="number"
+            min={1}
+            max={31}
+            placeholder="12"
+            defaultValue={expectedInflowDayOfMonth === null ? '' : String(expectedInflowDayOfMonth)}
+            className={`${inputClass} w-16`}
+          />
+        </div>
+        <p className="mt-1 text-xs text-slate-500">
+          Leave both blank to stop expecting it. Expected, never received — borrowed money stays
+          owed, it is not income.
+        </p>
       </div>
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Save debt'}

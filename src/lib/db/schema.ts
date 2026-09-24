@@ -520,6 +520,15 @@ export const debts = sqliteTable('debts', {
   counterparty: text('counterparty').notNull(),
   direction: text('direction', { enum: ['we_owe', 'they_owe'] }).notNull(),
   note: text('note'),
+  /**
+   * An expected, read-only inflow (SPEC §10.2, v0.5.0): a support loan that
+   * arrives around the same day every month. Feeds projections only — the
+   * real deposit still goes through Borrow and Repay, which moves the pot
+   * estimate and the derived balance. Amount and day are set together or
+   * both null (enforced in the domain + Zod boundary).
+   */
+  expectedInflowAmountPence: integer('expected_inflow_amount_pence'),
+  expectedInflowDayOfMonth: integer('expected_inflow_day_of_month'),
   createdBy: text('created_by').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

@@ -22,6 +22,12 @@ import { addDaysLocal, daysBetween } from './dates';
  * - `projected_low` = the minimum running value in the window (inclusive of
  *   the start). It normally occurs just before salary lands. The projection
  *   includes expected income — it is not a spending-only forecast.
+ *
+ * The engine is generic over the window: the "payday" is only the window's
+ * upper bound. The horizon projection (SPEC §7.6) reuses it by passing the
+ * chosen date as `paydayDate`; the final day's `runningPence` is then
+ * `availableNowPence + Σ receipts − Σ commitments − dayToDay` — the
+ * "where we'd land" figure, pinned by a property test.
  */
 
 export interface ProjectionScheduleLine {
@@ -30,6 +36,12 @@ export interface ProjectionScheduleLine {
   potId: number;
   amountPence: number;
   dueDate: string; // 'YYYY-MM-DD'
+  /**
+   * True for money that is expected but not received (a debt's expected
+   * inflow, v0.5.0 — borrowed money is never income, it may only be
+   * *expected* in a projection). Never affects the engine's arithmetic.
+   */
+  expected?: boolean;
 }
 
 export interface PotWatchInput {

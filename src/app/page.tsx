@@ -430,7 +430,7 @@ function DueThisWeekSection({
     dueDate: string;
     potId: number;
     potLabel: string;
-    scheduleKind: string;
+    scheduleKind: string | null;
   }>;
   potNames: Map<number, string>;
 }) {

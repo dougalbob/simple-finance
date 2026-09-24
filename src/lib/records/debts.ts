@@ -2,8 +2,14 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { recordAudit } from '../audit';
 import type { Db } from '../db/client';
 import { debts, externalMovements } from '../db/schema';
-import { formatPence } from '../money';
+import { formatPence, isValidPenceAmount } from '../money';
 import { VersionConflictError } from './errors';
+import {
+  checkedLocalDate,
+  clampedDueDate,
+  incomeOccurrencesBetween,
+  shiftIncomeOffWeekend,
+} from './dates';
 
 /**
  * Informal debts (SPEC §10.2): money the household owes someone outside it
@@ -79,6 +85,8 @@ export interface EditDebtPatch {
   counterparty?: string;
   /** undefined = unchanged; null = clear the note. */
   note?: string | null;
+  /** undefined = unchanged; null = stop expecting an inflow. */
+  expectedInflow?: { amountPence: number; dayOfMonth: number } | null;
 }
 
 export interface EditDebtInput {
@@ -95,6 +103,10 @@ export interface EditDebtInput {
  * the meaning of every linked movement. Linked loan movements carry a
  * display copy of the counterparty, so a rename updates those copies in the
  * same transaction and says so in the audit line.
+ *
+ * The expected inflow (v0.5.0) is a read-only expectation: amount and day
+ * ride along as a pair or not at all, feeding the projection only — the
+ * actual deposit still goes through Borrow and Repay.
  */
 export function editDebt(db: Db, input: EditDebtInput): Debt {
   const now = input.now ?? new Date();
@@ -112,9 +124,20 @@ export function editDebt(db: Db, input: EditDebtInput): Debt {
         ? current.counterparty
         : checkedCounterparty(input.patch.counterparty);
     const note = input.patch.note === undefined ? current.note : checkedNote(input.patch.note);
+    const inflow =
+      input.patch.expectedInflow === undefined
+        ? currentExpectedInflow(current)
+        : checkedExpectedInflow(input.patch.expectedInflow);
     const updated = tx
       .update(debts)
-      .set({ counterparty, note, updatedAt: now, version: current.version + 1 })
+      .set({
+        counterparty,
+        note,
+        expectedInflowAmountPence: inflow.amountPence,
+        expectedInflowDayOfMonth: inflow.dayOfMonth,
+        updatedAt: now,
+        version: current.version + 1,
+      })
       .where(eq(debts.id, current.id))
       .returning()
       .get();
@@ -136,6 +159,9 @@ export function editDebt(db: Db, input: EditDebtInput): Debt {
         touchedMovements += 1;
       }
     }
+    const inflowChanged =
+      inflow.amountPence !== current.expectedInflowAmountPence ||
+      inflow.dayOfMonth !== current.expectedInflowDayOfMonth;
     recordAudit(tx, {
       actor,
       action: 'debt.edit',
@@ -143,7 +169,12 @@ export function editDebt(db: Db, input: EditDebtInput): Debt {
       entityId: current.id,
       summary:
         `Edited debt “${current.counterparty}” → “${counterparty}”` +
-        (touchedMovements === 0 ? '' : ` (${touchedMovements} linked movements updated)`),
+        (touchedMovements === 0 ? '' : ` (${touchedMovements} linked movements updated)`) +
+        (inflowChanged
+          ? inflow.amountPence === null
+            ? ' (expected inflow cleared)'
+            : ` (expects ${formatPence(inflow.amountPence)} on day ${inflow.dayOfMonth})`
+          : ''),
       before: current,
       after: updated,
       now,
@@ -239,6 +270,96 @@ export function debtBalanceLabel(debt: Debt, balancePence: number): string {
   return debt.direction === 'we_owe'
     ? `we owe ${formatPence(balancePence)}`
     : `owed to us ${formatPence(balancePence)}`;
+}
+
+export interface ExpectedInflowOccurrence {
+  debtId: number;
+  counterparty: string;
+  amountPence: number;
+  potId: number;
+  dueDate: string;
+  /** Shifted onto a Friday when day-of-month fell on a weekend (decision 7). */
+  shifted: boolean;
+}
+
+/**
+ * The once-a-month occurrences of a debt's expected inflow inside an
+ * (after, through] window of local dates (SPEC §10.2, v0.5.0 — feature 2).
+ * Nothing is materialized: the dates are derived from the day-of-month with
+ * the income weekend shift, exactly like `nextDueDateAfter`. A settled or
+ * overpaid debt expects nothing, and the inflow only counts for the shared
+ * pot the actual deposit is recorded into (each debt has one movement pot).
+ */
+export function expectedInflowOccurrences(
+  db: Db,
+  debt: Debt,
+  afterDate: string,
+  throughDate: string,
+  potId: number,
+): ExpectedInflowOccurrence[] {
+  if (debt.expectedInflowAmountPence === null || debt.expectedInflowDayOfMonth === null) {
+    return [];
+  }
+  const { balancePence } = debtBalance(db, debt);
+  if (balancePence <= 0) return []; // a settled (or overpaid) debt expects nothing
+  return incomeOccurrencesBetween(debt.expectedInflowDayOfMonth, afterDate, throughDate).map(
+    (date) => {
+      const clamped = clampedOccurrenceDay(debt.expectedInflowDayOfMonth as number, date);
+      return {
+        debtId: debt.id,
+        counterparty: debt.counterparty,
+        amountPence: debt.expectedInflowAmountPence as number,
+        potId,
+        dueDate: date,
+        shifted: date !== clamped,
+      };
+    },
+  );
+}
+
+/**
+ * The configured (clamped) date for an occurrence's shifted date — so the UI
+ * can say "the 12th is a Saturday, expected on the Friday before". Searched
+ * over the neighbouring months, the same way income-view resolves shifted
+ * paydays (a day-of-month on the 1st can shift into the previous month).
+ */
+function clampedOccurrenceDay(day: number, dueDate: string): string {
+  const base = checkedLocalDate(dueDate);
+  for (let offset = -1; offset <= 1; offset += 1) {
+    const total = base.month - 1 + offset;
+    const year = base.year + Math.floor(total / 12);
+    const month = (((total % 12) + 12) % 12) + 1;
+    const candidate = clampedDueDate(day, year, month);
+    if (shiftIncomeOffWeekend(candidate) === dueDate) return candidate;
+  }
+  return dueDate;
+}
+
+interface CheckedInflow {
+  amountPence: number | null;
+  dayOfMonth: number | null;
+}
+
+function currentExpectedInflow(debt: Debt): CheckedInflow {
+  return {
+    amountPence: debt.expectedInflowAmountPence,
+    dayOfMonth: debt.expectedInflowDayOfMonth,
+  };
+}
+
+function checkedExpectedInflow(
+  inflow: { amountPence: number; dayOfMonth: number } | null,
+): CheckedInflow {
+  if (inflow === null) return { amountPence: null, dayOfMonth: null };
+  // `isValidPenceAmount` rejects non-integers and out-of-range values; a
+  // debt's expected support must then also be a strictly positive amount.
+  if (!isValidPenceAmount(inflow.amountPence) || inflow.amountPence <= 0) {
+    throw new InvalidDebtInputError('The expected amount must be a positive whole-pence figure.');
+  }
+  if (!Number.isInteger(inflow.dayOfMonth) || inflow.dayOfMonth < 1 || inflow.dayOfMonth > 31) {
+    throw new InvalidDebtInputError('The expected day must be between 1 and 31.');
+  }
+  return { amountPence: inflow.amountPence, dayOfMonth: inflow.dayOfMonth };
 }
 
 function checkedActor(raw: string): string {

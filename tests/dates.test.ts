@@ -6,7 +6,9 @@ import {
   addYearsClamped,
   clampedDueDate,
   daysBetween,
+  incomeOccurrencesBetween,
   isLeapYear,
+  shiftIncomeOffWeekend,
 } from '../src/lib/records/dates';
 
 describe('dates: pure local-calendar arithmetic', () => {
@@ -73,5 +75,33 @@ describe('dates: pure local-calendar arithmetic', () => {
     assert.equal(isLeapYear(2026), false);
     assert.equal(isLeapYear(1900), false);
     assert.equal(isLeapYear(2000), true);
+  });
+
+  it('incomeOccurrencesBetween steps month by month, clamped and weekend-shifted', () => {
+    // 12th of each month inside (2026-09-23, 2026-12-14], with decision 7:
+    // Monday 10-12 passes through, Thursday 11-12 passes through, and
+    // Sunday 12-13 shifts back to Friday 12-11.
+    assert.deepEqual(incomeOccurrencesBetween(12, '2026-09-23', '2026-12-14'), [
+      '2026-10-12',
+      '2026-11-12',
+      '2026-12-11',
+    ]);
+    // A 31st clamps into shorter months (plan OQ1), exactly like schedules —
+    // then the weekend shift applies: 2026-02-28 is a Saturday → Friday 27th.
+    assert.deepEqual(incomeOccurrencesBetween(31, '2026-01-31', '2026-04-30'), [
+      '2026-02-27',
+      '2026-03-31',
+      '2026-04-30',
+    ]);
+    // Empty window: the bounds are respected and nothing is returned.
+    assert.deepEqual(incomeOccurrencesBetween(12, '2026-09-23', '2026-09-22'), []);
+    assert.deepEqual(incomeOccurrencesBetween(12, '2026-10-05', '2026-10-11'), []);
+  });
+
+  it('shiftIncomeOffWeekend moves weekends to the Friday before, weeks pass through', () => {
+    assert.equal(shiftIncomeOffWeekend('2026-09-25'), '2026-09-25'); // Friday
+    assert.equal(shiftIncomeOffWeekend('2026-09-26'), '2026-09-25'); // Saturday
+    assert.equal(shiftIncomeOffWeekend('2026-09-27'), '2026-09-25'); // Sunday
+    assert.equal(shiftIncomeOffWeekend('2026-09-28'), '2026-09-28'); // Monday
   });
 });

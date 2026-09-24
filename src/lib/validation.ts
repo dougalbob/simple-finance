@@ -548,6 +548,21 @@ export const debtEntrySchema = z.object({
   note: nullableText(280, 'Note'),
 });
 
+/**
+ * Expected-inflow pair for a debt (SPEC §10.2, v0.5.0 feature 2): the amount
+ * and day-of-month ride together or not at all (the domain rejects a half-set
+ * pair). The amount is a positive whole-pence figure (positivePenceSchema),
+ * the day a calendar day 1–31 which the cadence logic clamps (plan OQ1).
+ */
+const expectedInflowFieldSchema = z.object({
+  amountPence: positivePenceSchema,
+  dayOfMonth: z
+    .number({ error: 'Choose the day the support payment is expected (1–31).' })
+    .int('The expected day must be a whole number.')
+    .min(1, 'The expected day must be between 1 and 31.')
+    .max(31, 'The expected day must be between 1 and 31.'),
+});
+
 /** Debt correction: the direction is immutable (the domain enforces it). */
 export const editDebtEntrySchema = z.object({
   debtId: positiveIdSchema,
@@ -558,6 +573,7 @@ export const editDebtEntrySchema = z.object({
     .min(1, 'Say who the money is owed to or by.')
     .max(120, 'Keep the name to 120 characters or fewer.'),
   note: nullableText(280, 'Note'),
+  expectedInflow: expectedInflowFieldSchema.nullable(),
 });
 
 /** Money crossing the household boundary — borrowing/repayment or other (SPEC §10.2). */

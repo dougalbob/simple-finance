@@ -391,7 +391,8 @@ covering attachments).
    outgoings apply before receipts** (still the conservative direction). `projected_low` = the minimum
    running value including the start; `payday` = the earliest unconverted receipt instance (today's dues are
    already converted, so it is strictly in the future); no receipt schedule → the view is null and the UI
-   says exactly what is missing. Warnings (§8) against `projected_low`: below £0 → heads-up; at or beyond
+   says exactly what is missing. (*Amended v0.5.0, decision 116:* the earliest debt expected inflow also
+   wins the cycle, earliest against receipts.) Warnings (§8) against `projected_low`: below £0 → heads-up; at or beyond
    the most-protective configured pot threshold → warning. The pot watch (§7.5) excludes day-to-day by
    design.
 61. **Renewal auto-advance is a full catch-up:** `advanceDueRenewals` steps repeating renewals one year at
@@ -803,6 +804,36 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     `/income?receipt={id}#receipt-{id}` and, for a converted receipt, the secondary
     `/recurring#schedule-{id}` link DD and SO rows already carry. Voided income is excluded here
     and shown struck through on the Income page, which is where its history lives.
+114. **Horizon is its own page at `/horizon`, laptop-shaped (household choice, v0.5.0).** The
+    household wanted "how far the money would go": pick a future date and see where every expected
+    commitment and receipt would leave them, beyond the payday window. They chose a **dedicated
+    page** named "Horizon" over another Overview mode — the same reasoning as Income (decision
+    111): it is a sit-down surface, not a till-side one, so Quick Entry stays untouched and the
+    menu gains **Horizon** after Recurring. All pots are selected by default and the household
+    untick to scope it; day-to-day (groceries + fuel) is included by default and toggleable.
+    Selection, through-date and the toggle persist in the URL (`?through=…&pots=…&daytoday=…`).
+115. **The horizon reuses `projectToPayday` with `paydayDate = throughDate` (v0.5.0).** No second
+    engine and no second arithmetic: the pure window walker already models
+    `available + Σ receipts − Σ commitments − day-to-day`, tracks the running low and warns, and
+    its final day's `runningPence` *is* "where we'd land". The horizon read model (in
+    `money-view.ts`) filters the window to the selected pots, then delegates. The property test in
+    `tests/horizon.test.ts` pins the hand identity — `available + receipts − commitments −
+    day-to-day` equals the final per-day row — so the two read models can never disagree.
+116. **Debt expected inflow is a pair-or-nothing expectation, never income (v0.5.0 feature 2).**
+    Migration `0007_debt_expected_inflow` adds nullable `expected_inflow_amount_pence` and
+    `expected_inflow_day_of_month` to `debts` (both set or both null — enforced at the boundary
+    and again in the domain). `editDebt` persists the pair; `expectedInflowOccurrences` derives
+    the dates with `incomeOccurrencesBetween` — month stepping, clamped (OQ1), weekend-shifted
+    (`shiftIncomeOffWeekend`, decision 112's rule, numbered **decision 7** in the v0.5.0 notes) —
+    and returns nothing when the derived balance is ≤ 0. It lands in the pot the most recent live
+    loan movement targeted, flagged `expected`, and joins the payday window (§7.2) *earliest-wins*
+    against receipts and the horizon window (§7.6). It is read-only: it never touches the estimate,
+    the Income page, or `BAC` (§10.2, §11.3 hold).
+117. **Horizon detail blocks collapse beyond 60 days (v0.5.0).** A look-ahead of up to 60 days is a
+    sit-down read; beyond that the day-by-day table, the commitment list and the expected-money
+    list start collapsed (`<details>` without `open`), one tap each — density without a
+    spreadsheet. The lowest-point line stays visible at every window length, because a long healthy
+    window can still dip hard mid-month and the projection must say so.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 

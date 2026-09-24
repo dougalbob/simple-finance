@@ -140,3 +140,49 @@ export function clampedDueDate(dueDayOfMonth: number, year: number, month: numbe
   const day = Math.min(dueDayOfMonth, daysInMonth(year, month));
   return toDateString({ year, month, day });
 }
+
+/**
+ * Every occurrence of a day-of-month in an (after, through] window of local
+ * dates (SPEC §11.3, v0.5.0). Pure month-by-month stepping with the same
+ * clamping rules as schedules (plan OQ1) and the same weekend shift as
+ * income (`shiftIncomeOffWeekend`): a support payment configured for the
+ * 12th is expected on the previous Friday when the 12th is a weekend —
+ * decision 7 in the v0.5.0 plan, the exact rule `dueDateForPeriod` applies
+ * to income schedules.
+ *
+ * The window is derived-only — nothing is materialized. Starts at the month
+ * of `afterDate` (the step after the window anchor is still filtered out by
+ * `date > afterDate`) and, like `dueDateForPeriod`, membership is decided by
+ * the **configured** (clamped) date, never the shifted one, so an occurrence
+ * that moves back over the window edge onto its Friday is never dropped.
+ * Mirror of `candidateForPeriod`'s rule in schedules.ts: due exactly on
+ * `throughDate` is included, on `afterDate` is excluded.
+ */
+export function incomeOccurrencesBetween(
+  dayOfMonth: number,
+  afterDate: string,
+  throughDate: string,
+): string[] {
+  const from = checkedLocalDate(afterDate);
+  const through = checkedLocalDate(throughDate);
+  if (throughDate <= afterDate) return [];
+  // Up to 24 months is far beyond any horizon the UI offers (today + 400
+  // days); the guard stops a malformed wide window from spinning.
+  const result: string[] = [];
+  let year = from.year;
+  let month = from.month;
+  let guard = 0;
+  while ((year < through.year || (year === through.year && month <= through.month)) && guard < 24) {
+    const configured = clampedDueDate(dayOfMonth, year, month);
+    if (configured > afterDate && configured <= throughDate) {
+      result.push(shiftIncomeOffWeekend(configured));
+    }
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+    guard += 1;
+  }
+  return result;
+}

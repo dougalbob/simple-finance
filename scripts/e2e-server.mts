@@ -4,6 +4,8 @@ import path from 'node:path';
 import { openDatabase } from '../src/lib/db/client';
 import { applyMigrations } from '../src/lib/db/migrate';
 import { findChildCategory } from '../src/lib/records/categories';
+import { createDebt, editDebt } from '../src/lib/records/debts';
+import { createExternalMovement } from '../src/lib/records/external-movements';
 import { createPerson } from '../src/lib/records/people';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
 import { createPurchase } from '../src/lib/records/purchases';
@@ -193,6 +195,40 @@ function seed(): void {
     activeFrom: localDate(today, -60),
     actor: ACTOR,
     now,
+  });
+  // A tracked debt with the household's motivating expected inflow: £1,000
+  // borrowed from Mum into Alex's cash, expecting £1,000 support on the 12th
+  // of each month (v0.5.0 feature 2). The loan raises the pot estimate and
+  // the owed balance together — never income; the expectation only ever
+  // feeds the projections. (Deliberately no second seeded income schedule:
+  // `income.spec.ts` locates schedules with `hasText: 'Salary'`, which also
+  // matches any row whose pot picker offers "Salary account", so a second
+  // schedule would steal that spec's `.first()` edit — a second schedule is
+  // already covered by that spec adding one through the UI.)
+  const mum = createDebt(db, {
+    counterparty: 'Mum',
+    direction: 'we_owe',
+    note: 'helping with the bills until spring',
+    actor: ACTOR,
+    now,
+  });
+  createExternalMovement(db, {
+    potId: alexCash.id,
+    direction: 'in',
+    kind: 'loan',
+    amountPence: 100000,
+    debtId: mum.id,
+    occurredAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+    occurredDate: localDate(today, -5),
+    actor: ACTOR,
+    now,
+  });
+  editDebt(db, {
+    id: mum.id,
+    expectedVersion: 1,
+    actor: ACTOR,
+    now,
+    patch: { expectedInflow: { amountPence: 100000, dayOfMonth: 12 } },
   });
   createRenewal(db, {
     label: 'Vehicle A insurance',
