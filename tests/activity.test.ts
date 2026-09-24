@@ -5,7 +5,7 @@ import {
   listPotActivity,
   type ActivityRow,
 } from '../src/lib/records/activity';
-import { createDebt } from '../src/lib/records/debts';
+import { createDebt, editDebt } from '../src/lib/records/debts';
 import {
   createExternalMovement,
   createSwap,
@@ -650,6 +650,149 @@ describe('All Transactions projection (SPEC §15.3)', () => {
       assert.equal(rows(listPotActivity(db, { potId: empty.id, ...WINDOW })).length, 0);
     } finally {
       seeded.fx.close();
+    }
+  });
+});
+
+/**
+ * Expected support on All Transactions (SPEC §15.3, v0.7.0): a debt's
+ * expectation appears from its due date — flagged, linked to the loan panel
+ * and deliberately outside the totals — and gives way to the real borrowing
+ * the moment it is recorded. It is a plan, never a movement.
+ */
+describe('All Transactions: expected support (v0.7.0)', () => {
+  const now = new Date('2026-09-24T19:30:00+01:00');
+
+  /** A brand-new £1,000-on-the-10th borrowing expectation, until 10 Feb 2027. */
+  async function seedExpectation() {
+    const fx = await createHouseholdFixture(ACTOR, now);
+    const debt = createDebt(fx.db, {
+      counterparty: 'Mum',
+      direction: 'we_owe',
+      note: 'Bridging loan',
+      actor: ACTOR,
+      now,
+    });
+    const edited = editDebt(fx.db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: 100000, dayOfMonth: 10, untilDate: '2027-02-10' },
+      },
+    });
+    return { fx, debt: edited };
+  }
+
+  const view = (fx: HouseholdFixture, potId: number, dateFrom: string, dateTo: string) =>
+    listPotActivity(fx.db, { potId, dateFrom, dateTo });
+
+  it('appears from its due date, flagged, and stays out of the totals', async () => {
+    const { fx, debt } = await seedExpectation();
+    try {
+      // Nothing before the plan existed: the expectation was set on 24
+      // September, so September's own 10th — already past and never planned —
+      // is not rewritten as an expected row. The page shows history.
+      const september = view(fx, fx.pots.main.id, '2026-09-01', '2026-09-30');
+      assert.deepEqual(rows(september), []);
+      assert.equal(september.totals.expectedRowCount, 0);
+
+      // From the due date: one row, dated the Friday the money is expected
+      // (Saturday 10 October → Friday 9 October, decision 7).
+      const october = view(fx, fx.pots.main.id, '2026-10-01', '2026-10-31');
+      const expected = rows(october);
+      assert.equal(expected.length, 1);
+      assert.equal(expected[0]?.code, 'EXP<');
+      assert.equal(expected[0]?.family, 'expected');
+      assert.equal(expected[0]?.date, '2026-10-09');
+      assert.equal(expected[0]?.direction, 'in');
+      assert.equal(expected[0]?.source, 'Mum');
+      assert.equal(expected[0]?.amountPence, 100000);
+      assert.equal(expected[0]?.note, 'Bridging loan');
+      assert.equal(expected[0]?.badge, 'expected — not recorded yet');
+      assert.equal(expected[0]?.link.href, `/pots#debt-${debt.id}`);
+      // Not a movement: the recorded totals stay empty, and the expectation
+      // is reported separately so the page can say exactly what it excludes.
+      assert.equal(october.totals.rowCount, 0);
+      assert.equal(october.totals.inPence, 0);
+      assert.equal(october.totals.outPence, 0);
+      assert.equal(october.totals.expectedRowCount, 1);
+      assert.equal(october.totals.expectedInPence, 100000);
+
+      // The arrangement ends on its until date: nothing from March onwards.
+      const march = view(fx, fx.pots.main.id, '2027-03-01', '2027-03-31');
+      assert.deepEqual(rows(march), []);
+      assert.equal(march.totals.expectedRowCount, 0);
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('gives way to the recorded borrowing, leaving the real LN< row', async () => {
+    const { fx, debt } = await seedExpectation();
+    try {
+      // The money arrives on the Saturday and is recorded that day.
+      createExternalMovement(fx.db, {
+        potId: fx.pots.main.id,
+        direction: 'in',
+        kind: 'loan',
+        amountPence: 100000,
+        debtId: debt.id,
+        occurredDate: '2026-10-10',
+        note: 'October support',
+        actor: ACTOR,
+        now: new Date('2026-10-10T12:00:00+01:00'),
+      });
+      const october = view(fx, fx.pots.main.id, '2026-10-01', '2026-10-31');
+      const list = rows(october);
+      assert.equal(list.length, 1);
+      assert.equal(list[0]?.code, 'LN<');
+      assert.equal(list[0]?.source, 'Mum');
+      assert.equal(list[0]?.amountPence, 100000);
+      assert.equal(list[0]?.direction, 'in');
+      // The expectation is gone, and the real record is counted.
+      assert.equal(october.totals.expectedRowCount, 0);
+      assert.equal(october.totals.inPence, 100000);
+      assert.equal(october.totals.rowCount, 1);
+      // November's expectation is untouched — that month has not happened.
+      const november = view(fx, fx.pots.main.id, '2026-11-01', '2026-11-30');
+      assert.deepEqual(
+        rows(november).map((row) => row.code),
+        ['EXP<'],
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('is scoped to the pot the money travels through', async () => {
+    const { fx, debt } = await seedExpectation();
+    try {
+      // Nothing borrowed yet: the expectation uses the household's default
+      // pot, so it shows on Main and not on a cash pot.
+      assert.equal(rows(view(fx, fx.pots.main.id, '2026-10-01', '2026-10-31')).length, 1);
+      assert.deepEqual(rows(view(fx, fx.pots.alexCash.id, '2026-10-01', '2026-10-31')), []);
+
+      // Once money has actually travelled through Alex's cash, the
+      // expectation follows it — the two layers describe the same money.
+      createExternalMovement(fx.db, {
+        potId: fx.pots.alexCash.id,
+        direction: 'in',
+        kind: 'loan',
+        amountPence: 5000,
+        debtId: debt.id,
+        occurredDate: '2026-09-15',
+        actor: ACTOR,
+        now: new Date('2026-09-15T12:00:00+01:00'),
+      });
+      assert.deepEqual(rows(view(fx, fx.pots.main.id, '2026-10-01', '2026-10-31')), []);
+      assert.deepEqual(
+        rows(view(fx, fx.pots.alexCash.id, '2026-10-01', '2026-10-31')).map((row) => row.code),
+        ['EXP<'],
+      );
+    } finally {
+      fx.close();
     }
   });
 });

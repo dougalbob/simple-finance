@@ -199,6 +199,11 @@ export default async function TransactionsPage({
           </h2>
           <span className="text-xs text-slate-500">
             {activity.totals.rowCount} {activity.totals.rowCount === 1 ? 'movement' : 'movements'}
+            {activity.totals.expectedRowCount > 0
+              ? ` · ${activity.totals.expectedRowCount} expected support ${
+                  activity.totals.expectedRowCount === 1 ? 'row' : 'rows'
+                }`
+              : ''}
             {activity.totals.hiddenRowCount > 0
               ? ` · showing the newest ${activity.totals.rowCount}, ${activity.totals.hiddenRowCount} older ones hidden — narrow the range`
               : ''}
@@ -206,6 +211,7 @@ export default async function TransactionsPage({
         </div>
 
         {activity.totals.rowCount === 0 &&
+        activity.totals.expectedRowCount === 0 &&
         activity.entries.every((entry) => entry.kind !== 'checkpoint') ? (
           <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
             Nothing touched {pot.label} in this window.
@@ -280,15 +286,30 @@ export default async function TransactionsPage({
                     {formatPence(Math.abs(net))}
                   </td>
                 </tr>
+                {activity.totals.expectedRowCount > 0 ? (
+                  <tr className="border-t border-slate-200 text-slate-500">
+                    <td className="px-3 py-2 font-medium" colSpan={4}>
+                      Expected support ({activity.totals.expectedRowCount}{' '}
+                      {activity.totals.expectedRowCount === 1 ? 'expectation' : 'expectations'}, not
+                      counted)
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      ≈{formatPence(activity.totals.expectedInPence)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs">not a movement</td>
+                  </tr>
+                ) : null}
               </tfoot>
             </table>
           </div>
         )}
 
         <p className="mt-3 text-xs text-slate-500">
-          &ldquo;Movements shown&rdquo; is the sum of the rows above. It is not the change in this
-          pot&rsquo;s estimate: voided records are not listed here, and a date-only credit recorded
-          on a checkpoint&rsquo;s own day is treated as already counted by the estimate (SPEC §7.1).
+          &ldquo;Movements shown&rdquo; is the sum of the recorded rows above — expected support
+          rows are expectations, never movements, so they are listed but not counted, and they give
+          way when the borrowing is recorded. It is not the change in this pot&rsquo;s estimate:
+          voided records are not listed here, and a date-only credit recorded on a
+          checkpoint&rsquo;s own day is treated as already counted by the estimate (SPEC §7.1).
         </p>
       </section>
     </main>

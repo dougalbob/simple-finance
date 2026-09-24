@@ -525,10 +525,19 @@ export const debts = sqliteTable('debts', {
    * arrives around the same day every month. Feeds projections only — the
    * real deposit still goes through Borrow and Repay, which moves the pot
    * estimate and the derived balance. Amount and day are set together or
-   * both null (enforced in the domain + Zod boundary).
+   * both null (enforced in the domain + Zod boundary). Since v0.7.0 the pair
+   * may carry an inclusive until date; that is optional on its own.
    */
   expectedInflowAmountPence: integer('expected_inflow_amount_pence'),
   expectedInflowDayOfMonth: integer('expected_inflow_day_of_month'),
+  /**
+   * Optional **inclusive** end of the arrangement (SPEC §10.2, v0.7.0): the
+   * last day-of-month occurrence that is expected. null = open-ended, until
+   * the household clears the expectation. The form's "continuing for 5
+   * payments" helper computes this date; the occurrences themselves stay
+   * derived, never stored.
+   */
+  expectedInflowUntilDate: text('expected_inflow_until_date'),
   createdBy: text('created_by').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),

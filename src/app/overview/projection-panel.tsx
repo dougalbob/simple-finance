@@ -9,6 +9,10 @@ import type { ProjectionView } from '@/lib/records/money-view';
  */
 export function ProjectionSection({ projection }: { projection: ProjectionView }) {
   const { result } = projection;
+  // Debt expectations ride in the receipt list flagged `expected` (SPEC §10.2,
+  // v0.7.0): the panel lists them under their own heading so a £1,000 support
+  // payment is never mistaken for salary.
+  const expectedSupportLines = projection.receiptLines.filter((line) => line.expected === true);
   const tier = result.tier;
   const tierStyles =
     tier === 'warning'
@@ -67,6 +71,37 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
           <dd className="tabular-nums">+{formatPence(result.totalReceiptsPence)}</dd>
         </div>
       </dl>
+
+      {expectedSupportLines.length > 0 ? (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            Expected support in this forecast ({expectedSupportLines.length})
+          </summary>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {expectedSupportLines.map((line) => (
+              <li
+                key={`${line.dueDate}-${line.scheduleId}-expected`}
+                className="flex items-baseline justify-between gap-2 py-1.5 text-sm"
+              >
+                <span>
+                  <span className="font-medium">{line.name}</span>{' '}
+                  <span className="text-xs text-slate-500">
+                    {line.dueDate} · {line.potLabel} · expected — never received
+                  </span>
+                </span>
+                <span className="tabular-nums text-slate-500">
+                  ≈{formatPence(line.amountPence)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">
+            Borrowed money the household expects, flagged and never counted as income. It moves no
+            pot estimate: the money lands only if it is actually borrowed and recorded, and until
+            then it is a plan. A settled loan expects nothing.
+          </p>
+        </details>
+      ) : null}
 
       {projection.dayToDayEvents.length > 0 ? (
         <details className="mt-4">

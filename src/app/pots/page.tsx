@@ -268,7 +268,7 @@ export default async function PotsPage({
           ) : (
             <ul className="mb-4 divide-y divide-slate-100">
               {debts.map(({ debt, balancePence, movementCount }) => (
-                <li key={debt.id} className="py-2">
+                <li key={debt.id} id={`debt-${debt.id}`} className="py-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                     <span className="font-medium">
                       {debt.counterparty}{' '}
@@ -288,6 +288,26 @@ export default async function PotsPage({
                       : `${movementCount} movement${movementCount === 1 ? '' : 's'}`}
                     {debt.note !== null && debt.note !== '' ? ` — ${debt.note}` : ''}
                   </p>
+                  {debt.expectedInflowAmountPence !== null &&
+                  debt.expectedInflowDayOfMonth !== null ? (
+                    movementCount > 0 && balancePence <= 0 ? (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Settled — nothing is outstanding, so the expected support is ignored even
+                        though it is still set. Clear it when the arrangement is over.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-sky-800">
+                        Expecting {formatPence(debt.expectedInflowAmountPence)} on day{' '}
+                        {debt.expectedInflowDayOfMonth} of each month (a weekend day lands on the
+                        Friday before)
+                        {debt.expectedInflowUntilDate === null
+                          ? ', until you stop it'
+                          : `, until ${debt.expectedInflowUntilDate} inclusive`}
+                        . Expected, never received: it shows in the projections and in All
+                        Transactions, and the pot moves only when you record the borrowing.
+                      </p>
+                    )
+                  ) : null}
                   <details className="mt-1">
                     <summary className="cursor-pointer text-xs font-medium text-slate-600">
                       Edit
@@ -301,6 +321,8 @@ export default async function PotsPage({
                         note={debt.note}
                         expectedInflowAmountPence={debt.expectedInflowAmountPence}
                         expectedInflowDayOfMonth={debt.expectedInflowDayOfMonth}
+                        expectedInflowUntilDate={debt.expectedInflowUntilDate}
+                        today={today}
                       />
                     </div>
                   </details>

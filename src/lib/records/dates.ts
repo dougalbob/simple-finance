@@ -142,6 +142,53 @@ export function clampedDueDate(dueDayOfMonth: number, year: number, month: numbe
 }
 
 /**
+ * The inclusive end date for "the next `count` monthly occurrences of this
+ * day-of-month" (v0.7.0, SPEC §10.2): occurrence 1 is the first configured
+ * (clamped) day strictly after `fromDate`, and the answer is the Nth one —
+ * re-clamped from the original day every month, exactly like a schedule.
+ * This is the debt form's "continuing for N payments" sugar: the household
+ * says how many payments, the app writes the until date. Pure and
+ * client-safe; null when the inputs are not a usable count/day.
+ */
+export function lastOccurrenceDate(
+  dayOfMonth: number,
+  fromDate: string,
+  count: number,
+): string | null {
+  if (!isValidLocalDate(fromDate)) return null;
+  if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) return null;
+  if (!Number.isInteger(count) || count < 1 || count > 240) return null;
+  const from = checkedLocalDate(fromDate);
+  let first: string | null = null;
+  let year = from.year;
+  let month = from.month;
+  for (let step = 0; step < 24 && first === null; step += 1) {
+    const candidate = clampedDueDate(dayOfMonth, year, month);
+    if (candidate > fromDate) {
+      first = candidate;
+    } else {
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+    }
+  }
+  if (first === null) return null;
+  const firstDate = checkedLocalDate(first);
+  let endYear = firstDate.year;
+  let endMonth = firstDate.month;
+  for (let step = 1; step < count; step += 1) {
+    endMonth += 1;
+    if (endMonth > 12) {
+      endMonth = 1;
+      endYear += 1;
+    }
+  }
+  return clampedDueDate(dayOfMonth, endYear, endMonth);
+}
+
+/**
  * Every occurrence of a day-of-month in an (after, through] window of local
  * dates (SPEC §11.3, v0.5.0). Pure month-by-month stepping with the same
  * clamping rules as schedules (plan OQ1) and the same weekend shift as
@@ -153,8 +200,11 @@ export function clampedDueDate(dueDayOfMonth: number, year: number, month: numbe
  * The window is derived-only — nothing is materialized. Starts at the month
  * of `afterDate` (the step after the window anchor is still filtered out by
  * `date > afterDate`) and, like `dueDateForPeriod`, membership is decided by
- * the **configured** (clamped) date, never the shifted one, so an occurrence
- * that moves back over the window edge onto its Friday is never dropped.
+ * the **configured** (clamped) date — so an occurrence that moves back over
+ * the window's start edge onto its Friday is never dropped — **or** by the
+ * shifted date, so an occurrence *expected* (shifted) on the window's last
+ * day is never dropped either, even though its configured day is a day or
+ * two later (v0.7.0: the payday cycle can end on exactly that shifted day).
  * Mirror of `candidateForPeriod`'s rule in schedules.ts: due exactly on
  * `throughDate` is included, on `afterDate` is excluded.
  */
@@ -172,10 +222,17 @@ export function incomeOccurrencesBetween(
   let year = from.year;
   let month = from.month;
   let guard = 0;
-  while ((year < through.year || (year === through.year && month <= through.month)) && guard < 24) {
+  // One month past the window's end: a day-of-month on the 1st or 2nd can
+  // shift back into the window's last days, and that occurrence is expected
+  // on a date the window covers (v0.7.0).
+  const limitYear = through.month === 12 ? through.year + 1 : through.year;
+  const limitMonth = through.month === 12 ? 1 : through.month + 1;
+  const inWindow = (date: string) => date > afterDate && date <= throughDate;
+  while ((year < limitYear || (year === limitYear && month <= limitMonth)) && guard < 24) {
     const configured = clampedDueDate(dayOfMonth, year, month);
-    if (configured > afterDate && configured <= throughDate) {
-      result.push(shiftIncomeOffWeekend(configured));
+    const shifted = shiftIncomeOffWeekend(configured);
+    if (inWindow(configured) || inWindow(shifted)) {
+      result.push(shifted);
     }
     month += 1;
     if (month > 12) {

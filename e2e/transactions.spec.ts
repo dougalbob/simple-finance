@@ -144,4 +144,104 @@ test.describe('all transactions', () => {
       'Corner Foods',
     );
   });
+
+  test('expected support appears from its due date and gives way to the recorded borrowing', async ({
+    page,
+  }) => {
+    // The household's shape (v0.7.0): an arrangement that has not started, so
+    // the expectation must project and list before any money moves. The
+    // server's own today is read from the End date input's `max` — the window
+    // ends there — so this spec never fights the clock.
+    await page.goto('/transactions');
+    const serverToday = (await page.getByLabel('End date').getAttribute('max')) ?? '';
+    if (serverToday === '') throw new Error('End date input has no max attribute');
+    const dayOfMonth = Number(serverToday.slice(8, 10));
+
+    // A brand-new IOU with no movements at all, then the expectation on it.
+    await page.goto('/pots');
+    const debts = page.locator('section[aria-labelledby="debts-heading"]');
+    const trackForm = debts
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Track this debt' }) });
+    const counterparty = `E2E Expectant ${Date.now()}`;
+    await trackForm.getByLabel('Who is it owed to or by?').fill(counterparty);
+    await trackForm.getByRole('button', { name: 'Track this debt' }).click();
+    await expect(trackForm.getByRole('status')).toContainText(/now tracking/i);
+
+    const row = debts.locator('li').filter({ hasText: counterparty }).first();
+    await expect(row.getByText('no movements yet')).toBeVisible();
+    await row.getByText('Edit', { exact: true }).click();
+    const editForm = row.locator('form');
+    await editForm.getByLabel('Expected support payment').fill('250.00');
+    await editForm.getByLabel('Day of the month').fill(String(dayOfMonth));
+    await editForm.getByRole('button', { name: 'Save debt' }).click();
+    await expect(editForm.getByRole('status')).toContainText(/updated/i);
+    // The panel says what the expectation is and that it moves no money. The
+    // edit form's own hint carries the same phrase, so match the panel's
+    // distinctive sentence rather than the phrase alone.
+    await expect(row.getByText(/Expecting £250\.00 on day \d+ of each month/)).toBeVisible();
+    await expect(
+      row.getByText(/Expected, never received: it shows in the projections/),
+    ).toBeVisible();
+
+    // From its due date the expectation is on All Transactions: flagged,
+    // linked to the loan panel, and outside the movements totals.
+    const from = minusDays(serverToday, 3);
+    const activityUrl = `/transactions?from=${from}&to=${serverToday}`;
+    await page.goto(activityUrl);
+    const table = page.locator('section[aria-labelledby="activity-heading"] table');
+    const expectedRow = table.locator('tr').filter({ hasText: counterparty });
+    await expect(expectedRow.getByRole('cell', { name: /^EXP</ })).toBeVisible();
+    await expect(expectedRow).toContainText('+£250.00');
+    await expect(expectedRow).toContainText('expected — not recorded yet');
+    // The footer counts the expectations it is deliberately not counting. The
+    // number is only asserted as "at least one" in words: the seeded Mum
+    // expectation can share this short window when the run lands near the
+    // 12th, so pinning it to 1 would be a date-dependent flake.
+    await expect(
+      page.locator('tfoot').getByText(/Expected support \(\d+\s*expectations?,\s*not counted\)/),
+    ).toBeVisible();
+    await expect(page.locator('tfoot').getByText('not a movement')).toBeVisible();
+    // The row links to the loan panel that owns it.
+    await expect(expectedRow.getByRole('link', { name: /Open the loan panel/ })).toHaveAttribute(
+      'href',
+      /\/pots#debt-\d+$/,
+    );
+
+    // The money lands and is recorded that day: the expectation gives way to
+    // the real borrowing, on the same window.
+    await page.goto('/pots');
+    const borrow = page.locator('section[aria-labelledby="borrow-heading"]');
+    await borrow.getByLabel('Debt').selectOption({ label: `${counterparty} (we owe)` });
+    await borrow.getByLabel('Pot').selectOption({ label: 'Main account' });
+    await borrow.getByLabel('Amount').fill('250.00');
+    await borrow.getByRole('button', { name: 'Record it' }).click();
+    await expect(borrow.getByRole('status')).toContainText(/borrowed £250\.00/i);
+
+    await page.goto(activityUrl);
+    await expect(
+      page.locator('section[aria-labelledby="activity-heading"]').getByText(counterparty),
+    ).toBeVisible();
+    // This debt's expectation is gone — the seeded one (if it happens to fall
+    // in the window) is not this test's business.
+    const borrowRow = table.locator('tr').filter({ hasText: counterparty });
+    await expect(borrowRow.getByRole('cell', { name: /^EXP</ })).toHaveCount(0);
+    await expect(borrowRow.getByRole('cell', { name: /^LN</ })).toBeVisible();
+    await expect(borrowRow).toContainText('+£250.00');
+    // The loan panel now carries the real balance.
+    await page.goto('/pots');
+    await expect(
+      page.locator('section[aria-labelledby="debts-heading"]').getByText('we owe £250.00'),
+    ).toBeVisible();
+  });
 });
+
+/**
+ * A local date `days` before an ISO date — computed in UTC from the server's
+ * own date string, so the window never depends on the browser's clock.
+ */
+function minusDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) - days));
+  return shifted.toISOString().slice(0, 10);
+}

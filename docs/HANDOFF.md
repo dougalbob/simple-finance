@@ -1,71 +1,77 @@
-# Handoff — Episodic day-to-day projection (v0.6.0)
+# Handoff — Expected support: a real start, a changeable day and an end (v0.7.0)
 
-Date: 2026-09-24. Branch: `arena/01a0d31b-simple-finance` (from `main` @ `7b9fb0f`, post-v0.5.0 and its
-notes-completion PR #35).
+Date: 2026-09-24. Branch: `arena/01a0d490-simple-finance` (from `main` @ `102570a`, post-v0.6.0 and its
+release).
 
-**This session re-grounds projected day-to-day spending in reality (SPEC §7.3 rewritten, decisions
-118–119).** It grew out of two household bug reports on the v0.5.0 Horizon page, both traced to the same
-root: day-to-day was a pro-rated allowance charged up front, so (a) a recorded £55 fill was double-counted
-for its whole cooldown window — once in the estimate, once in the smoothed allowance — and (b) every
-lowest point with "Include groceries & fuel" read "today", the up-front lump's artifact. Both reports were
-answered with evidence first, then the household approved the spec-level fix. Read
-[`docs/SPEC.md`](SPEC.md) §7.2, §7.3, §7.6 and §17 E8 (all amended), and
-[`docs/IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) decisions **118–119**.
+**This session turns a debt's expected inflow into a plan the household can live with** — SPEC §10.2, §7.2,
+§7.6, §15.3 and §17 E11 amended, decisions **120–121**. It answers the three gaps the household hit in
+v0.5.0's expectation: a brand-new debt (no movements, £0) projected nothing at all; there was no way to say
+when the arrangement ends; and the projected month did not give way to the money when it was actually
+recorded. The real arrangement behind it: **£1,000 on the 10th for about five payments while probate
+completes**, released before the first payment (Fri 9 Oct 2026) so it pre-projects.
 
 ## What changed
 
-- **Anchor-reset model** — each configured figure (Settings → Projection figures) is now the amount of a
-  repeating **projected event**, whose next date comes from the ledger: groceries every **7 days** from the
-  last `Groceries > Weekly Shop` line; fuel every **30 days per vehicle** from the last
-  `Vehicle Running > Fuel` line targeted at that vehicle. No history or overdue ⇒ next event **tomorrow**
-  (pessimism). Top-ups never reset the week; one car's fill never resets the other; voided/refunded
-  purchases are no anchor; no weekend shifting.
-- `src/lib/records/day-to-day.ts` **(new)** — `lastWeeklyShopDate`, `lastFuelDatesByVehicle`,
-  `projectDayToDayEvents`, `splitDayToDayEvents`. Pure queries + date arithmetic, no writes.
-- `src/lib/records/projection.ts` — the engine takes `projectedGroceries` / `projectedFuel` event lists
-  (was `weeklyGroceriesPence` / `monthlyFuelPence`) and applies each event on its due day **like any other
-  outgoing, before the day's receipts**. No up-front lump; `base = availableNowPence`. `ProjectionDay`
-  gains `dayToDayPence`. `landPenceOf` and the hand identity (`available + receipts − commitments −
-  day-to-day`) still hold on the final day.
-- `src/lib/records/money-view.ts` — both read models build events via `projectDayToDayEvents` and expose
-  `dayToDayEvents` for display. The horizon passes no events when day-to-day is toggled off ("Bills only"
-  unchanged). `getConfiguredDayToDay` and `periodProjectionPence` are gone (the pro-rata helper had no
-  remaining caller).
-- UI — `projection-panel.tsx` lists "Projected shops and fills" and gains a day-to-day column in the
-  day-by-day table; `horizon/page.tsx` gains the "Projected day-to-day spending" details block (same
-  60-day open rule), the same table column, and the scope card shows the day-to-day total; Settings copy
-  explains the figures are the size of one shop/fill and when each next event is projected from.
-- **E8 reworked end-to-end** (SPEC §17): anchors E1's Tesco run (27th) + fills on the 12th (A) and 8th
-  (B); day-to-day £360 groceries + £135 fuel = £495; low **−£571.26 on the 25th** (the cycle's last shop),
-  tier warning, pot watch unchanged −£666.08. `tests/projection.test.ts`, `tests/money-view.test.ts` and
-  `tests/horizon.test.ts` all carry the new arithmetic to the penny.
+- `drizzle/0008_debt_expected_inflow_until.sql` **(new)** + journal entry — additive nullable
+  `debts.expected_inflow_until_date`. **No backup-format change**, no data rewrite. `tests/backup-restore`
+  counts migrations: bump the number whenever a migration is added.
+- `src/lib/records/debts.ts` — the expectation's rules, all in `expectedInflowOccurrences`:
+  **settled stops** (movements exist and `debtBalance` ≤ 0 ⇒ nothing; a debt with **no** movements is *not*
+  settled and projects — the v0.5.0 gap); **until inclusive** (compared against the *configured*, unshifted
+  date); **an answered month stops projecting** (`OCCURRENCE_ANSWER_LEAD_DAYS = 2` before the expected date
+  up to the next occurrence — a live money-in *is* that month's money). `expectedInflowPotId` replaces
+  `firstMovementPotOf`: the most recent **live** movement's pot, else the household default (the pot labelled
+  `Main account`, else the first live pot), so a not-started debt's expectation still has an honest home.
+  `editDebt` persists `untilDate` under the existing version check.
+- `src/lib/records/dates.ts` — `lastOccurrenceDate(dayOfMonth, fromDate, count)`: the Nth clamped monthly
+  occurrence after `fromDate` (1–240; null on bad input). Form helper only — no read model uses it. The
+  **window rule** in `incomeOccurrencesBetween` is refined: an occurrence counts when its configured **or**
+  its shifted date falls in `(after, through]`, and the month loop runs one month past `through` (December
+  wraps) so a 1st/2nd-of-month payment shifting back into the window is found.
+- `src/lib/records/money-view.ts` — both read models take the pot from `expectedInflowPotId`, so a
+  not-started debt projects; `firstMovementPotOf` is gone. `src/lib/records/activity.ts` — `EXP<` rows
+  (family `expected`), always money in, `sortAt = endOfLocalDate(dueDate)`, skipped for months before
+  `plannedFrom` (the local date of the debt's last edit), and **outside the totals**:
+  `expectedRowCount` / `expectedInPence` carry them.
+- UI — `src/app/transactions/page.tsx` (count line, "Expected support (N expectations, not counted)" footer
+  row, footnote, empty state); `src/app/overview/projection-panel.tsx` ("Expected support in this forecast
+  (N)" from the `expected`-flagged receipt lines); `src/app/pots/page.tsx` (per-debt status: *settled* vs
+  *expecting*, `id="debt-{id}"` anchor for the All-Transactions link); `src/components/external-forms.tsx`
+  (`DebtEditForm`: day, optional until date, "Fill the end date" from a payment count, status line).
 
 ## Watch out for (learned this session)
 
-- **Do not touch estimates, receipts or insights** — same rule as the income session. The anchor queries
-  read purchases/allocations only (positive, non-voided allocations; vehicle-targeted for fuel). Insights'
-  honesty loop and `roundHalfUpDivide` are untouched.
-- The events are **household-level**: pot scoping on the horizon must not filter them (same treatment the
-  configured figures had), and the §7.5 pot watch still excludes them — engine callers build potWatches
-  from commitments only.
-- Within a day, projected events apply **before receipts** — a shop due on payday clears before the salary,
-  exactly like a DD (pinned in `tests/projection.test.ts`).
-- The horizon e2e seed (`scripts/e2e-server.mts`) records a Weekly Shop purchase ~3h before "now" and a
-  Vehicle A fuel line, so `/horizon` has real anchors in CI; vehicle B falls back to tomorrow-cadence.
+- **Never income, never an estimate move** (decision 116 and the v0.5.0 notes hold unchanged): no income
+  checkbox, no Income-page rows, no insights, no `BAC`; the pot moves only when the Borrow is actually
+  recorded, and the expectation is only ever flagged `expected`.
+- **One source of truth for occurrences.** Both read models (`money-view.ts`, `activity.ts`) call the same
+  `expectedInflowOccurrences`; fix the rule there, never in a caller.
+- Do not "simplify" the window membership back to the configured date alone: the first payment (Sat 10 Oct
+  2026 → **Fri 9 Oct**) must count in a window ending on the Friday, and a configured 1st must be able to
+  shift back into the previous month.
+- **The expectation is a plan, not a promise**: no late month is flagged, the next month still projects, and
+  a day-of-month or until-date edit is forward-looking — recorded movements are never rewritten.
+- If you add a family to the All-Transactions table, keep the expected rows out of `inPence`/`outPence` and
+  update the count line, the totals row and the footnote together, or the page stops being honest about what
+  it excludes.
+- The e2e spec derives the server's own today from the End-date input's `max` (the window never reaches into
+  the future) instead of trusting the browser clock — reuse that pattern in any date-sensitive spec.
 
 ## Test state
 
-`npm test` — **323 tests, all green, 81 suites** (was 311/80). New `tests/day-to-day.test.ts` (10) covers
-the anchor rules end to end. `npm run format:check`, `npx tsc --noEmit` clean. Playwright cannot run in
-this sandbox (`docs/SANDBOX.md` entry 2) — CI's `browser` job is the proof for the horizon additions.
+`npm test` — **335 tests, all green, 84 suites** (was 323/81). New coverage: `tests/dates.test.ts`
+(`lastOccurrenceDate` + the window edges), `tests/horizon.test.ts` (plan → change the day → stop, 5 tests),
+`tests/money-view.test.ts` (the first payment pre-Borrow, the day change, settling), `tests/activity.test.ts`
+(`EXP<` appears, converts to `LN<`, pot scoping). `npm run format:check`, `npx tsc --noEmit` and
+`npm run build` are clean. Playwright cannot run in this sandbox (`docs/SANDBOX.md` entry 2) — CI's
+`browser` job is the proof; the new spec is `e2e/transactions.spec.ts` ("expected support appears from its
+due date and gives way to the recorded borrowing").
 
 ## Open / deferred (not forgotten)
 
-- **Bank holidays** remain unhandled (decision 112; support-payment expectation unaffected).
-- Cadence learning (deriving the 3-week rhythm from observed fill gaps instead of the fixed 7/30-day
-  cadences) is a deliberate non-goal for now — discussed and deferred at design time; the fixed cadence is
-  the explainable rule, and the honesty loop keeps drift visible.
-- A token-small purchase categorised as Weekly Shop still resets the week (any amount counts, by design —
-  record top-ups as Top-up Shops). If that becomes untidy in practice, a threshold is a fresh decision.
+- **Bank holidays** remain unhandled (decision 112) — and the expectation follows the income cadence, so a
+  Good Friday payment still reads that day.
+- Cadence learning stays a deliberate non-goal; the fixed monthly cadence is the explainable rule.
+- A token-small purchase categorised as Weekly Shop still resets the week (by design).
 - **Running balance** on All Transactions is still deferred (SPEC §15.3); **income analysis** stays out
   (decision 103).

@@ -561,6 +561,11 @@ const expectedInflowFieldSchema = z.object({
     .int('The expected day must be a whole number.')
     .min(1, 'The expected day must be between 1 and 31.')
     .max(31, 'The expected day must be between 1 and 31.'),
+  /**
+   * Optional inclusive end of the arrangement (v0.7.0). Blank means
+   * open-ended: the expectation runs until the household clears it.
+   */
+  untilDate: localDateSchema.nullable().default(null),
 });
 
 /** Debt correction: the direction is immutable (the domain enforces it). */

@@ -8,6 +8,7 @@ import {
   daysBetween,
   incomeOccurrencesBetween,
   isLeapYear,
+  lastOccurrenceDate,
   shiftIncomeOffWeekend,
 } from '../src/lib/records/dates';
 
@@ -96,6 +97,30 @@ describe('dates: pure local-calendar arithmetic', () => {
     // Empty window: the bounds are respected and nothing is returned.
     assert.deepEqual(incomeOccurrencesBetween(12, '2026-09-23', '2026-09-22'), []);
     assert.deepEqual(incomeOccurrencesBetween(12, '2026-10-05', '2026-10-11'), []);
+    // v0.7.0 edge: a window that ends on the *expected* (shifted) day keeps
+    // its occurrence, even though the configured day is a day later — the
+    // payday cycle can end on exactly that Friday (Sat 10 Oct → Fri 9 Oct).
+    assert.deepEqual(incomeOccurrencesBetween(10, '2026-09-26', '2026-10-09'), ['2026-10-09']);
+    assert.deepEqual(incomeOccurrencesBetween(1, '2026-10-01', '2026-10-30'), ['2026-10-30']);
+  });
+
+  it('lastOccurrenceDate is the Nth payment: the debt form\u2019s \u201ccontinuing for N months\u201d sugar', () => {
+    // The household's shape (v0.7.0): from 24 September, £1,000 on the 10th,
+    // five payments → the first is Fri 9 October (Sat 10 Oct shifts, decision
+    // 7) and the fifth is 10 February 2027. The until date is a *configured*
+    // day-of-month date, because that is what the occurrence filter compares.
+    assert.equal(lastOccurrenceDate(10, '2026-09-24', 5), '2027-02-10');
+    assert.equal(lastOccurrenceDate(10, '2026-09-24', 1), '2026-10-10');
+    assert.equal(lastOccurrenceDate(13, '2026-09-24', 5), '2027-02-13');
+    // A day that has not yet passed this month counts from this month.
+    assert.equal(lastOccurrenceDate(26, '2026-09-24', 2), '2026-10-26');
+    // Clamping is re-derived from the configured day every month (OQ1):
+    // the 31st lands on the 28th in February, then back on the 31st.
+    assert.equal(lastOccurrenceDate(31, '2026-01-31', 3), '2026-04-30');
+    // Nonsense inputs answer null rather than a made-up date.
+    assert.equal(lastOccurrenceDate(10, '2026-13-01', 5), null);
+    assert.equal(lastOccurrenceDate(0, '2026-09-24', 5), null);
+    assert.equal(lastOccurrenceDate(10, '2026-09-24', 0), null);
   });
 
   it('shiftIncomeOffWeekend moves weekends to the Friday before, weeks pass through', () => {

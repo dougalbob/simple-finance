@@ -5,9 +5,10 @@
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
 >
-> **Current:** v0.1.5 is the published image (`latest` = `sha-129ecea`, built from `main` @ `129ecea` on
-> 2026-09-22). Merging does not publish; the image publishes only when the lower-case tag matches the version
-> already in the tree it points at — see decision 91.
+> **Current:** v0.6.0 is the published image (`latest` = `sha-b0379eb`, built from `main` @ `b0379eb` on
+> 2026-09-24); v0.7.0 is built on the session branch and is released by the Release Process when the
+> household's 10-October deadline demands it. Merging does not publish; the image publishes only when the
+> lower-case tag matches the version already in the tree it points at — see decision 91.
 
 **Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
 merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
@@ -862,6 +863,42 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     and the §7.5 pot watch still excludes them. E8 (SPEC §17) is reworked end-to-end for the new
     arithmetic (low −£571.26 on the 25th, the cycle's last shop), and the horizon lowest point's
     date is meaningful again with day-to-day on.
+120. **Expected support becomes a plan with a real start, a changeable day and an end (v0.7.0).**
+    The household's real arrangement — £1,000 on the 10th for about five months while probate completes,
+    then it stops — is what v0.5.0's pair-only expectation (decision 116) could not express, and the
+    household's own acceptance list named the three gaps: a brand-new debt (no movements, balance £0)
+    projected nothing at all, there was no way to end the arrangement, and a recorded Borrow left the
+    same month's expectation sitting beside it. Migration `0008_debt_expected_inflow_until` adds nullable
+    `expected_inflow_until_date` (additive `ALTER TABLE`, no backup-format change). `expectedInflowOccurrences`
+    gains three rules: **settled stops** (movements exist and the derived balance is ≤ 0 ⇒ nothing —
+    a debt with **no** movements is *not* settled and projects, so the first payment pre-projects);
+    **until inclusive** (an occurrence whose configured date is past it does not count, so five payments
+    end themselves); and **an answered month stops projecting** (a live money-in recorded from
+    `OCCURRENCE_ANSWER_LEAD_DAYS = 2` before the occurrence's expected date — the weekend shift can bring
+    it forward — up to the next occurrence *is* that month's money). `expectedInflowPotId` replaces
+    `firstMovementPotOf`: the pot the most recent **live** movement travelled through, else the household
+    default (the pot labelled `Main account`, else the first live pot), so a not-started debt's
+    expectation still has an honest home and follows reality once the first Borrow is recorded. Edits stay
+    forward-looking: `editDebt` persists day and until date under the existing version check, the audit
+    line carries the new end date, and recorded movements are never rewritten. The cadence is unchanged
+    (clamp OQ1, weekend shift decision 7), with one window refinement — an occurrence counts when its
+    configured **or** its shifted date falls in `(after, through]` — so the first payment (Sat 10 Oct →
+    Fri 9 Oct) is counted in a window ending on the Friday, and a configured 1st/2nd can shift back into
+    the previous month's window.
+121. **The expectation is visible on every surface it touches, and never counted as money (v0.7.0).**
+    All Transactions renders it as `EXP<` rows (family `expected`) — green, dated the day the money is
+    expected, badged `expected — not recorded yet`, linking to `/pots#debt-{id}` — **outside the totals**:
+    `expectedRowCount` / `expectedInPence` carry them separately so the count line, the total row
+    ("Expected support (N expectations, not counted)") and the footnote can all say so. The rows speak
+    only for months **since the plan was set** (`plannedFrom` = the local date of the debt's last edit), so
+    a late-September edit does not retrofit September, and they give way to the real `LN<` the moment that
+    month's Borrow is recorded. The projection panel gains "Expected support in this forecast (N)" from the
+    `expected`-flagged receipt lines; the Pots debt panel says whether the debt is *settled* or *expecting*
+    (amount, day, end) and the edit form carries the day, the optional until date and a **"Fill the end
+    date"** helper — `lastOccurrenceDate(dayOfMonth, fromDate, count)` returns the Nth clamped monthly
+    occurrence after today (1–240 payments) — so "five payments" needs no calendar. Unchanged by design
+    (decision 116 holds): never income, never an estimate move, never an insight, and the pot moves only
+    when the Borrow is actually recorded.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
@@ -883,7 +920,21 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 
 ## Release history
 
-- No versioned releases yet (no tag, no image, no deployment). **Phase 0 + Phase 1 merged to `main` on
+- **Releases v0.1.0 → v0.6.0 are published** — each a lower-case annotated tag on its pull-request merge
+  commit with its own digest; the notes file is the release record and earlier notes are never rewritten
+  (`docs/RELEASE_NOTES_v0.1.0.md` … `docs/RELEASE_NOTES_v0.6.0.md`). Before v0.7.0, `latest` is the **v0.6.0**
+  build (`b0379eb`, PR #36 merge, publish run `36006994819`, digest
+  `sha256:e650c5f48e1e049d0865be8f889426630e4f8af21d40e7eaf9d4fc977ca2aa4e`). The bullets below record the
+  build sessions that led to the first release — they are history, not the current state.
+- **v0.7.0 — expected support with a real start, a changeable day and an end (session
+  `arena/01a0d490-simple-finance`, from `main` @ `102570a`)**: migration
+  `0008_debt_expected_inflow_until`; the expectation projects before the first Borrow, ends on its until
+  date, stops when the debt is settled and moves its day forward-looking (decision 120), and it is visible
+  as flagged `EXP<` rows on All Transactions, in the projection panel and on the debt panel (decision 121).
+  SPEC §7.2/§7.6/§10.2/§15.3/§17 E11 amended; `npm test` **335 tests / 84 suites green**, format and
+  typecheck clean, production build green. Publication details (merge commit, tag, publish run, digest)
+  are completed in [`docs/RELEASE_NOTES_v0.7.0.md`](RELEASE_NOTES_v0.7.0.md) at release.
+- **Pre-v0.1.0 history** (no tag, no image, no deployment existed yet): **Phase 0 + Phase 1 merged to `main` on
   2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
   container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,
   Session 2)** — core money-record domain with E1/E2/E4/E6/E7 integration coverage, no UI yet. **Phase 2b

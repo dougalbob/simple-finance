@@ -94,7 +94,8 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       assert.equal(countRows(target, 'pots'), 1);
       assert.equal(countRows(target, 'checkpoints'), 2);
       assert.equal(countRows(target, 'audit_entries'), 3);
-      assert.equal(countRows(target, '__drizzle_migrations'), 8);
+      // One row per applied migration: 0000…0008 (nine files).
+      assert.equal(countRows(target, '__drizzle_migrations'), 9);
     } finally {
       handle.raw.close();
     }

@@ -188,7 +188,7 @@ same date-stamped records.
 ```
 days = payday − today   (whole days, local date arithmetic)
 projection starts from household_available_now and applies, day by day until payday inclusive:
-  + expected receipts due that day        (income schedules not yet converted)
+  + expected receipts due that day        (income schedules not yet converted, and a debt's expected support, §10.2)
   − expected commitments due that day     (DD/SO schedule instances not yet converted)
   − projected day-to-day events due that day (see 7.3)
 projected_low = the minimum running value within the window
@@ -196,6 +196,13 @@ projected_low = the minimum running value within the window
 
 `projected_low` normally occurs just before salary lands. The projection **includes** expected income; it is
 not a spending-only forecast.
+
+**A shifted expectation belongs to the window it lands in (v0.7.0).** A debt's expected support counts while
+**either** its configured day-of-month **or** the Friday it shifts to (§11.3, decision 7) falls inside the
+window — so a payment configured for Saturday the 10th dates Friday the 9th and counts in the window that
+ends on Friday the 9th, rather than vanishing because its configured day sat one day outside. Nothing else
+about the cadence changes: the crossing date shown is the shifted one, and the recorded Borrow is still
+recorded on whichever day it actually lands.
 
 ### 7.3 Projected day-to-day spending as episodic events (anchor-reset) — v0.6.0
 
@@ -286,8 +293,14 @@ where_we'd_land = household_available_now
   with day-to-day on read "today", the up-front lump's artifact.
 - **Debt expected inflow joins this window** (and §7.2's) as expected money, flagged `expected` in the lists —
   a labelled expectation, never received income (§10.2). It lands on the debt's day-of-month, clamped like a
-  schedule (OQ1) and moved off a weekend onto the previous Friday like income (§11.3, decision 7); a settled
-  (or overpaid) debt expects nothing.
+  schedule (OQ1) and moved off a weekend onto the previous Friday like income (§11.3, decision 7), and it
+  counts in the window when either the configured day or the shifted date falls inside it (v0.7.0). From
+  v0.7.0 the expectation also has a **start and an end**: occurrences project strictly after today and through
+  the optional **until date** inclusive, and only for months the expectation has actually been planned for —
+  a day-of-month or until-date edit is forward-looking (§10.2). A debt that has been **settled** — movements
+  recorded and the balance brought to zero or below — expects nothing, while a debt with no movements yet is
+  *not* settled and projects from the day the plan was set (fixing the v0.5.0 gap where a brand-new debt, £0
+  and no movements, projected nothing at all).
 - **Every pot is selected by default**; the household untick to scope the projection. A debt's expected
   inflow counts only while the pot its loan movements actually go through is selected.
 - **Search-params persistence:** the through date, pot selection and day-to-day toggle ride in the URL
@@ -408,13 +421,28 @@ world of §10.1 cannot represent these, so they get their own honest boxes:
   from the linked loan movements — never stored — so it cannot drift: for `we_owe`, borrowed minus
   repaid; for `they_owe`, lent minus repaid-to-us. Voided movements never count. No interest, no
   schedules: repayments simply reduce the balance, and a settled debt stays as history.
-- **Expected inflow (v0.5.0).** Because the money that would settle a debt is often dependable (Mum's
-  £1,000 each 12th), a debt may carry a **read-only expectation**: an amount and a day-of-month, set
-  together or not at all. It feeds only the projections (§7.2, §7.6) as *expected* money — never the
-  estimate, the Income page, All Transactions' `BAC` rows or any insight. It follows the income cadence:
-  clamped to the month (OQ1) and moved off a weekend onto the Friday before (decision 7), and a settled
-  or overpaid debt expects nothing. The actual deposit is still a Borrow movement; the expectation is a
-  label, never received income.
+- **Expected inflow — a plan with a start, a changeable day and an end (v0.5.0; planned from v0.7.0 on).**
+  Because the money that would settle a debt is often dependable (Mum's £1,000 each 12th, while the loan
+  runs), a debt may carry a **read-only expectation**: an amount, a day-of-month and an optional **until
+  date**. It feeds only the projections (§7.2, §7.6) and the `EXP<` rows on All Transactions (§15.3) as
+  *expected* money — never the estimate, the Income page, All Transactions' `BAC` rows or any insight. It
+  follows the income cadence: clamped to the month (OQ1) and moved off a weekend onto the Friday before
+  (decision 7). The plan runs **strictly after today and through the until date inclusive** (no until date
+  means "until you say otherwise"), so a five-payment arrangement ends itself: once the until date has
+  passed, nothing projects from the next month.
+  **A settled debt expects nothing** — settled meaning movements exist and the balance has been brought to
+  zero (or below). A debt with **no movements yet** is *not* settled: it is exactly the debt the expectation
+  was planned for, and it projects from the day the expectation was set. A month that has already been
+  answered by a live loan movement is never projected twice: a money-in recorded from up to two days before
+  an occurrence's expected date (the weekend shift can bring it forward) and before the next occurrence
+  simply *is* that month's money. Recording the real Borrow is therefore what silences the expectation — not
+  a manual tidy-up — and if the parents are late one month the panel is late with them rather than moving
+  the pot on a promise (§7.1).
+  **Edits are forward-looking.** Moving the day from the 10th to the 13th, or changing or clearing the until
+  date, changes only what is still expected; recorded movements are immutable history. The expectation is a
+  **plan, not a promise**: no month is flagged late, and stopping the arrangement is an edit (or the until
+  date passing). The actual deposit is still a Borrow movement; the expectation is a label, never received
+  income.
 - **Borrowing and repayments (loan movements).** Money in linked to a `we_owe` debt is borrowing: it
   raises the pot estimate **and** the owed balance together, and the Overview shows the owed figure
   **beside** "available now" — borrowed money is never income. Money out against the same debt is a
@@ -591,15 +619,15 @@ Menu pages:
 
 | Page | Contents |
 |---|---|
-| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, projected day-to-day events, projected low) with "what's in this forecast" expansions including the dated shops/fills list; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
+| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, projected day-to-day events, projected low) with "what's in this forecast" expansions including the dated shops/fills list and a debt's expected support when one is in the window (v0.7.0); pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
 | **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag (on a phone the filter card collapses behind **Show filters**, starts open if any filter is already applied, and From/To date share a row); inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
-| **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money, **income**), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
+| **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money, **income**), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, a debt's expected support as flagged `EXP<` rows outside the totals (v0.7.0), and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
 | **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
 | **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead, scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), the projected day-to-day events (dated shops/fills, v0.6.0) and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
 | **Income** | Money coming in: the scheduled income (salary) that converts itself, editable in place from the next instance onward; one-off income recorded by hand with an optional source; and one list of everything received — scheduled and one-off together, with inline correction, void and the retained history. Income is desktop-shaped by the household's choice: it is not a till-side task, so nothing here is squeezed into the mobile quick-entry panel. |
 | **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
-| **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account; informal debts with derived balances; borrow/repay/swap/other entry and history; archiving for empty pots. |
+| **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account; informal debts with derived balances and an optional expected-support plan (amount, day-of-month, until date — editable forward-looking, v0.7.0); borrow/repay/swap/other entry and history; archiving for empty pots. |
 | **Insights** | §16 panels. |
 | **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends. (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
 
@@ -616,7 +644,8 @@ One page, one pot at a time: every movement that touched the selected pot inside
 one dense table — purchases, direct debits and standing orders, transfers, money across the
 household boundary, and income (`BAC`). It is a **pure projection of existing records** — it stores nothing, renders no
 forms, and every row links to the canonical record that owns the add/edit/void behaviour and the
-retained history. It is not statement import and not bank reconciliation, both of which remain
+retained history. (One derived exception since v0.7.0: a debt's expected support renders as a flagged
+`EXP<` row that is not a record at all — it links to the debt, not to a form.) It is not statement import and not bank reconciliation, both of which remain
 non-goals (§2): the rows are the household's own records, not a bank's lines.
 
 **Filters.** A target selector (the household's live pots; the default is the pot labelled
@@ -650,6 +679,7 @@ on the other with no data change anywhere.
 | `SO` | purchase converted from a schedule of kind `so` | the schedule's supplier; a standing order may have none (§11.1), in which case the schedule's own name is shown | as above | `purchase.note` |
 | `TX<` `TX>` | `transfers` (internal) and `external_movements` kind `other` | the other pot's label, or the counterparty | — | `note` (mandatory for `other`, §10.2) |
 | `LN<` `LN>` | `external_movements` kind `loan` | the counterparty (the debt's name) | — | `note` |
+| `EXP<` | *derived, not a record*: a debt's expected support due that day (§10.2, v0.7.0), always money in | the counterparty (the debt's name) | — | `expected — not recorded yet` badge; the row links to `/pots#debt-{id}`, not to a form |
 | `SW<` `SW>` | `external_movements` kind `swap`, one row per leg on the pot it touched | the counterparty | — | `note`, plus a `swap (paired, £X with <pot>)` badge |
 | `BAC` | `receipts` (income) — a one-off entry, or a receipt converted from an income schedule | `receipt.source`, else the income schedule's name, else "Income" | — (income has no category) | `receipt.note` (`From schedule "…"` when converted) |
 
@@ -659,6 +689,21 @@ for-whom; a fourth, typed at the till and read by one column, is not worth its c
 rendered as `BAC` (v0.4.0): one-off income is recorded on the Income page rather than as other money
 in, so a third-party credit reads as income, and a converted salary reads as income too, named by
 the schedule that produced it. Borrowed money still appears as `LN<` — it is never income (§10.2).
+
+**Expected support rows are flagged, never counted (v0.7.0).** A debt's expected inflow (§10.2) is the one
+thing on this page that is **not a record**: it renders as a green `EXP<` row dated the day the money is
+expected, badged `expected — not recorded yet` and linking to the debt on the Pots page, so the plan is
+visible in the same list as the money that has actually moved — on the due date itself, which is when the
+household needs to record the borrowing, and for the days that follow while the window still covers it. It is
+deliberately outside the totals: the count line above the table and the total row both say how many
+expectations were shown and what they come to ("≈"), and the footnote spells out that they are not counted,
+because nothing has moved and the estimate has not changed. Each row **gives way to the real thing**: once
+the Borrow for that month is recorded, the `LN<` row takes its place and the expectation stops projecting
+that month (§10.2). Expected rows speak only for months **since the plan was set** — an expectation added in
+late September does not retro-fit a September row — and they render in date order with everything else. The
+window still cannot reach into the future (§9.1), so a payment due next month is not listed here yet: the
+projections (§7.2, §7.6) are what show the plan ahead, while this page shows the money that moved — or was
+expected to move — on the days the window covers.
 
 **Voided records are excluded** (`voided_at IS NULL` on every family) and no void or history
 machinery is rendered; corrections happen on the canonical page behind the link. **Refunds are
@@ -844,13 +889,21 @@ the cash into Main is an ordinary internal transfer (Alex's cash → Main, £1,0
 repayment of £250 from Main lowers the estimate and the owed balance together — never spending —
 until the debt reads "settled" and stays as history.
 
-**Expected inflow (v0.5.0).** The household also sets Mum's debt to *expect £1,000 support on the 12th*
-— the money she reliably sends while the loan is live. The estimate does not move, the Income page
-shows nothing new, and no `BAC` row appears: an expectation is not a receipt. The projection
-(§7.2) and the horizon (§7.6) do show it, flagged `expected`, as money in on the 12th (or the Friday
-before when the 12th is a weekend), into Alex's cash — and once the debt is settled, it expects
-nothing. When the money really arrives it is recorded as Borrow, exactly as in E11, and the
-expectation is then describing the same money the real record shows.
+**Expected inflow — planned, changed and stopped (v0.5.0; live plan from v0.7.0).** The household also sets
+Mum's debt to *expect £1,000 support on the 12th* — the money she reliably sends while the loan is live —
+and, because the arrangement runs for a known stretch, an **until date** of 10 February, its last payment.
+The estimate does not move, the Income page shows nothing new, and no `BAC` row appears: an expectation is not
+a receipt, and the pot never moves on a promise. The projection (§7.2) and the horizon (§7.6) do show it,
+flagged `expected`: money in on the 12th (or the Friday before when the 12th is a weekend), into Alex's cash,
+one occurrence a month through the until date inclusive — and nothing from March. On All Transactions (§15.3)
+an `EXP<` row appears on the due date, flagged `expected — not recorded yet` and outside the totals, as the
+nudge to record the Borrow; it gives way to the real `LN<` the moment that month's money is recorded. If the
+parents move the payment to the 13th, the household edits the day and only what is still expected moves —
+months already recorded stay exactly as they were, and the next occurrence is the 13th. A month that goes by
+unrecorded is not treated as late: the next one still projects, because the expectation is a plan, not a
+promise. And a debt that has **never had a movement** is not settled — it is the very debt this arrangement
+exists for, so it projects from the day the expectation was set; once it *is* settled (movements recorded,
+balance at zero) it expects nothing at all.
 
 ### E12 — Cash for a bank transfer (swap acceptance scenario)
 
