@@ -5,13 +5,13 @@
 > `docs/HANDOFF.md`; the product spec is `docs/SPEC.md`. Citations of the blueprint below are records of
 > how a decision was made, not a reading list.
 >
-> **Current:** v0.7.0 is the published image (`latest` = `sha-0a82992`, built from `main` @ `0a82992` on
-> 2026-09-24, out ahead of the household's 10-October deadline so the first payment pre-projects). Merging
-> does not publish; the image publishes only when the lower-case tag matches the version already in the tree
-> it points at — see decision 91.
+> **Current:** v0.8.0 is the published image (`latest` = `sha-45a1ad0`, built from `main` @ `45a1ad0` on
+> 2026-09-24). Merging does not publish; the image publishes only when the lower-case tag matches the
+> version already in the tree it points at — see decision 91.
 
-**Status:** v0.8.0 builds on v0.7.0: the app is now installable as a PWA (manifest + icons, no service
-worker, no offline access). 340 tests / 85 suites green. The release-blocking backup/restore capability from Phase 5 covers attachments, live in-place restore exists,
+**Status:** v0.8.0 is the published image (`latest` = `sha-45a1ad0`, built from `main` @ `45a1ad0` on
+2026-09-24). The app is now installable as a PWA (manifest + icons, no service worker, no offline access).
+340 tests / 85 suites green. The release-blocking backup/restore capability from Phase 5 covers attachments, live in-place restore exists,
 suppliers/interactions are audited domain operations, the container runs unprivileged, the Unraid template
 and the GHCR publish workflow are written, and the Playwright acceptance suite is defined (it runs in CI —
 this sandbox has no browser binaries and no access to the download host). **224 Node tests green** plus the
