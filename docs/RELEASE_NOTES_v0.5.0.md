@@ -1,10 +1,10 @@
 # Simple Finance v0.5.0
 
 **Release date:** 2026-09-24
-**Published:** yes — annotated tag `v0.5.0` on merge commit `<MERGE_SHA>` (PR `<PR_NUMBER>`), publish run
-`<PUBLISH_RUN_ID>`. `v0.5.0`, `latest` and `sha-<MERGE_SHA_SHORT>` all resolve to one digest. Force
-Update now brings this release.
-**Image digest:** `<DIGEST_SHA256>`.
+**Published:** yes — annotated tag `v0.5.0` on merge commit `95fa89df387d2e1878415942b034cc9bdc86b268`
+(PR #34), publish run `35980552808`. `v0.5.0`, `latest` and `sha-95fa89d` all resolve to one digest.
+Force Update now brings this release.
+**Image digest:** `sha256:ab0b3f679e85598a7ea94e9f580e727691be41177360a75c69c11dfc61c57936`.
 **Type:** feature release — **Horizon** and **expected support payments**. A new page (`/horizon`) that
 projects how far the money would go to any date up to 400 days ahead, and a read-only expected-inflow
 expectation on debts that feeds the projections as flagged, expected money — borrowed money is still
@@ -83,19 +83,20 @@ The publish workflow put these tags on one digest:
 
 - `ghcr.io/dougalbob/simple-finance:v0.5.0`
 - `ghcr.io/dougalbob/simple-finance:latest`
-- `ghcr.io/dougalbob/simple-finance:sha-<MERGE_SHA_SHORT>`
+- `ghcr.io/dougalbob/simple-finance:sha-95fa89d`
 
-Digest: `<DIGEST_SHA256>` — confirmed by the publish workflow's registry verification and the package
-versions API. v0.4.0 (`sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8`) was
-not retagged, and the v0.5.0 digest differs from it.
+Digest: `sha256:ab0b3f679e85598a7ea94e9f580e727691be41177360a75c69c11dfc61c57936` — confirmed by the
+publish workflow's registry verification and the package versions API. v0.4.0
+(`sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8`) was not retagged, and
+the v0.5.0 digest differs from it.
 
 ## Verification of the registry
 
 `ghcr.io` is blocked in the agent sandbox (see `docs/SANDBOX.md` entry 6), so the tags are verified two
 ways: the publish workflow's own registry verification step, and
 `GET /users/dougalbob/packages/container/simple-finance/versions` over `api.github.com`. Both succeeded
-for this release — the versions API returned one entry carrying exactly `["sha-<MERGE_SHA_SHORT>",
-"v0.5.0", "latest"]`, with `latest` moved off the v0.4.0 entry.
+for this release — the versions API returned one entry carrying exactly `["sha-95fa89d", "v0.5.0",
+"latest"]`, with `latest` moved off the v0.4.0 entry.
 
 ## Schema / data notes
 
