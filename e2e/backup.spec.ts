@@ -77,7 +77,7 @@ test.describe('backup and restore in a browser', () => {
     await entry.locator('input[name="amount"]').fill('5.00');
     await entry.getByLabel('Line 1 amount').fill('5.00');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
-    await entry.getByRole('button', { name: 'Save purchase' }).click();
+    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
     await page.goto('/purchases');
     const results = page.locator('section[aria-labelledby="results-heading"]');

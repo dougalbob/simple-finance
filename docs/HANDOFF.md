@@ -1,66 +1,90 @@
-# Handoff — Installable PWA, no offline access (v0.8.0)
+# Handoff — the phone-first till form and the "before income lands" figure (v0.9.0)
 
-Date: 2026-09-24. Branch: `arena/01a0d4f9-simple-finance` (from `main` @ `837845a`, post-v0.7.0 and its
+Date: 2026-09-24. Branch: `arena/01a0d55f-simple-finance` (from `main` @ `2255607`, post-v0.8.0 and its
 release).
 
-**This session ships PWA installability** — manifest + icons, no service worker, no offline caching.
-SPEC §14's online-only rule stands unchanged; the household confirmed they do not want offline access.
+**This session redesigned the mobile Quick Entry experience and added the second balance figure the
+household asked for.** The household's question was: a "free to spend" figure based only on the last
+checkpoint is dangerous — standing in Tesco with £500 showing and a £600 mortgage leaving three days before
+payday tells you nothing about the bounce. Agreed answer (decisions 124–126): show **two** facts, the last
+reported checkpoint (with its age) **and** what is left before income lands, the latter counting **no
+incoming money at all**. New SPEC §7.7.
 
 ## What changed
 
-- `public/manifest.webmanifest` **(new)** — static file (not a Next route, because a route would sit
-  behind Cloudflare Access). Declares `name`, `short_name`, `start_url`, `scope`, `display: standalone`,
-  `background_color` / `theme_color` `#0f172a`, two icons with `purpose: any`.
-- `public/icon-192.png` (192×192), `public/icon-512.png` (512×512), `public/apple-touch-icon.png`
-  (180×180) **(new)** — derived from the existing `docs/assets/simple-finance-icon.svg` / `.png`.
-  One identity, no new design work.
-- `src/app/layout.tsx` — metadata gains `manifest: '/manifest.webmanifest'`, `icons.apple` and
-  `appleWebApp: { capable: true, title }`; `viewport` export gains `themeColor: '#0f172a'` (Next 16
-  API — `themeColor` on `Metadata` is deprecated; the docs at `node_modules/next/dist/lib/metadata/types/`
-  confirm the split).
-- `Dockerfile` runtime stage — added `COPY --from=builder /app/public ./public`. **The trap**: without
-  this the container serves 404s for every file in `public/` even though the files exist in the repo.
-  `.dockerignore` does not exclude `public/`, confirmed.
-- CI smoke tests — `ci.yml` docker job and `publish.yml` both `curl -fsS` the four PWA paths and
-  assert 200 + correct content types.
-- Tests — `tests/pwa-manifest.test.ts` (5 tests: manifest parses, required fields, icon files exist at
-  declared pixel sizes, colours, scope); `e2e/pwa.spec.ts` (Playwright: four paths return 200 with
-  correct content types).
-- Decisions **122–123** added to IMPLEMENTATION_PLAN.md. OQ7 resolved.
+- **SPEC §7.7 (new)** — "What is left before income lands (the till figure)":
+  `free_to_spend = household_available_now − commitments due in (today, next income] − projected day-to-day
+  events in the same window`; per pot it is §7.5's pot watch with that window. §15.1 rewritten for the till
+  redesign; §15.2's Settings row gained the default pot.
+- **`src/lib/records/money-view.ts`** — `getCycleOutlook(db, now, snapshot?)` (+ `CycleOutlook`,
+  `CycleOutlookPot`) and two extracted helpers the projection panel now shares, so the panel and the till
+  read the window through one code path: `nextExpectedIncome` (the §7.2 payday selection) and
+  `windowLines` (commitments/receipts inside a window). `getProjectionView` behaviour is unchanged —
+  340 tests stayed green through the refactor.
+- **`src/lib/records/entry-view.ts`** — `buildEntryData` puts the reported checkpoint (amount, age,
+  absolute time — rendered server-side so hydration cannot disagree), the estimate, the pot's
+  `spendablePence`/`shortfallPence`/`dueBeforeIncome`, and the household `cycle` outlook into
+  `QuickEntryData`.
+- **`src/lib/records/settings.ts`** — `default_purchase_pot_id` with `getDefaultPurchasePotId` /
+  `setDefaultPurchasePotId` (validated against live pots; audited like every other setting).
+- **`src/lib/records/quick-entry.ts`** — the typeahead's pure half: `normalizeSupplierQuery`,
+  `rankSupplierMatches`, `nearestSupplierName` (+ the moved `editDistance`).
+- **`src/lib/time.ts`** — `formatShortLocalDate` ('2026-09-30' → "Wed 30 Sept").
+- **`src/components/quick-entry.tsx`** — the purchase form rebuilt (see the decisions 127–130 list): pot
+  first, both balance figures, inline supplier typeahead, swipe panels with Save on both, focus order
+  supplier → amount → save, "Line 1 amount" label only when there is more than one line, note behind
+  "+ Note", "Add another" resets to panel 1 on the supplier field. Fuel and Balance forms moved onto light
+  cards (**they were dark-on-dark before** — see below), and every input/button is ≥44px tall.
+- **`src/components/pot-outlook.tsx` (new)** — the shared "before income lands" lines for the home page pot
+  cards and the Overview mini-balances.
+- **`src/app/settings/page.tsx` + `settings-forms.tsx` + `actions.ts`** — a "Quick entry" section with the
+  **Default pot for purchases** dropdown and `saveDefaultPurchasePotAction`.
+- **`scripts/e2e-server.mts`** — the fictional seed now sets a default pot, so the specs prove the form
+  honours it.
+- **Tests** — `tests/cycle-outlook.test.ts` (6 tests, including the "the till figure equals the projection
+  panel's low" cross-check), typeahead ranking in `tests/quick-entry.test.ts`, the setting in
+  `tests/settings-domain.test.ts`, `formatShortLocalDate` in `tests/time.test.ts`; Playwright: four new
+  mobile specs in `e2e/home.spec.ts`, a new settings spec, and `.first()` on the now-duplicated Save button
+  in `home`/`desktop`/`attachments`/`backup`.
+- **Decisions 124–130** in `docs/IMPLEMENTATION_PLAN.md`; **v0.9.0** in the four version places.
 
 ## Watch out for (learned this session)
 
-- **The `Viewport` export is separate from `Metadata`.** Next 16 deprecated `themeColor` and
-  `colorScheme` on the `Metadata` interface. They belong in a separate `export const viewport: Viewport`
-  import. The source of truth is `node_modules/next/dist/lib/metadata/types/metadata-interface.d.ts`
-  (the `@deprecated` annotations). Do not add `themeColor` to `metadata` — TypeScript will accept it
-  (it is deprecated, not removed) but it generates a console warning at build time.
-- **`public/` must be copied into the Docker image.** The `next build` output in `.next` does not
-  contain the files from `public/` — they are served from `public/` at runtime. The runtime stage must
-  `COPY --from=builder /app/public ./public` or they 404 in production.
-- **The manifest is a static file, not a route.** A Next route handler for `/manifest.webmanifest` would
-  sit behind Cloudflare Access and require authentication. A static file in `public/` is served directly
-  by the web server and bypasses middleware, which is exactly what the Access bypass needs.
-- **`next build` rewrites `next-env.d.ts`** — run `git checkout -- next-env.d.ts` before committing
-  unless that change is the point (the `.next/dev` ↔ `.next` reference paths flip).
-
-## Published
-
-**v0.8.0** — annotated tag `v0.8.0` on merge commit `45a1ad0` (PR #41), publish run `36052970042`,
-digest `sha256:f2603aa8caa2cc9dd8ae76421f2f487a4f51148d8b923f2534f3c3b94be1258e` on `v0.8.0` /
-`latest` / `sha-45a1ad0` — one digest, different from v0.7.0's
-`sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18`.
+- **The two figures must not be conflated.** `free_to_spend` counts **no** income; the projection panel's
+  `projected_low` counts the income but lands on the same dip when nothing else arrives in the window.
+  `tests/cycle-outlook.test.ts` pins that equality — if a future change makes the till figure disagree with
+  the panel, that test is the tripwire, not a coincidence.
+- **Null is not zero.** No income schedule → no window → `freeToSpendPence`/`spendablePence` are `null` and
+  the UI says what is missing. Do not "fix" this by defaulting to the available-now figure; that is the
+  bug the household reported.
+- **The Quick Entry panel used to be dark-on-dark.** `PurchaseForm`/`FuelForm`/`BalanceForm` set
+  `text-slate-900`/`text-slate-800` labels while sitting on `bg-slate-900`, so the field labels were
+  effectively invisible. Every panel is a white card now. If you add a form to Quick Entry, put it on a
+  light card.
+- **Save is deliberately duplicated** (one button per swipe panel), so Playwright locators need `.first()`
+  — `getByRole('button', { name: 'Save purchase' })` alone is a strict-mode violation. The status/duplicate
+  message is rendered once, outside the panels, for the same reason.
+- **The accessible name of the mirrored amount is still "Line 1 amount"** (`aria-label`), even though the
+  visible label hides the "Line 1" when only one line exists. That is intentional: the e2e
+  specs and screen readers keep working while the visible panel stays quiet.
+- **Scroll-snap is enhancement only.** Panel 2 is reachable by tab and by keyboard; Playwright's `fill()`
+  scrolls the container itself, so specs may hop panels without asserting it.
 
 ## Test state
 
-`npm test` — **340 tests, all green, 85 suites** (was 335/84). New coverage:
-`tests/pwa-manifest.test.ts` (5 tests). `npm run format:check`, `npx tsc --noEmit` and `npm run build`
-are clean. Playwright cannot run in this sandbox (`docs/SANDBOX.md` entry 2) — CI's `browser` job is
-the proof; the new spec is `e2e/pwa.spec.ts` (four PWA paths return 200 with correct content types).
+`npm test` — **357 tests, all green, 90 suites** (was 340/85). `npm run format:check`, `npx tsc --noEmit`
+and `npm run build` are clean. Playwright cannot run in this sandbox (`docs/SANDBOX.md` entry 2) — CI's
+`browser` job is the proof. The new/changed specs: `e2e/home.spec.ts` (four new mobile specs plus the
+label/heading updates), `e2e/settings.spec.ts` (default pot moves the till form, then clears), and the
+`.first()` fixes elsewhere.
 
 ## Open / deferred (not forgotten)
 
-- The household's Cloudflare Access bypass app should be updated to include the four PWA paths and
-  delete the `/sw.js` destination (no service worker ships). Access session duration can be raised
-  to up to one month in the main app's settings if daily re-login on the home-screen app is unwelcome.
-- Offline access remains deliberately out of scope (SPEC §14).
+- **The swipe physics themselves are only proven by CI.** No browser exists in the sandbox, so the
+  scroll-snap behaviour, the dots and the above-the-fold layout on a real phone are CI's evidence plus the
+  household's own eyes. If the panels feel wrong, the CSS is one class list to change.
+- **Dot indicators** shipped (the handoff's open decision): two dots plus a hint line, mobile only.
+- **"Add another" resets to Panel 1 and focuses the supplier** — implemented as probably-yes.
+- **Home page mobile layout is still untouched** (the money section, projection, due-this-week, schedules,
+  pots, recent entries all as they were) — the household decides later what to hide on a phone.
+- **The Cloudflare Access app** still wants its PWA paths intact (v0.8.0 note); nothing here changes that.

@@ -4,6 +4,7 @@ import {
   BUSINESS_TIMEZONE,
   endOfLocalDate,
   formatRelativeAge,
+  formatShortLocalDate,
   isValidLocalDate,
   toLocalDateString,
 } from '../src/lib/time';
@@ -89,5 +90,17 @@ describe('local dates (Phase 2a backdating)', () => {
   it('rejects malformed dates loudly', () => {
     assert.throws(() => endOfLocalDate('2026-02-30'), /Expected a local date/);
     assert.throws(() => endOfLocalDate('not-a-date'), /Expected a local date/);
+  });
+});
+
+describe('formatShortLocalDate', () => {
+  it('renders a local date as a short weekday label, whatever the timezone', () => {
+    assert.equal(formatShortLocalDate('2026-09-30'), 'Wed 30 Sept');
+    assert.equal(formatShortLocalDate('2026-09-27'), 'Sun 27 Sept');
+    assert.equal(formatShortLocalDate('2026-10-02'), 'Fri 2 Oct');
+  });
+
+  it('returns the input unchanged when it is not a local date', () => {
+    assert.equal(formatShortLocalDate('not-a-date'), 'not-a-date');
   });
 });

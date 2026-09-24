@@ -85,3 +85,39 @@ test.describe('category tree', () => {
     await expect(card.getByText(RENAMED_CHILD)).toHaveClass(/line-through/, { timeout: 30_000 });
   });
 });
+
+/**
+ * Quick entry settings (SPEC §15.1, v0.9.0): the pot the till form starts on
+ * is an explicit choice, not a guess from a pot's label. Runs in the settings
+ * project, after the mobile project has asserted the seeded default, and
+ * moves the default to the Salary account — the later specs drive the till
+ * form through the pot chips anyway, so nothing downstream depends on it.
+ */
+test.describe('quick entry settings', () => {
+  test('the default purchase pot moves the till form', async ({ page }) => {
+    await page.goto('/settings');
+    const section = page.getByRole('region', { name: /Quick entry/i });
+    await expect(section.getByRole('heading', { name: 'Quick entry', level: 2 })).toBeVisible();
+
+    await section.getByLabel('Default pot for purchases').selectOption('Salary account');
+    await section.getByRole('button', { name: 'Save default pot' }).click();
+    await expect(section.getByRole('status')).toContainText(/default pot saved/i, {
+      timeout: 30_000,
+    });
+
+    await page.goto('/');
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Salary account');
+
+    // Back to "no default": the form starts with no pot selected rather than
+    // silently falling back to the first pot in the list.
+    await page.goto('/settings');
+    await section.getByLabel('Default pot for purchases').selectOption('');
+    await section.getByRole('button', { name: 'Save default pot' }).click();
+    await expect(section.getByRole('status')).toContainText(/default cleared/i, {
+      timeout: 30_000,
+    });
+    await page.goto('/');
+    await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Choose…');
+  });
+});

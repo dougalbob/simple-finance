@@ -1,28 +1,53 @@
 import type { Db } from '../db/client';
-import { toLocalDateString } from '../time';
+import {
+  formatInstantLocal,
+  formatRelativeAge,
+  formatShortLocalDate,
+  toLocalDateString,
+} from '../time';
 import { categoryTree, findChildCategory } from './categories';
 import { listDebts } from './debts';
+import { getCycleOutlook, getMoneySnapshot } from './money-view';
 import { listPeople } from './people';
 import { listPots } from './pots';
+import { getDefaultPurchasePotId } from './settings';
 import { listSuppliersForEntry, mostUsedCategoryForSupplier } from './suppliers';
 import { listVehicles } from './vehicles';
 import type { QuickEntryData } from '../../components/quick-entry';
 
 /**
- * The quick-entry form data (mobile home AND the Overview page, SPEC
- * §15.2 "quick-add always visible"): pots, people, vehicles, live leaf
- * categories, supplier memory with derived most-used categories, and the
- * visible defaults (Main account pot, first person, Groceries/Weekly Shop,
- * the payer's own vehicle). One builder — both pages cannot drift.
+ * The quick-entry form data (mobile home AND the Overview and Purchases
+ * pages, SPEC §15.2 "quick-add always visible"): pots with their reported
+ * and projected balances, people, vehicles, live leaf categories, supplier
+ * memory with derived most-used categories, and the visible defaults (the
+ * pot chosen in Settings, first person, Groceries/Weekly Shop, the payer's
+ * own vehicle). One builder — every page that shows Quick Entry cannot
+ * drift.
  *
  * Defaults are the same conventions as Phase 2b (plan decision 50): the
  * paid-by chip the server preselects from the signed-in identity is a
  * separate concern resolved at save time; these are the form's starting
  * values. Debts ride along for the Move tab (borrow/repay links to a
  * tracked debt, SPEC §10.2).
+ *
+ * The pot default (v0.9.0) is a setting, never a guess from a pot label —
+ * the real installation's daily-spend pot is not called "Main account", and
+ * the old string match silently pointed the till flow at the wrong pot. With
+ * nothing configured the form starts with no pot selected.
+ *
+ * Each pot carries the two figures SPEC §7.7 puts at the till: its **last
+ * checkpoint** (what the bank showed when the household last checked, with
+ * its age) and what is **left once the bills due from that pot have left,
+ * before the next income lands** — plus the household-wide outlook the form
+ * shows as its headline. Both are read-only context here; the checkpoint is
+ * never editable in the till form.
  */
 export function buildEntryData(db: Db, nowArg?: Date): QuickEntryData {
   const now = nowArg ?? new Date();
+  // The due pass runs inside the money snapshot (SPEC §11.2): converted
+  // schedule records must be in the estimate before anything reads it.
+  const snapshot = getMoneySnapshot(db, now);
+  const outlook = getCycleOutlook(db, now, snapshot);
   const pots = listPots(db);
   const people = listPeople(db);
   const vehicles = listVehicles(db);
@@ -38,24 +63,63 @@ export function buildEntryData(db: Db, nowArg?: Date): QuickEntryData {
     name: supplier.name,
     defaultCategoryId: mostUsedCategoryForSupplier(db, supplier.id)?.categoryId ?? null,
   }));
-  const defaultPot =
-    pots.find((pot) => pot.label.toLowerCase() === 'main account') ?? pots[0] ?? null;
+  const defaultPotId = getDefaultPurchasePotId(db);
   const defaultPerson = people[0] ?? null;
   const defaultCategory =
     findChildCategory(db, 'Groceries', 'Weekly Shop') ?? categoryOptions[0] ?? null;
   const defaultVehicle =
     vehicles.find((vehicle) => vehicle.ownerPersonId === defaultPerson?.id) ?? vehicles[0] ?? null;
   return {
-    pots: pots.map(({ id, label }) => ({ id, label })),
+    pots: pots.map(({ id, label, kind }) => {
+      const potView = snapshot.pots.find((entry) => entry.pot.id === id);
+      const checkpoint = potView?.latestCheckpoint ?? null;
+      const potOutlook = outlook.pots.find((entry) => entry.potId === id);
+      return {
+        id,
+        label,
+        kind,
+        // Cash pots show no balance at all (SPEC §15.1): the household counts
+        // the notes, and a stale number would be worse than none.
+        checkpoint:
+          kind === 'cash' || checkpoint === null
+            ? null
+            : {
+                amountPence: checkpoint.amountPence,
+                effectiveAtIso: checkpoint.effectiveAt.toISOString(),
+                ageLabel: formatRelativeAge(checkpoint.effectiveAt, now),
+                reportedAtLabel: formatInstantLocal(checkpoint.effectiveAt),
+              },
+        estimatePence: potView?.estimatePence ?? null,
+        spendablePence: potOutlook?.spendablePence ?? null,
+        shortfallPence: potOutlook?.shortfallPence ?? null,
+        dueBeforeIncome: (potOutlook?.outgoing ?? []).map((line) => ({
+          ...line,
+          dueLabel: formatShortLocalDate(line.dueDate),
+        })),
+      };
+    }),
     people: people.map(({ id, label }) => ({ id, label })),
     vehicles: vehicles.map(({ id, label, ownerPersonId }) => ({ id, label, ownerPersonId })),
     categories: categoryOptions,
     suppliers: supplierOptions,
     debts: debts.map(({ id, counterparty, direction }) => ({ id, counterparty, direction })),
-    defaultPotId: defaultPot?.id ?? null,
+    defaultPotId,
     defaultPersonId: defaultPerson?.id ?? null,
     defaultCategoryId: typeof defaultCategory?.id === 'number' ? defaultCategory.id : null,
     defaultVehicleId: defaultVehicle?.id ?? null,
     today: toLocalDateString(now),
+    cycle: {
+      incomeDate: outlook.incomeDate,
+      incomeSource: outlook.incomeSource,
+      days: outlook.days,
+      householdAvailablePence: outlook.householdAvailablePence,
+      incomeDateLabel:
+        outlook.incomeDate === null ? null : formatShortLocalDate(outlook.incomeDate),
+      commitmentsPence: outlook.commitmentsPence,
+      dayToDayPence: outlook.dayToDayPence,
+      freeToSpendPence: outlook.freeToSpendPence,
+      lowDate: outlook.lowDate,
+      lowDateLabel: outlook.lowDate === null ? null : formatShortLocalDate(outlook.lowDate),
+    },
   };
 }

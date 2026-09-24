@@ -12,7 +12,11 @@ import { createPurchase } from '../src/lib/records/purchases';
 import { createReceipt } from '../src/lib/records/receipts';
 import { createRenewal } from '../src/lib/records/renewals';
 import { createSchedule } from '../src/lib/records/schedules';
-import { setMonthlyFuelPence, setWeeklyGroceriesPence } from '../src/lib/records/settings';
+import {
+  setDefaultPurchasePotId,
+  setMonthlyFuelPence,
+  setWeeklyGroceriesPence,
+} from '../src/lib/records/settings';
 import { createSupplier } from '../src/lib/records/suppliers';
 import { createVehicle } from '../src/lib/records/vehicles';
 import { addSupplierInteraction } from '../src/lib/records/supplier-details';
@@ -54,6 +58,10 @@ function seed(): void {
   const salary = createPot(db, { label: 'Salary account', kind: 'bank', actor: ACTOR, now });
   const alexCash = createPot(db, { label: "Alex's cash", kind: 'cash', actor: ACTOR, now });
   const samCash = createPot(db, { label: "Sam's cash", kind: 'cash', actor: ACTOR, now });
+
+  // The till form's starting pot is a setting (v0.9.0) — the seed sets it the
+  // way a household would, and the specs prove the form honours it.
+  setDefaultPurchasePotId(db, main.id, ACTOR, now);
 
   const alex = createPerson(db, { label: 'Alex', actor: ACTOR, now });
   const sam = createPerson(db, { label: 'Sam', actor: ACTOR, now });

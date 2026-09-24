@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AttachmentForm } from '@/components/attachment-form';
+import { PotOutlookLine } from '@/components/pot-outlook';
 import { QuickEntry } from '@/components/quick-entry';
 import { AddCheckpointForm, CreatePotForm } from '@/components/pot-forms';
 import { RecentEntryActions, VoidForm, TransferForm } from '@/components/record-forms';
@@ -13,6 +14,7 @@ import { categoryTree } from '@/lib/records/categories';
 import { addDaysLocal } from '@/lib/records/dates';
 import { buildEntryData } from '@/lib/records/entry-view';
 import {
+  getCycleOutlook,
   getMoneySnapshot,
   getProjectionView,
   getUpcomingCommitments,
@@ -58,6 +60,9 @@ export default async function OverviewPage({
 
   const money = getMoneySnapshot(db, now);
   const projection = getProjectionView(db, now);
+  // "Before income lands" per pot (SPEC §7.7, v0.9.0): the same figure the
+  // quick-entry balance shows at the till, so review and entry agree.
+  const outlook = getCycleOutlook(db, now, money);
   const dueThisWeek = getUpcomingCommitments(db, addDaysLocal(today, 7), now);
   const keyDates = getKeyDateAlerts(db, now).map((alert) => ({
     ...alert,
@@ -105,7 +110,7 @@ export default async function OverviewPage({
       </header>
 
       <div className="space-y-6">
-        <MoneyRow money={money} />
+        <MoneyRow money={money} outlook={outlook} />
         <div className="grid gap-6 lg:grid-cols-2">
           {projection !== null ? (
             <ProjectionSection projection={projection} />
@@ -382,7 +387,13 @@ export default async function OverviewPage({
   );
 }
 
-function MoneyRow({ money }: { money: ReturnType<typeof getMoneySnapshot> }) {
+function MoneyRow({
+  money,
+  outlook,
+}: {
+  money: ReturnType<typeof getMoneySnapshot>;
+  outlook: ReturnType<typeof getCycleOutlook>;
+}) {
   return (
     <section
       aria-labelledby="money-heading"
@@ -415,6 +426,10 @@ function MoneyRow({ money }: { money: ReturnType<typeof getMoneySnapshot> }) {
                   {formatPence(view.estimatePence)}
                 </p>
               )}
+              <PotOutlookLine
+                pot={outlook.pots.find((entry) => entry.potId === view.pot.id)}
+                incomeDate={outlook.incomeDate}
+              />
             </li>
           ))}
         </ul>

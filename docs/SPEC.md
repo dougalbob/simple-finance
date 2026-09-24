@@ -313,6 +313,44 @@ where_we'd_land = household_available_now
   forecast, and *expected support is an expectation of borrowed money — it is owed, never income, and it lands
   only if it is actually borrowed and recorded.*
 
+### 7.7 What is left before income lands (the till figure) — v0.9.0
+
+A checkpoint answers *"what did the bank last say?"*. It does not answer *"will this card still work
+tomorrow?"*, and the two differ exactly when it matters: a healthy balance with the mortgage leaving three
+days before payday. The household asked for that second number beside the first, at the till and on the
+review screens. It is the same arithmetic as §7.5, with the window taken to the next expected income
+instead of a named payday.
+
+```
+free_to_spend = household_available_now (§7.1)
+                − Σ expected commitments due in (today, next income]        (DD/SO instances, §11)
+                − Σ projected day-to-day events due in (today, next income] (§7.3)
+
+pot_spendable(P) = estimate(P) − Σ commitments due from P in the same window   (= §7.5's pot watch)
+```
+
+- **It counts no income.** This is the *dip*: everything already expected to leave, before the money lands.
+  Adding the next receipt back in would turn "£500 with a £600 mortgage pending" into a comfortable picture
+  and hide precisely the risk the household asked to see. It is not a forecast of the balance after payday —
+  that is what §7.2's end-of-window figure and §7.6's horizon are for.
+- **The next income is whichever comes first:** an income schedule's next instance or a debt's expected
+  support (§7.2's payday selection, §10.2 — an expectation, labelled as one).
+- **The household figure includes projected day-to-day events** (§7.3) because the weekly shop and the fill
+  will really happen. **The per-pot figure does not** — groceries vary by pot and payment method, and a
+  pot-scoped number is a transfer-planning signal (§7.5's reasoning, unchanged).
+- **The per-pot figure is `pot_watch`** (§7.5) with this window: shown as a shortfall when the pot cannot
+  cover the bills due from it, quiet context otherwise. It is the answer to "is *this* account about to
+  bounce", beside the household answer to "are we about to bounce".
+- **Shown at the till and on review:** the Quick Entry purchase panel (household headline plus the selected
+  pot's checkpoint and its shortfall when there is one) and the pot cards on the home page and Overview. The
+  projection panel (§7.2) is unchanged; its `projected_low` equals this figure whenever no other receipt
+  lands inside the window (pinned by `tests/cycle-outlook.test.ts`), so the two surfaces cannot drift.
+- **No window, no figure.** No income schedule (or no checkpoint) means the figure does not exist, and the
+  UI says exactly what is missing rather than guessing or showing a zero. `free_to_spend` is null, never 0.
+- **The checkpoint stays the reported figure.** This is read-only context in the entry form, never an edited
+  balance (§5), and it is never called a bank balance. **Cash pots show no balance at all** — the household
+  counts the notes (§15.1).
+
 ## 8. Warnings (two tiers)
 
 Evaluated against `projected_low` (§7.2), household-wide:
@@ -597,10 +635,23 @@ All pages remain reachable on mobile (nothing hidden) — they are simply not th
 
 Home = four big actions:
 
-1. **Add Purchase** — flow: supplier (fuzzy search, recents first, inline "add new") → amount → category
-   (recent/frequent first; parent then child in two taps) → visible default chips (target, pot, paid-by;
-   one tap each to override) → optional **Split** to add lines → save (enabled only when lines total exactly;
-   remainder helper available) → confirmation with "Add another".
+1. **Add Purchase (redesigned v0.9.0)** — pot first, then the two balance figures (§7.7): the pot's **last
+   reported checkpoint** with its age (bank pots only; cash shows nothing), the household **"free to spend
+   before income lands"** headline, and the pot's own shortfall warning when the bills leaving it outrun it.
+   Then supplier (typeahead: recents first, filtered as you type, inline rows — no browser popup; tapping a
+   suggestion fills the name, applies the remembered category and moves to Amount) → amount → paid-by and
+   date chips → "+ Note" collapsed out of the way → save. Category, target ("For": household / person /
+   vehicle) and any **Split** lines live on the second panel; save is on **both** panels so the entry never
+   needs a swipe to complete (enabled only when the lines total exactly; remainder helper available) →
+   confirmation with "Add another", which returns to the first panel on the supplier field.
+   - **Focus order at the till:** supplier → amount → save. The amount is not focused on open, and the form
+     lands on the supplier.
+   - **Swipe panels (mobile only):** the two panels are a scroll-snapped pair (`scroll-snap-type: x
+     mandatory`), hints and dots showing the second exists. Progressive enhancement — with no scroll-snap
+     the panels still scroll sideways, and every field on the second panel is reachable by keyboard. On a
+     laptop (`lg:` and up) they are the original two columns.
+   - The default pot is **a setting**, not a guess from a pot's label (§15.2 Settings). With none configured
+     the form starts with no pot selected.
 2. **Add Fuel** — prefills payer (signed-in user), pot default, category Fuel, target = the payer's own
    vehicle (one-tap flip to the other vehicle). The **amount is the only required typing**.
 3. **Update Balance** — pick pot (defaults to least-recently-updated), enter figure, save. Optional effective
@@ -611,7 +662,12 @@ Home = four big actions:
 
 Supplier memory: suppliers are remembered after first use; a supplier stores the most-used category as the
 preselected (always visible, always changeable) chip. Near-duplicate supplier names prompt lightly at add
-time ("Did you mean: Tesco?").
+time ("Did you mean: Tesco?"). The suggestion list is rendered into the page (v0.9.0), because the
+browser's native `<datalist>` popup is fiddly on a phone and different on every device.
+
+Layout rule at the till (v0.9.0): a phone screen with the keyboard open is roughly half a screen, so the
+critical fields and Save fit in it; inputs and buttons are at least 44px tall, and nothing overflows a
+320px-wide viewport (the panels scroll sideways, never the page).
 
 ### 15.2 Desktop — the "sit down and review" tool
 
@@ -633,7 +689,7 @@ Menu pages:
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
 | **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account; informal debts with derived balances and an optional expected-support plan (amount, day-of-month, until date — editable forward-looking, v0.7.0); borrow/repay/swap/other entry and history; archiving for empty pots. |
 | **Insights** | §16 panels. |
-| **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends. (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
+| **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends; **the default pot for purchases** (v0.9.0 — an explicit choice, never a guess from a pot's label). (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
 
 **Calendar (agreed: read-only month view).** A month grid on Recurring Payments showing due DD/SO instances and
 expected receipts — another view of the same schedule data, never a second database. Clicking a day shows that
