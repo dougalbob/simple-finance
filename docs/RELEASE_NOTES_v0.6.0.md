@@ -1,7 +1,10 @@
 # Simple Finance v0.6.0
 
 **Release date:** 2026-09-24
-**Published:** pending — this block is completed at release (merge commit, tag, publish run, digest).
+**Published:** yes — annotated tag `v0.6.0` on merge commit `b0379ebd7bea0e3bf97ff40ba1dfec492263a095`
+(PR #36), publish run `36006994819`. `v0.6.0`, `latest` and `sha-b0379eb` all resolve to one digest,
+different from v0.5.0's. Force Update now brings this release.
+**Image digest:** `sha256:e650c5f48e1e049d0865be8f889426630e4f8af21d40e7eaf9d4fc977ca2aa4e`.
 **Type:** feature release — **projected day-to-day spending becomes episodic** (the anchor-reset model,
 SPEC §7.3 rewritten, decisions 118–119). Weekly shops and per-vehicle fills are projected as dated events
 from when the household last recorded them, instead of a pro-rata allowance charged up front.
