@@ -68,6 +68,33 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
         </div>
       </dl>
 
+      {projection.dayToDayEvents.length > 0 ? (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            Projected shops and fills ({projection.dayToDayEvents.length})
+          </summary>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {projection.dayToDayEvents.map((event) => (
+              <li
+                key={`${event.dueDate}-${event.name}`}
+                className="flex items-baseline justify-between gap-2 py-1.5 text-sm"
+              >
+                <span>
+                  <span className="font-medium">{event.name}</span>{' '}
+                  <span className="text-xs text-slate-500">{event.dueDate}</span>
+                </span>
+                <span className="tabular-nums">−{formatPence(event.amountPence)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">
+            Dates follow when the household last recorded a weekly shop or a fill — a fresh shop
+            resets the week, a fresh fill resets the vehicle’s month. Amounts are the figures set in
+            Settings.
+          </p>
+        </details>
+      ) : null}
+
       {result.perDay.length > 0 ? (
         <details className="mt-4">
           <summary className="cursor-pointer text-sm font-medium text-slate-700">
@@ -79,6 +106,9 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
                 <tr>
                   <th className="px-3 py-1.5">Date</th>
                   <th className="px-3 py-1.5 text-right">Commitments</th>
+                  {result.dayToDayPence > 0 ? (
+                    <th className="px-3 py-1.5 text-right">Day-to-day</th>
+                  ) : null}
                   <th className="px-3 py-1.5 text-right">Receipts</th>
                   <th className="px-3 py-1.5 text-right">End of day</th>
                 </tr>
@@ -90,6 +120,11 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
                     <td className="px-3 py-1.5 text-right tabular-nums">
                       {day.commitmentsPence > 0 ? `−${formatPence(day.commitmentsPence)}` : '—'}
                     </td>
+                    {result.dayToDayPence > 0 ? (
+                      <td className="px-3 py-1.5 text-right tabular-nums">
+                        {day.dayToDayPence > 0 ? `−${formatPence(day.dayToDayPence)}` : '—'}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-1.5 text-right tabular-nums">
                       {day.receiptsPence > 0 ? `+${formatPence(day.receiptsPence)}` : '—'}
                     </td>

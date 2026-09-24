@@ -4,6 +4,7 @@ import { createHouseholdFixture, type HouseholdFixture } from './household';
 import { addCheckpoint } from '../src/lib/records/pots';
 import { createDebt, editDebt, getDebt, InvalidDebtInputError } from '../src/lib/records/debts';
 import { createExternalMovement } from '../src/lib/records/external-movements';
+import { createPurchase } from '../src/lib/records/purchases';
 import { createSchedule } from '../src/lib/records/schedules';
 import {
   getHorizonProjectionView,
@@ -258,16 +259,64 @@ describe('horizon: expected inflow and the horizon read model (v0.5.0)', () => {
   });
 
   it('reproduces the window arithmetic by hand, to the penny', async () => {
-    const { db } = await setUp();
+    const { db, pots } = await setUp();
     setWeeklyGroceriesPence(db, p(90), ACTOR);
     setMonthlyFuelPence(db, fixture.vehicles.vehicleA.id, p(75), ACTOR);
     setMonthlyFuelPence(db, fixture.vehicles.vehicleB.id, p(60), ACTOR);
+
+    // The anchors (SPEC §7.3, v0.6.0): the last weekly shop £84.10 on the
+    // 21st resets the groceries week; the last fills (£75 A on the 20th,
+    // £60 B on the 5th) reset each vehicle's month. All are recorded before
+    // the checkpoints, so the £820 estimate is untouched.
+    const recordDated = (
+      occurredDate: string,
+      amountPence: number,
+      category: [string, string],
+      targetKind: 'household' | 'vehicle',
+      targetId?: number,
+    ) =>
+      createPurchase(db, {
+        supplierId: null,
+        potId: pots.main.id,
+        totalPence: amountPence,
+        paidByPersonId: fixture.people.alex.id,
+        occurredAt: new Date(`${occurredDate}T12:00:00+01:00`),
+        occurredDate,
+        lines: [
+          {
+            amountPence,
+            categoryId: fixture.categoryId(...category),
+            targetKind,
+            targetId,
+          },
+        ],
+        actor: ACTOR,
+        now: new Date(`${occurredDate}T12:00:00+01:00`),
+      });
+    recordDated('2026-09-21', p(84.1), ['Groceries', 'Weekly Shop'], 'household');
+    recordDated(
+      '2026-09-20',
+      p(75.0),
+      ['Vehicle Running', 'Fuel'],
+      'vehicle',
+      fixture.vehicles.vehicleA.id,
+    );
+    recordDated(
+      '2026-09-05',
+      p(60.0),
+      ['Vehicle Running', 'Fuel'],
+      'vehicle',
+      fixture.vehicles.vehicleB.id,
+    );
 
     // Window 23 Sep (today) → 26 Oct (33 days). Inside it:
     //   Energy DD (25th, monthly) — 25 Sep AND 25 Oct  → £169.10
     //   Salary (26th → weekend shift) — 26 Sep is Saturday → Friday 25 Sep,
     //       and Monday 26 Oct  → £4,300
     //   Support (12th) — Monday 12 Oct  → £1,000, flagged expected
+    //   Weekly shops — every 7 days from the 21st → 28/9, 5/10, 12/10,
+    //       19/10, 26/10  → 5 × £90 = £450
+    //   Fuel A — 20/9 + 30 → 20/10  → £75;   Fuel B — 5/9 + 30 → 5/10  → £60
     const through = '2026-10-26';
     const view = getHorizonProjectionView(db, through, [], true, now);
     const { result } = view;
@@ -282,23 +331,36 @@ describe('horizon: expected inflow and the horizon read model (v0.5.0)', () => {
     assert.equal(expected[0]?.dueDate, '2026-10-12');
     assert.equal(expected[0]?.amountPence, p(1000));
 
-    // Day-to-day is pro-rated at period level, rounded once half-up.
-    assert.equal(result.groceriesPence, Math.round((p(90) * 33) / 7));
-    const fuelA = Math.round((p(75) * 33) / 30);
-    const fuelB = Math.round((p(60) * 33) / 30);
-    assert.equal(result.fuelPence, fuelA + fuelB);
+    // Day-to-day is episodic: dated events from the anchors, no smooth rate.
+    assert.equal(result.groceriesPence, p(450.0));
+    assert.equal(result.fuelPence, p(135.0)); // £75 A (20/10) + £60 B (5/10)
+    assert.equal(result.dayToDayPence, p(585.0));
+    assert.deepEqual(
+      view.dayToDayEvents
+        .filter((event) => event.kind === 'groceries')
+        .map((event) => event.dueDate),
+      ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'],
+    );
+    assert.deepEqual(
+      view.dayToDayEvents.filter((event) => event.kind === 'fuel').map((event) => event.dueDate),
+      ['2026-10-05', '2026-10-20'],
+    );
+
+    // The last weekly shop of the window lands on the 26th, the through
+    // date — an outgoing on the final day, included like every other.
+    const lastDay = result.perDay[result.perDay.length - 1];
+    assert.ok(lastDay);
+    assert.equal(lastDay.dayToDayPence, p(90.0));
 
     // "Where we'd land" is the final day's running total — the arithmetic of
     // the engine's final row, never a separately computed figure.
-    const finalDay = result.perDay[result.perDay.length - 1];
-    assert.ok(finalDay);
     const handLand =
       result.availableNowPence +
       result.totalReceiptsPence -
       result.totalCommitmentsPence -
       result.dayToDayPence;
     assert.equal(landPenceOf(result), handLand);
-    assert.equal(finalDay.runningPence, handLand);
+    assert.equal(lastDay.runningPence, handLand);
 
     // The lowest point is pinned by the same engine the payday panel uses,
     // so the two read models agree on the figures their windows share.

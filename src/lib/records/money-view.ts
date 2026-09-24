@@ -13,6 +13,11 @@ import { toLocalDateString } from '../time';
 import { addDaysLocal, daysBetween } from './dates';
 import { expectedInflowOccurrences, listDebts, type Debt } from './debts';
 import {
+  projectDayToDayEvents,
+  splitDayToDayEvents,
+  type ProjectedDayToDayEvent,
+} from './day-to-day';
+import {
   estimatePot,
   householdEstimatePence,
   type PotEstimateResult,
@@ -25,11 +30,7 @@ import {
   type ProjectionResult,
   type ProjectionScheduleLine,
 } from './projection';
-import {
-  getMonthlyFuelByVehicle,
-  getContractEndWarningLeadDays,
-  getWeeklyGroceriesPence,
-} from './settings';
+import { getContractEndWarningLeadDays } from './settings';
 import { advanceDueRenewals, listRenewals } from './renewals';
 import { debtsSummary, type DebtsSummary } from './debts';
 import {
@@ -213,6 +214,12 @@ export interface ProjectionView {
   paydayScheduleId: number | null;
   commitmentLines: ProjectionLine[];
   receiptLines: ProjectionLine[];
+  /**
+   * The projected shops/fills in the window (SPEC §7.3, v0.6.0): derived by
+   * the anchor-reset model from the configured figures and the ledger, so
+   * the panel can list exactly which events it is counting and when.
+   */
+  dayToDayEvents: ProjectedDayToDayEvent[];
   /** Estimates of pots other than each watch pot — for the "Salary account holds £X" clause. */
   potLabels: Map<number, string>;
   otherPotEstimates: Map<number, number>;
@@ -373,11 +380,12 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     .filter((value): value is number => value !== null);
   const warningThresholdPence = thresholds.length === 0 ? null : Math.min(...thresholds);
 
-  // Projected day-to-day figures (SPEC §7.3): configured privately.
-  const weeklyGroceriesPence = getWeeklyGroceriesPence(db) ?? 0;
-  const vehicles = listVehicles(db);
-  const fuelByVehicle = getMonthlyFuelByVehicle(db);
-  const monthlyFuelPence = vehicles.map((vehicle) => fuelByVehicle.get(vehicle.id) ?? 0);
+  // Projected day-to-day spending (SPEC §7.3, v0.6.0): episodic events
+  // anchored on when the household last actually shopped or filled up, so a
+  // fresh £55 at the pumps suppresses projected fuel for its cooldown
+  // instead of being double-counted alongside a smooth allowance.
+  const dayToDayEvents = projectDayToDayEvents(db, today, windowUpper);
+  const dayToDaySplit = splitDayToDayEvents(dayToDayEvents);
 
   const potWatches: PotWatchInput[] = snapshot.pots
     .filter((pot) => pot.estimatePence !== null)
@@ -393,8 +401,8 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     paydayDate,
     commitments,
     receipts: receiptLines,
-    weeklyGroceriesPence,
-    monthlyFuelPence,
+    projectedGroceries: dayToDayEventsToLines(dayToDaySplit.groceries),
+    projectedFuel: dayToDayEventsToLines(dayToDaySplit.fuel),
     warningThresholdPence,
     potWatches,
   });
@@ -406,6 +414,7 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
     paydayScheduleId: payday === null ? null : payday.scheduleId,
     commitmentLines: toLines(commitmentRows),
     receiptLines: [...toLines(receiptRows), ...expectedInflowLines(db, today, today, windowUpper)],
+    dayToDayEvents,
     potLabels: potLabel,
     otherPotEstimates: new Map(
       snapshot.pots
@@ -413,6 +422,17 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
         .map((pot) => [pot.pot.id, pot.estimatePence as number]),
     ),
   };
+}
+
+/** Engine-shaped lines for projected day-to-day events (pot-less, id-less). */
+function dayToDayEventsToLines(events: ProjectedDayToDayEvent[]): ProjectionScheduleLine[] {
+  return events.map((event) => ({
+    scheduleId: 0,
+    name: event.name,
+    potId: 0,
+    amountPence: event.amountPence,
+    dueDate: event.dueDate,
+  }));
 }
 
 /**
@@ -625,6 +645,13 @@ export interface HorizonProjectionView {
   potLabels: Map<number, string>;
   commitmentLines: HorizonLine[];
   receiptLines: HorizonLine[];
+  /**
+   * The projected shops/fills inside the horizon window (SPEC §7.3, v0.6.0),
+   * derived by the anchor-reset model — empty when day-to-day is toggled
+   * off or nothing is configured. Displayed as their own detail block: the
+   * figure is never invisible arithmetic.
+   */
+  dayToDayEvents: ProjectedDayToDayEvent[];
   totalCommitmentsPence: number;
   totalReceiptsPence: number;
   /** False when day-to-day is excluded — the page relabels the headline. */
@@ -674,10 +701,15 @@ export function getHorizonProjectionView(
     movementPotByDebt.set(debt.id, firstMovementPotOf(db, debt) ?? 0);
   }
 
-  const dayToDayPence = getConfiguredDayToDay(db);
-
   const windowLower = addDaysLocal(today, 1);
   const windowUpper = throughDate;
+
+  // Projected day-to-day spending (SPEC §7.3, v0.6.0): episodic events
+  // anchored on actual shops/fills, household-level like the configured
+  // figures were — pot scoping filters commitments and receipts, never the
+  // day-to-day events. "Bills only" passes no events at all.
+  const dayToDayEvents = includeDayToDay ? projectDayToDayEvents(db, today, windowUpper) : [];
+  const dayToDaySplit = splitDayToDayEvents(dayToDayEvents);
 
   // Commitments: unconverted dd/so instances in (today, through].
   const commitmentRows = db
@@ -801,8 +833,8 @@ export function getHorizonProjectionView(
     paydayDate: throughDate,
     commitments,
     receipts,
-    weeklyGroceriesPence: includeDayToDay ? dayToDayPence.groceries : 0,
-    monthlyFuelPence: includeDayToDay ? dayToDayPence.fuel : [],
+    projectedGroceries: dayToDayEventsToLines(dayToDaySplit.groceries),
+    projectedFuel: dayToDayEventsToLines(dayToDaySplit.fuel),
     warningThresholdPence,
     potWatches,
   });
@@ -816,6 +848,7 @@ export function getHorizonProjectionView(
     potLabels,
     commitmentLines,
     receiptLines,
+    dayToDayEvents,
     totalCommitmentsPence: result.totalCommitmentsPence,
     totalReceiptsPence: result.totalReceiptsPence,
     dayToDayIncluded: includeDayToDay,
@@ -828,13 +861,6 @@ export function landPenceOf(result: ProjectionResult): number {
   const last = result.perDay.at(-1);
   if (last === undefined) return result.availableNowPence - result.dayToDayPence;
   return last.runningPence;
-}
-
-/** The configured day-to-day figures, resolved to 0 when unconfigured. */
-export function getConfiguredDayToDay(db: Db): { groceries: number; fuel: number[] } {
-  const groceries = getWeeklyGroceriesPence(db) ?? 0;
-  const fuel = listVehicles(db).map((vehicle) => getMonthlyFuelByVehicle(db).get(vehicle.id) ?? 0);
-  return { groceries, fuel };
 }
 
 function toBatchLine(line: ProjectionLine): ProjectionScheduleLine {

@@ -48,6 +48,15 @@ test.describe('horizon', () => {
     const moneyIn = moneyInBlock(page);
     await expect(moneyIn.getByText('support from Mum', { exact: true })).toBeVisible();
     await expect(moneyIn.getByText('expected — never received').first()).toBeVisible();
+
+    // Day-to-day rides as dated events (v0.6.0 anchor-reset): the seeded
+    // weekly shop and fill anchor the next ones, and the page lists them —
+    // never as an invisible up-front lump.
+    await expect(
+      page.getByText(/Projected day-to-day spending \(\d+\)/, { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByText('Weekly shop (projected)').first()).toBeVisible();
+    await expect(page.getByText(/Fuel — Vehicle [AB] \(projected\)/).first()).toBeVisible();
   });
 
   test('choosing a date updates the headline and the scope card', async ({ page }) => {

@@ -170,8 +170,10 @@ export default async function SettingsPage() {
             Projection figures
           </h2>
           <p className="mb-3 text-xs text-slate-500">
-            The configured day-to-day numbers used by the payday projection. The Insights honesty
-            loop compares these with recent actuals — blank clears a figure.
+            The size of the household's usual weekly shop and of a typical fill for each vehicle.
+            The payday projection and the horizon project each next event from when you last
+            recorded one — a fresh shop resets the week, a fresh fill resets that vehicle's month.
+            The Insights honesty loop compares these with recent actuals — blank clears a figure.
           </p>
           <div className="max-w-2xl">
             <ProjectionSettingsForm

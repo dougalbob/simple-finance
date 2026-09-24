@@ -29,7 +29,10 @@ interface SearchParams {
  * is `available now + expected money in − commitments − day-to-day`, not a
  * second engine with its own arithmetic. Debt expected inflows join the
  * window flagged `expected`: borrowed money is expected here, never
- * received, and never income.
+ * received, and never income. Day-to-day spending joins as dated events
+ * (v0.6.0 anchor-reset, SPEC §7.3): weekly shops and per-vehicle fills
+ * projected from when the household last recorded them, so the lowest
+ * point's date stays meaningful with day-to-day included.
  *
  * The page is laptop-shaped by the same household choice that shaped
  * Income: it is a sit-down review surface, not a till-side tool.
@@ -254,6 +257,9 @@ export default async function HorizonPage({
             Available now {formatPence(view.availableNowPence)} · commitments −
             {formatPence(view.totalCommitmentsPence)} · expected money in +
             {formatPence(view.totalReceiptsPence)}
+            {view.dayToDayIncluded && result.dayToDayPence > 0
+              ? ` · day-to-day −${formatPence(result.dayToDayPence)}`
+              : ''}
           </p>
         </div>
       </section>
@@ -339,6 +345,45 @@ export default async function HorizonPage({
           )}
         </details>
 
+        {view.dayToDayIncluded ? (
+          <details
+            open={detailsOpen && view.dayToDayEvents.length > 0}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              Projected day-to-day spending ({view.dayToDayEvents.length})
+            </summary>
+            {view.dayToDayEvents.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">
+                No projection figures are configured — set weekly groceries and per-vehicle fuel in
+                Settings to include them here.
+              </p>
+            ) : (
+              <>
+                <ul className="mt-2 divide-y divide-slate-100">
+                  {view.dayToDayEvents.map((event) => (
+                    <li
+                      key={`${event.dueDate}-daytoday-${event.name}`}
+                      className="flex items-baseline justify-between gap-2 py-1.5 text-sm"
+                    >
+                      <span>
+                        <span className="font-medium">{event.name}</span>{' '}
+                        <span className="text-xs text-slate-500">{event.dueDate}</span>
+                      </span>
+                      <span className="tabular-nums">−{formatPence(event.amountPence)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-slate-500">
+                  Dates follow when the household last recorded a weekly shop or a fill — a fresh
+                  shop resets the week, a fresh fill resets that vehicle’s month. Amounts are the
+                  figures set in Settings; fuels are counted per vehicle.
+                </p>
+              </>
+            )}
+          </details>
+        ) : null}
+
         {result.perDay.length > 0 ? (
           <details
             open={detailsOpen}
@@ -353,6 +398,9 @@ export default async function HorizonPage({
                   <tr>
                     <th className="px-3 py-1.5">Date</th>
                     <th className="px-3 py-1.5 text-right">Commitments</th>
+                    {view.dayToDayIncluded ? (
+                      <th className="px-3 py-1.5 text-right">Day-to-day</th>
+                    ) : null}
                     <th className="px-3 py-1.5 text-right">Expected money in</th>
                     <th className="px-3 py-1.5 text-right">End of day</th>
                   </tr>
@@ -364,6 +412,11 @@ export default async function HorizonPage({
                       <td className="px-3 py-1.5 text-right tabular-nums">
                         {day.commitmentsPence > 0 ? `−${formatPence(day.commitmentsPence)}` : '—'}
                       </td>
+                      {view.dayToDayIncluded ? (
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {day.dayToDayPence > 0 ? `−${formatPence(day.dayToDayPence)}` : '—'}
+                        </td>
+                      ) : null}
                       <td className="px-3 py-1.5 text-right tabular-nums">
                         {day.receiptsPence > 0 ? `+${formatPence(day.receiptsPence)}` : '—'}
                       </td>
@@ -384,7 +437,8 @@ export default async function HorizonPage({
       <p className="mt-6 text-xs text-slate-500">
         A projection of the records already in the app, not a bank forecast. Expected support is an
         expectation of borrowed money — it is owed, never income, and it lands only if it is
-        actually borrowed and recorded. Day-to-day uses the figures configured in Settings.
+        actually borrowed and recorded. Day-to-day projects the next shops and fills from when the
+        household last recorded them, at the figures configured in Settings.
       </p>
     </main>
   );

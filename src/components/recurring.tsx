@@ -427,7 +427,7 @@ export function ProjectionSettingsForm({ data }: { data: ProjectionSettingsData 
     <form action={formAction} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>
-          Weekly groceries (projected)
+          Weekly shop (projected)
           <input
             name="weeklyGroceries"
             inputMode="decimal"
@@ -450,8 +450,9 @@ export function ProjectionSettingsForm({ data }: { data: ProjectionSettingsData 
         ))}
       </div>
       <p className="text-xs text-slate-500">
-        Blank clears a figure. These are the configured day-to-day numbers the projection uses (the
-        Insights honesty loop compares them with recent actuals in Phase 4).
+        Blank clears a figure. Each number is one projected event — a weekly shop every 7 days, a
+        fill every 30 days per vehicle — counted from when you last recorded one (the Insights
+        honesty loop compares them with recent actuals).
       </p>
       <button type="submit" disabled={pending} className={buttonClass}>
         {pending ? 'Saving…' : 'Save figures'}

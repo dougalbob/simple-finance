@@ -76,25 +76,6 @@ export function roundHalfUpDivide(numerator: number, denominator: number): numbe
 }
 
 /**
- * Project a periodic figure over a span of days, rounded once at the period
- * level (SPEC §7.3): round(periodPence × days / periodDays). All inputs are
- * integer pence; the result is integer pence.
- */
-export function periodProjectionPence(
-  periodPence: number,
-  days: number,
-  periodDays: number,
-): number {
-  if (periodPence < 0 || days < 0) {
-    throw new Error(
-      `periodProjectionPence expects non-negative figures, received ${periodPence} over ${days} days`,
-    );
-  }
-  if (days === 0) return 0;
-  return roundHalfUpDivide(periodPence * days, periodDays);
-}
-
-/**
  * Format integer pence for display, e.g. 41235 -> "£412.35", -6608 -> "-£66.08".
  * Deterministic (no floating point, no locale drift between server and client).
  */
