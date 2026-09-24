@@ -18,7 +18,7 @@ const HORIZON_MAX_DAYS = 400;
 
 interface SearchParams {
   through?: string;
-  pots?: string;
+  pots?: string | string[];
   daytoday?: string;
 }
 
@@ -65,8 +65,11 @@ export default async function HorizonPage({
       : addDaysLocal(today, 35);
 
   // Selected pots: empty or "all" opts into every pot; otherwise ids.
-  // Unknown ids are dropped by the read model (it maps to live pots only).
-  const potSelectionRaw = typeof params.pots === 'string' ? params.pots : '';
+  // HTML checkboxes submit repeated `pots=…` params, which Next.js surfaces
+  // as a string array (a single value arrives as a bare string), so both
+  // shapes are normalised to one comma list before parsing. Unknown ids are
+  // dropped by the read model (it maps to live pots only).
+  const potSelectionRaw = Array.isArray(params.pots) ? params.pots.join(',') : (params.pots ?? '');
   const potIds =
     potSelectionRaw.trim() === '' || potSelectionRaw.trim() === 'all'
       ? []

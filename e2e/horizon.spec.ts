@@ -34,7 +34,7 @@ test.describe('horizon', () => {
 
     // Headline pair — a projection, never a promise.
     await expect(page.getByText('Free to spend up to', { exact: true })).toBeVisible();
-    await expect(page.getByText(/Where we.ll land on \d{4}-\d{2}-\d{2}/)).toBeVisible();
+    await expect(page.getByText(/Where we[’']d land on \d{4}-\d{2}-\d{2}/)).toBeVisible();
 
     // The lowest point across the window is always shown.
     await expect(page.getByText('Lowest point', { exact: true })).toBeVisible();
@@ -56,7 +56,7 @@ test.describe('horizon', () => {
     await page.getByLabel('Look ahead to').fill(date);
     await page.getByRole('button', { name: 'Look ahead' }).click();
     await expect(page).toHaveURL(/[?&]through=/);
-    await expect(page.getByText(`Where we.ll land on ${date}`)).toBeVisible();
+    await expect(page.getByText(new RegExp(`Where we[’']d land on ${date}`))).toBeVisible();
     // The scope card's "· every pot" suffix is stable across midnight; the
     // exact day count can differ by one against the London clock, so it is
     // deliberately not asserted.
