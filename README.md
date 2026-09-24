@@ -9,11 +9,14 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged and released, and **v0.5.0 is published**. `latest` on the registry is the
-  v0.5.0 build (from the `main` merge of the Horizon + debt-expected-inflow work), so the household's Force
-  Update in Unraid now brings the **Horizon** page and expected support payments. Merging a pull request still
-  publishes nothing on its own — the lower-case tag does. See [`docs/HANDOFF.md`](docs/HANDOFF.md) and
-  [`docs/RELEASE_NOTES_v0.5.0.md`](docs/RELEASE_NOTES_v0.5.0.md).
+- **Status:** Phases 0–5 are merged and released, and **v0.6.0 is published**. `latest` on the registry is the
+  v0.6.0 build (from the `main` merge of the anchor-reset day-to-day work), so the household's Force
+  Update in Unraid now projects groceries and fuel as **dated events** — a weekly shop every 7 days and a
+  fill every 30 days per vehicle, each counted from when it last happened — ending the double-count after a
+  recorded spend and making the horizon's lowest-point date meaningful with day-to-day included. Merging a
+  pull request still publishes nothing on its own — the lower-case tag does. See
+  [`docs/HANDOFF.md`](docs/HANDOFF.md) and
+  [`docs/RELEASE_NOTES_v0.6.0.md`](docs/RELEASE_NOTES_v0.6.0.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
   (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
@@ -172,10 +175,10 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.5.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
-release tag must agree; the publish workflow refuses to push an image when they do not. **v0.5.0 is
-published** — `v0.5.0`, `latest` and the merge SHA of this release are one digest; details live in
-[`docs/RELEASE_NOTES_v0.5.0.md`](docs/RELEASE_NOTES_v0.5.0.md).
+The app version is `v0.6.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+release tag must agree; the publish workflow refuses to push an image when they do not. **v0.6.0 is
+published** — `v0.6.0`, `latest` and the merge SHA of this release are one digest; details live in
+[`docs/RELEASE_NOTES_v0.6.0.md`](docs/RELEASE_NOTES_v0.6.0.md).
 
 The tag must be lower-case `vX.Y.Z` *and must sit on a commit that already carries that version*. The first
 `v0.1.4` tag pointed at the PR #13 merge, whose `package.json` still said `0.1.3`; the run reached the

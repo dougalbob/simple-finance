@@ -392,7 +392,11 @@ covering attachments).
    running value including the start; `payday` = the earliest unconverted receipt instance (today's dues are
    already converted, so it is strictly in the future); no receipt schedule → the view is null and the UI
    says exactly what is missing. (*Amended v0.5.0, decision 116:* the earliest debt expected inflow also
-   wins the cycle, earliest against receipts.) Warnings (§8) against `projected_low`: below £0 → heads-up; at or beyond
+   wins the cycle, earliest against receipts. *Amended v0.6.0, decisions 118–119:* day-to-day is no longer
+   smoothed pro-rata nor charged up front — each figure is a repeating **event** dated from the last actual
+   shop/fill (the anchor-reset model, SPEC §7.3), which also ends the double-count after a recorded spend
+   and makes the lowest point's date meaningful with day-to-day included.) Warnings (§8) against
+   `projected_low`: below £0 → heads-up; at or beyond
    the most-protective configured pot threshold → warning. The pot watch (§7.5) excludes day-to-day by
    design.
 61. **Renewal auto-advance is a full catch-up:** `advanceDueRenewals` steps repeating renewals one year at
@@ -834,6 +838,30 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     list start collapsed (`<details>` without `open`), one tap each — density without a
     spreadsheet. The lowest-point line stays visible at every window length, because a long healthy
     window can still dip hard mid-month and the projection must say so.
+118. **Projected day-to-day spending is episodic, anchored on actual events (v0.6.0).** The
+    household's real world: fill the Mercedes £55 on the 29th and it will not need fuel for
+    ~3 weeks; the weekly shop happens on one day, then not again until the next. The v0.1-era
+    smoothing (pro-rata the configured figures, charge the whole window's block up front) had two
+    faults the household hit in live use: a recorded fill/shop was double-counted for its whole
+    cooldown window (once in the estimate, once in the smoothed allowance), and every lowest point
+    with day-to-day included read "today" — the up-front lump's artifact (the original smoothing
+    decision is amended here). The replacement (SPEC §7.3 v0.6.0): each configured figure is the
+    amount of a **repeating projected event** — groceries every 7 days, fuel every 30 days per
+    vehicle — whose next date derives from the ledger (`last anchor + cadence`). `src/lib/records/
+    day-to-day.ts` owns the anchors (a positive `Groceries > Weekly Shop` allocation for the week;
+    a positive `Vehicle Running > Fuel` allocation targeted at the vehicle for each fill) and the
+    event list; the events join the same pure engine as ordinary dated outgoings, so there is
+    still no second arithmetic and the horizon/payday panel cannot disagree on shared days.
+119. **Anchor-reset detail rules (v0.6.0, all agreed with the household).** Amount = the configured
+    figure (stable budget, not last-actual — avoids whipsaw when one shop is small). Only
+    `Weekly Shop` resets the groceries week — `Top-up Shops` are spending between shops. Each
+    vehicle's fuel clock is its own; a `Fuel` line with no vehicle target anchors nothing. No
+    history, or an overdue anchor ⇒ the next event is **tomorrow**, then the cadence resumes
+    (pessimism — the projection may understate, never overstate). No weekend shifting. Voided or
+    refunded purchases are no anchor. Events are household-level: pot scoping never filters them,
+    and the §7.5 pot watch still excludes them. E8 (SPEC §17) is reworked end-to-end for the new
+    arithmetic (low −£571.26 on the 25th, the cycle's last shop), and the horizon lowest point's
+    date is meaningful again with day-to-day on.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 

@@ -111,6 +111,37 @@ describe('money view: E8 end to end over the database', () => {
       now: new Date('2026-09-27T14:10:00+01:00'),
     });
 
+    // — The last fills (E8's fuel anchors, v0.6.0): Vehicle A £75 on the
+    // 12th, Vehicle B £60 on the 8th. Both predate every checkpoint, so the
+    // estimates are untouched — but each resets its vehicle's 30-day fuel
+    // clock (SPEC §7.3): A next fills 12 October, B on 8 October.
+    const fill = (
+      occurredDate: string,
+      amountPence: number,
+      vehicleId: number,
+      occurredInstant: string,
+    ) =>
+      createPurchase(db, {
+        supplierId: null,
+        potId: pots.main.id,
+        totalPence: amountPence,
+        paidByPersonId: fixture.people.alex.id,
+        occurredAt: new Date(occurredInstant),
+        occurredDate,
+        lines: [
+          {
+            amountPence,
+            categoryId: fixture.categoryId('Vehicle Running', 'Fuel'),
+            targetKind: 'vehicle',
+            targetId: vehicleId,
+          },
+        ],
+        actor,
+        now: new Date(occurredInstant),
+      });
+    fill('2026-09-12', p(75.0), fixture.vehicles.vehicleA.id, '2026-09-12T18:30:00+01:00');
+    fill('2026-09-08', p(60.0), fixture.vehicles.vehicleB.id, '2026-09-08T08:15:00+01:00');
+
     // — A transfer for good measure: £400 Salary → Main (E4, net zero).
     createTransfer(db, {
       fromPotId: pots.salary.id,
@@ -149,9 +180,30 @@ describe('money view: E8 end to end over the database', () => {
     assert.equal(view.result.availableNowPence, p(938.7));
     assert.equal(view.result.totalCommitmentsPence, p(1014.96));
     assert.equal(view.result.totalReceiptsPence, p(2150.0));
-    assert.equal(view.result.groceriesPence, p(372.86));
-    assert.equal(view.result.fuelPence, p(130.5));
-    assert.equal(view.result.projectedLowPence, p(-579.62));
+    // Day-to-day (v0.6.0 anchor-reset): E1's Tesco run on the 27th resets
+    // the weekly shop — projected 4th/11th/18th/25th × £90 = £360. The
+    // fills on the 12th/8th reset each vehicle's 30-day clock — £75 (A) on
+    // 12 October + £60 (B) on 8 October = £135. No smooth allowance.
+    assert.equal(view.result.groceriesPence, p(360.0));
+    assert.equal(view.result.fuelPence, p(135.0));
+    assert.equal(view.result.dayToDayPence, p(495.0));
+    assert.equal(view.dayToDayEvents.length, 6);
+    assert.deepEqual(
+      view.dayToDayEvents
+        .filter((event) => event.kind === 'groceries')
+        .map((event) => event.dueDate),
+      ['2026-10-04', '2026-10-11', '2026-10-18', '2026-10-25'],
+    );
+    assert.deepEqual(
+      view.dayToDayEvents
+        .filter((event) => event.kind === 'fuel')
+        .map((event) => `${event.vehicleId}:${event.dueDate}`),
+      [`${fixture.vehicles.vehicleB.id}:2026-10-08`, `${fixture.vehicles.vehicleA.id}:2026-10-12`],
+    );
+    // The low: the last shop of the cycle clears on the 25th — just before
+    // the salary — and the date the card reports is that day, not today.
+    assert.equal(view.result.projectedLowPence, p(-571.26));
+    assert.equal(view.result.lowDate, '2026-10-25');
     assert.equal(view.result.tier, 'warning');
     assert.equal(view.result.warningThresholdPence, p(250.0));
 

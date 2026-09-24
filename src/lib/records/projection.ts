@@ -1,5 +1,4 @@
 import { toLocalDateString } from '../time';
-import { periodProjectionPence } from '../money';
 import { addDaysLocal, daysBetween } from './dates';
 
 /**
@@ -11,14 +10,15 @@ import { addDaysLocal, daysBetween } from './dates';
  * Semantics fixed by the worked example E8:
  * - `days` = payday − today in whole local days; the window is the days
  *   strictly after today up to and including payday.
- * - The configured day-to-day block (groceries + per-vehicle fuel, each
- *   rounded once at the period level, half-up) is applied pessimistically
- *   up front — the low is computed as if all predictable spending happens
- *   before the pay lands. E8 subtracts the full period totals before the
- *   salary and the result must match to the penny.
+ * - Projected day-to-day spending arrives as **episodic events** (SPEC §7.3,
+ *   v0.6.0): dated weekly shops and per-vehicle fills, derived upstream by
+ *   the anchor-reset model (`day-to-day.ts`). The engine applies each event
+ *   on its due day like any other outgoing — no up-front lump — so the low
+ *   lands on shop/fill days and the lowest point's date is meaningful.
  * - Expected receipts and commitments (unconverted schedule instances only)
- *   apply on their due day; within a day, outgoings apply before receipts
- *   (still the conservative direction).
+ *   apply on their due day; within a day, outgoings (commitments and
+ *   day-to-day events alike) apply before receipts (still the conservative
+ *   direction).
  * - `projected_low` = the minimum running value in the window (inclusive of
  *   the start). It normally occurs just before salary lands. The projection
  *   includes expected income — it is not a spending-only forecast.
@@ -60,9 +60,14 @@ export interface ProjectionInput {
   paydayDate: string | null;
   commitments: ProjectionScheduleLine[];
   receipts: ProjectionScheduleLine[];
-  weeklyGroceriesPence: number;
-  /** Per-vehicle configured monthly fuel figures (SPEC §7.3). */
-  monthlyFuelPence: number[];
+  /**
+   * Projected day-to-day spending as dated events (SPEC §7.3, v0.6.0):
+   * weekly shops from the last recorded Weekly Shop's anchor, per-vehicle
+   * fills from each vehicle's anchor. Applied on their due days, exactly
+   * like commitments — never as an up-front lump.
+   */
+  projectedGroceries: ProjectionScheduleLine[];
+  projectedFuel: ProjectionScheduleLine[];
   /** Overdraft warning threshold in pence (SPEC §8); null when none configured. */
   warningThresholdPence: number | null;
   potWatches: PotWatchInput[];
@@ -74,6 +79,8 @@ export interface ProjectionDay {
   date: string;
   receiptsPence: number;
   commitmentsPence: number;
+  /** Projected shops/fills due that day (0 on quiet days). */
+  dayToDayPence: number;
   /** Running value at the end of the day (after that day's receipts landed). */
   runningPence: number;
 }
@@ -112,11 +119,10 @@ export function projectToPayday(input: ProjectionInput): ProjectionResult {
   const days = input.paydayDate === null ? 0 : daysBetween(today, input.paydayDate);
   const hasWindow = input.paydayDate !== null && days > 0;
 
-  const groceriesPence = periodProjectionPence(input.weeklyGroceriesPence, Math.max(days, 0), 7);
-  const fuelPence = input.monthlyFuelPence.reduce(
-    (sum, pence) => sum + periodProjectionPence(pence, Math.max(days, 0), 30),
-    0,
-  );
+  // The figures used by this projection: the projected shop/fill events due
+  // inside the window (zero when there is no window, as before).
+  const groceriesPence = hasWindow ? sum(input.projectedGroceries.map((l) => l.amountPence)) : 0;
+  const fuelPence = hasWindow ? sum(input.projectedFuel.map((l) => l.amountPence)) : 0;
   const dayToDayPence = groceriesPence + fuelPence;
 
   let projectedLowPence: number | null = null;
@@ -126,20 +132,30 @@ export function projectToPayday(input: ProjectionInput): ProjectionResult {
   if (hasWindow) {
     const commitmentsByDate = sumByDate(input.commitments);
     const receiptsByDate = sumByDate(input.receipts);
-    const base = input.availableNowPence - dayToDayPence;
+    const dayToDayByDate = sumByDate([...input.projectedGroceries, ...input.projectedFuel]);
+    const base = input.availableNowPence;
 
     projectedLowPence = base;
     lowDate = today;
     let receiptsCumulative = 0;
     let commitmentsCumulative = 0;
+    let dayToDayCumulative = 0;
 
     for (let step = 1; step <= days; step += 1) {
       const date = addDaysLocal(today, step);
       const commitmentsDue = commitmentsByDate.get(date) ?? 0;
       const receiptsDue = receiptsByDate.get(date) ?? 0;
+      const dayToDayDue = dayToDayByDate.get(date) ?? 0;
 
-      // Outgoings apply before receipts on the same day (conservative).
-      const minOfDay = base + receiptsCumulative - commitmentsCumulative - commitmentsDue;
+      // Outgoings apply before receipts on the same day (conservative) — a
+      // shop or fill due on payday still clears before the salary lands.
+      const minOfDay =
+        base +
+        receiptsCumulative -
+        commitmentsCumulative -
+        dayToDayCumulative -
+        commitmentsDue -
+        dayToDayDue;
       const endOfDay = minOfDay + receiptsDue;
       if (minOfDay < projectedLowPence) {
         projectedLowPence = minOfDay;
@@ -151,10 +167,12 @@ export function projectToPayday(input: ProjectionInput): ProjectionResult {
       }
       commitmentsCumulative += commitmentsDue;
       receiptsCumulative += receiptsDue;
+      dayToDayCumulative += dayToDayDue;
       perDay.push({
         date,
         receiptsPence: receiptsDue,
         commitmentsPence: commitmentsDue,
+        dayToDayPence: dayToDayDue,
         runningPence: endOfDay,
       });
     }

@@ -190,34 +190,52 @@ days = payday − today   (whole days, local date arithmetic)
 projection starts from household_available_now and applies, day by day until payday inclusive:
   + expected receipts due that day        (income schedules not yet converted)
   − expected commitments due that day     (DD/SO schedule instances not yet converted)
-  − projected day-to-day spending         (see 7.3)
+  − projected day-to-day events due that day (see 7.3)
 projected_low = the minimum running value within the window
 ```
 
 `projected_low` normally occurs just before salary lands. The projection **includes** expected income; it is
 not a spending-only forecast.
 
-### 7.3 Projected day-to-day spending (configured figures + honesty loop)
+### 7.3 Projected day-to-day spending as episodic events (anchor-reset) — v0.6.0
 
-The household's day-to-day spending is highly predictable (weekly food shop varies by roughly ±£20; per-vehicle
-fuel is predictable monthly). So the projection uses **user-configured figures**, set privately in Settings:
+The household's day-to-day spending is highly predictable in **amount** (weekly food shop varies by roughly
+±£20; per-vehicle fuel is predictable monthly) but it is **episodic in timing**: the weekly shop happens on one
+day and not again until the next, and a £55 fill resets the car's fuel clock for the month. So the projection
+uses **user-configured figures**, set privately in Settings, as the **amount of a repeating projected event**,
+and derives each next event's **date from the ledger** (the "anchor-reset" rule, decisions 118–119):
 
-- `weekly_groceries` (fictional example: £90.00/week)
-- `monthly_fuel[vehicle]` (fictional example: Vehicle A £75.00, Vehicle B £60.00)
+- `weekly_groceries` → the **weekly shop**: one projected event every **7 days**, amount = the configured
+  figure. Anchor: the most recent non-voided purchase with a positive allocation to `Groceries > Weekly Shop`.
+  Top-up shops deliberately do **not** reset the week — they are spending *between* shops, and the tree keeps
+  a separate category for them. The shop's recorded amount does not matter; if it happened, it counts.
+- `monthly_fuel[vehicle]` → that vehicle's **fill**: one projected event every **30 days**, amount = the
+  configured figure. Anchor: the most recent non-voided purchase with a positive `Vehicle Running > Fuel`
+  allocation **targeted at that vehicle**. Fuel anchors are per car: filling one never resets the other.
 
-Pro-rated at period level, rounded once:
+The next event after an anchor is `anchor + cadence`; it repeats at the cadence while inside the window.
+**No history, or overdue** (anchor + cadence already in the past — e.g. no shop recorded for 10 days): the
+next event is projected **tomorrow**, then the cadence resumes. The projection may understate, never
+overstate — an unknown shop is nearer than a known one. No weekend shifting: shops and fills happen on any
+day. A voided purchase is no anchor; a refunded one neither (only positive allocations count).
 
-```
-groceries_projection = round(weekly_groceries × days / 7)    → nearest penny
-fuel_projection      = round(monthly_fuel × days / 30)       → per vehicle, nearest penny
-```
+An actual event therefore **suppresses projected spending for its cooldown window** and is never counted
+twice: the £55 fill is inside the estimate the moment it is recorded, and the next projected fill for that
+car is a month away — the window between carries no fuel projection at all. (The pre-v0.6.0 model smoothed
+the figures pro-rata over the window and charged them up front; the recorded fill was then double-counted —
+once in the estimate, once in the smoothed allowance — for the whole cadence window, and every lowest point
+carried today's date.)
+
+The events join the projection engine as ordinary expected outgoings with due dates (§7.2): within a day they
+apply before receipts, like commitments. Two consequences the household can see: the **lowest point's date is
+meaningful with day-to-day included** (it lands on a shop day, a fill day, or a commitment day — not always
+"today"), and the projection panel/horizon list the dated events they are counting, so the inputs stay
+visible. Events are household-level: pot scoping on the horizon does not filter them, and the §7.5 pot watch
+still excludes them.
 
 **Honesty loop:** Insights show recent actuals (e.g. last 4–8 weeks of Groceries and per-vehicle Fuel) against
 these configured figures, so drift is visible and the config can be corrected. The projection panel lists
-exactly which configured figures it used.
-
-Recorded spending in the window's *past* is already inside `household_available_now`; the projection only ever
-covers *future* days, so actual purchases and projected purchases cannot double-count.
+exactly which events it is counting and when — nothing invisible.
 
 ### 7.4 Documented limitation of "assume cleared" (accepted by the users)
 
@@ -255,7 +273,7 @@ picks any date up to 400 days ahead, and the engine runs to that date instead of
 where_we'd_land = household_available_now
                   + Σ expected receipts due in (today, throughDate]   (income, and expected debt inflows)
                   − Σ expected commitments due in (today, throughDate] (DD/SO instances)
-                  − projected day-to-day spending over the window      (§7.3; toggleable, on by default)
+                  − projected day-to-day events due in (today, throughDate]   (§7.3; toggleable, on by default)
 ```
 
 - **Headline:** "Free to spend up to {throughDate}" — `where_we'd_land` — with the context line "Where we'd
@@ -263,7 +281,9 @@ where_we'd_land = household_available_now
   to {throughDate}" so the figure is never mistaken for the full answer.
 - **The lowest point always shows**, with its date and the §8 tier, whatever the window: a long window can
   look healthy at both ends and still dip hard in the middle (the DDs leave on the 1st), and the projection
-  must say so rather than hide it in the headline.
+  must say so rather than hide it in the headline. With day-to-day included the low lands on dated shop/fill
+  events too (v0.6.0, §7.3), so the date stays meaningful — before the anchor-reset model every lowest point
+  with day-to-day on read "today", the up-front lump's artifact.
 - **Debt expected inflow joins this window** (and §7.2's) as expected money, flagged `expected` in the lists —
   a labelled expectation, never received income (§10.2). It lands on the debt's day-of-month, clamped like a
   schedule (OQ1) and moved off a weekend onto the previous Friday like income (§11.3, decision 7); a settled
@@ -571,11 +591,11 @@ Menu pages:
 
 | Page | Contents |
 |---|---|
-| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, configured day-to-day figures, projected low) with a "what's in this forecast" expansion; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
+| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, projected day-to-day events, projected low) with "what's in this forecast" expansions including the dated shops/fills list; pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
 | **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag (on a phone the filter card collapses behind **Show filters**, starts open if any filter is already applied, and From/To date share a row); inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
 | **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money, **income**), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
 | **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
-| **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead, scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
+| **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead, scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), the projected day-to-day events (dated shops/fills, v0.6.0) and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
 | **Income** | Money coming in: the scheduled income (salary) that converts itself, editable in place from the next instance onward; one-off income recorded by hand with an optional source; and one list of everything received — scheduled and one-off together, with inline correction, void and the retained history. Income is desktop-shaped by the household's choice: it is not a till-side task, so nothing here is squeezed into the mobile quick-entry panel. |
 | **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
@@ -763,19 +783,25 @@ Salary £520.00 (26th); Alex's cash £41.20; Sam's cash £28.62.
 Outgoings in window:
 - Commitments due: Energy £84.55 (28th) + Mortgage £685.00 (1st) + Council Tax £178.42 (1st) + Broadband
   £42.00 (3rd) + Mobile £24.99 (10th) = **£1,014.96**
-- Projected groceries: round(£90.00 × 29/7) = **£372.86**
-- Projected fuel: round(£75.00 × 29/30) = £72.50 (A) + round(£60.00 × 29/30) = £58.00 (B) = **£130.50**
+- Projected day-to-day events (§7.3, v0.6.0): the last Weekly Shop is E1's Tesco run, **today** (the 27th),
+  so shops are projected every 7 days from it — 4th, 11th, 18th, 25th — **4 × £90.00 = £360.00**. The last
+  fills: Vehicle A £75.00 on the 12th → next fill **12 October**; Vehicle B £60.00 on the 8th → **8 October**
+  — **£135.00** between them. Total day-to-day: **£495.00**.
 
 Receipts in window: salary **£2,150.00** on the 26th.
 
 ```
-projected_low = £938.70 − £1,014.96 − £372.86 − £130.50   (just before salary lands)
-              = −£579.62
+running low, day by day: 938.70 → 854.15 (28th, Energy) → −9.27 (1st) → −51.27 (3rd)
+  → −141.27 (4th, weekly shop) → −201.27 (8th, fuel B) → −226.26 (10th, Mobile)
+  → −316.26 (11th, shop) → −391.26 (12th, fuel A) → −481.26 (18th, shop)
+  → −571.26 (25th, the cycle's last shop) → +2,150.00 lands on the 26th → £1,578.74
+projected_low = −£571.26 on the 25th   (the last weekly shop of the cycle, just before salary)
 ```
 
-Tier check: −£579.62 ≤ −£250.00 → **Tier 2 Warning**: "Projected to be more than £250 overdrawn before
+Tier check: −£571.26 ≤ −£250.00 → **Tier 2 Warning**: "Projected to be more than £250 overdrawn before
 payday." (Had it fallen between £0 and −£250, only the Tier 1 heads-up would show.) The panel expands to list
-every input: five commitments, salary, and the three configured day-to-day figures — nothing invisible.
+every input: five commitments, salary, and the six dated day-to-day events with their amounts — nothing
+invisible.
 
 Pot-level transfer watch (§7.5): `pot_watch(Main)` = £348.88 − £1,014.96 = **−£666.08** → distinct notice:
 "Main account is projected £666.08 short of the DDs due from it before payday — Mortgage and Council Tax leave
