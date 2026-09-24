@@ -11,7 +11,7 @@ import {
 } from '../db/schema';
 import { toLocalDateString } from '../time';
 import { addDaysLocal, daysBetween } from './dates';
-import { expectedInflowOccurrences, listDebts, type Debt } from './debts';
+import { expectedInflowOccurrences, expectedInflowPotId, listDebts } from './debts';
 import {
   projectDayToDayEvents,
   splitDayToDayEvents,
@@ -441,10 +441,12 @@ function dayToDayEventsToLines(events: ProjectedDayToDayEvent[]): ProjectionSche
  * with `scheduleKind` ignored). Each carries an `expected` flag and a
  * "support from {counterparty}" name so the UI never reads it as received.
  *
- * Only debts with a live (outstanding > 0) balance and the shared movement
- * pot are considered; `expectedInflowOccurrences` derives the dates with the
- * income weekend shift (decision 7). Passing null bounds widens the window
- * for payday selection.
+ * Every debt with an expectation is considered (v0.7.0): a debt that has not
+ * borrowed yet projects against the household's default pot — that is the
+ * whole point of setting the expectation before the first payment. The
+ * settled/answered rules live in `expectedInflowOccurrences`, and the dates
+ * carry the income weekend shift (decision 7). Passing null bounds widens
+ * the window for payday selection.
  */
 function expectedInflowLines(
   db: Db,
@@ -455,14 +457,10 @@ function expectedInflowLines(
   const after = lower ?? today;
   const through = upper ?? addDaysLocal(today, MATERIALIZATION_HORIZON_DAYS);
   const potLabel = new Map(listPots(db).map((pot) => [pot.id, pot.label]));
-  const movementPotByDebt = new Map<number, number>();
-  for (const debt of listDebts(db)) {
-    movementPotByDebt.set(debt.id, firstMovementPotOf(db, debt) ?? 0);
-  }
   const lines: ProjectionLine[] = [];
   for (const debt of listDebts(db)) {
-    const potId = movementPotByDebt.get(debt.id) ?? 0;
-    if (potId === 0) continue; // a debt no movement / pot can pin has no home pot
+    const potId = expectedInflowPotId(db, debt);
+    if (potId === null) continue; // no live pot exists to hold the money
     for (const occurrence of expectedInflowOccurrences(db, debt, after, through, potId)) {
       lines.push({
         scheduleId: debt.id,
@@ -478,23 +476,6 @@ function expectedInflowLines(
   }
   lines.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.name.localeCompare(b.name));
   return lines;
-}
-
-/**
- * The pot a debt's money actually travels through — the most recent non-void
- * loan movement's pot. The expectation must land in the same pot the real
- * deposit uses, or the two layers (expectation vs. actual borrowing) would
- * describe different money. null when the debt has no live movements yet.
- */
-function firstMovementPotOf(db: Db, debt: Debt): number | null {
-  const rows = db
-    .select({ potId: externalMovements.potId })
-    .from(externalMovements)
-    .where(and(eq(externalMovements.debtId, debt.id), isNull(externalMovements.voidedAt)))
-    .orderBy(desc(externalMovements.id))
-    .limit(1)
-    .all();
-  return rows[0]?.potId ?? null;
 }
 
 function minDate(a: string, b: string): string {
@@ -693,12 +674,13 @@ export function getHorizonProjectionView(
   const selectedPots = potsAll.filter((pot) => selectedIdSet.has(pot.id));
   const potLabels = new Map(selectedPots.map((pot) => [pot.id, pot.label]));
 
-  // A debt's expectation lands in its shared movement pot. A selected-pot
-  // debt whose movements live in a deselected pot has no home in this
-  // horizon and is left out (like every other movement on that pot).
+  // A debt's expectation lands in the pot its movements travel through, or —
+  // for a debt that has not borrowed yet (v0.7.0) — the household's default
+  // pot. A deselected pot's expectation is left out, like every other
+  // movement on that pot.
   const movementPotByDebt = new Map<number, number>();
   for (const debt of listDebts(db)) {
-    movementPotByDebt.set(debt.id, firstMovementPotOf(db, debt) ?? 0);
+    movementPotByDebt.set(debt.id, expectedInflowPotId(db, debt) ?? 0);
   }
 
   const windowLower = addDaysLocal(today, 1);

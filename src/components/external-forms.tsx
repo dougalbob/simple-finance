@@ -12,6 +12,7 @@ import {
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
 import { penceInput } from '@/lib/money';
+import { lastOccurrenceDate } from '@/lib/records/dates';
 
 interface PotOption {
   id: number;
@@ -22,6 +23,17 @@ export interface DebtOption {
   id: number;
   counterparty: string;
   direction: 'we_owe' | 'they_owe';
+}
+
+/** 1 → "st", 2 → "nd", 3 → "rd", 11–13 and everything else → "th". */
+function suffixOf(count: number): string {
+  const lastTwo = count % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return 'th';
+  const last = count % 10;
+  if (last === 1) return 'st';
+  if (last === 2) return 'nd';
+  if (last === 3) return 'rd';
+  return 'th';
 }
 
 function FormMessage({ status, message }: { status: string; message: string | null }) {
@@ -105,6 +117,11 @@ export function DebtForm({ idPrefix }: { idPrefix: string }) {
  * "expected" money and never counts as received income — the actual deposit
  * still goes through Borrow &amp; repay. The day it lands follows the same
  * payday rule as income: a weekend day shifts back to the Friday before.
+ *
+ * v0.7.0: the expectation may carry an inclusive **until** date, so an
+ * arrangement with an end ("about five months") stops on its own. Changing
+ * the day of month later is a plain edit — the occurrences are derived, so
+ * future months follow the new day and nothing already recorded moves.
  */
 export function DebtEditForm({
   idPrefix,
@@ -114,6 +131,8 @@ export function DebtEditForm({
   note,
   expectedInflowAmountPence,
   expectedInflowDayOfMonth,
+  expectedInflowUntilDate,
+  today,
 }: {
   idPrefix: string;
   debtId: number;
@@ -122,8 +141,29 @@ export function DebtEditForm({
   note: string | null;
   expectedInflowAmountPence: number | null;
   expectedInflowDayOfMonth: number | null;
+  expectedInflowUntilDate: string | null;
+  /** Today's local date — the "continuing for N payments" helper counts from here. */
+  today: string;
 }) {
   const [state, formAction, pending] = useActionState(editDebtAction, initialActionState);
+  const [dayOfMonth, setDayOfMonth] = useState(
+    expectedInflowDayOfMonth === null ? '' : String(expectedInflowDayOfMonth),
+  );
+  const [untilDate, setUntilDate] = useState(expectedInflowUntilDate ?? '');
+  const [paymentCount, setPaymentCount] = useState('5');
+  const [helperNote, setHelperNote] = useState<string | null>(null);
+
+  const fillEndDate = () => {
+    const count = Number(paymentCount);
+    const last = lastOccurrenceDate(Number(dayOfMonth), today, count);
+    if (last === null) {
+      setHelperNote('Enter a day between 1 and 31 and a whole number of payments.');
+      return;
+    }
+    setUntilDate(last);
+    setHelperNote(`Set to ${last} — the ${count}${suffixOf(count)} expected payment, inclusive.`);
+  };
+
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="debtId" value={debtId} />
@@ -180,13 +220,54 @@ export function DebtEditForm({
             min={1}
             max={31}
             placeholder="12"
-            defaultValue={expectedInflowDayOfMonth === null ? '' : String(expectedInflowDayOfMonth)}
+            aria-label="Day of the month"
+            value={dayOfMonth}
+            onChange={(event) => setDayOfMonth(event.target.value)}
             className={`${inputClass} w-16`}
           />
+          <span className="text-sm text-slate-500">until</span>
+          <input
+            id={`${idPrefix}-inflow-until`}
+            name="expectedInflowUntil"
+            type="date"
+            aria-label="Until (optional, inclusive)"
+            value={untilDate}
+            onChange={(event) => setUntilDate(event.target.value)}
+            className={`${inputClass} w-40`}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor={`${idPrefix}-inflow-count`} className="text-xs text-slate-600">
+            or continuing for
+          </label>
+          <input
+            id={`${idPrefix}-inflow-count`}
+            type="number"
+            min={1}
+            max={240}
+            value={paymentCount}
+            onChange={(event) => setPaymentCount(event.target.value)}
+            className={`${inputClass} w-16`}
+          />
+          <span className="text-xs text-slate-600">payments</span>
+          <button
+            type="button"
+            onClick={fillEndDate}
+            className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-slate-500"
+          >
+            Fill the end date
+          </button>
+          {helperNote !== null ? (
+            <span role="status" aria-live="polite" className="text-xs text-slate-600">
+              {helperNote}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-slate-500">
-          Leave both blank to stop expecting it. Expected, never received — borrowed money stays
-          owed, it is not income.
+          Leave the amount and day blank to stop expecting it. The until date is optional and
+          inclusive — leave it blank and the expectation runs until you stop it; next January, move
+          the day from 10 to 13 and every month after that follows the new day. Expected, never
+          received — borrowed money stays owed, it is not income.
         </p>
       </div>
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>

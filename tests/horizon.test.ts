@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import type { Db } from '../src/lib/db/client';
 import { createHouseholdFixture, type HouseholdFixture } from './household';
 import { addCheckpoint } from '../src/lib/records/pots';
 import { createDebt, editDebt, getDebt, InvalidDebtInputError } from '../src/lib/records/debts';
-import { createExternalMovement } from '../src/lib/records/external-movements';
+import {
+  createExternalMovement,
+  voidExternalMovement,
+} from '../src/lib/records/external-movements';
 import { createPurchase } from '../src/lib/records/purchases';
 import { createSchedule } from '../src/lib/records/schedules';
 import {
@@ -401,5 +405,271 @@ describe('horizon: expected inflow and the horizon read model (v0.5.0)', () => {
     assert.ok(all.receiptLines.some((line) => line.expected));
     assert.ok(mainOnly.receiptLines.every((line) => !line.expected));
     assert.equal(mainOnly.result.totalCommitmentsPence, p(169.1)); // 25 Sep + 25 Oct
+  });
+});
+
+/**
+ * Expected support as a plan with a start, a changeable day and an end
+ * (SPEC §10.2, v0.7.0). The household's own words drive these tests: set a
+ * future day of month, change it later, stop it after N payments, and see
+ * every month's date derived from that single figure — never re-entered.
+ */
+describe('expected support: planning, changing and stopping it (v0.7.0)', () => {
+  const now = new Date('2026-09-24T19:30:00+01:00');
+  let fixture: HouseholdFixture;
+
+  after(() => {
+    if (fixture !== undefined) {
+      fixture.close();
+    }
+  });
+
+  /** Checkpointed household with a £2,150 salary on the 26th and a brand-new 'Mum' IOU. */
+  async function setUp() {
+    fixture = await createHouseholdFixture(ACTOR, now);
+    const { db, pots } = fixture;
+    addCheckpoint(db, { potId: pots.main.id, amountPence: p(500), actor: ACTOR, now });
+    addCheckpoint(db, { potId: pots.salary.id, amountPence: p(200), actor: ACTOR, now });
+    createSchedule(db, {
+      name: 'Salary',
+      kind: 'receipt',
+      frequency: 'monthly',
+      dueDayOfMonth: 26,
+      amountPence: p(2150),
+      potId: pots.salary.id,
+      activeFrom: '2026-09-01',
+      actor: ACTOR,
+      now: new Date('2026-09-01T09:00:00Z'),
+    });
+    const debt = createDebt(db, { counterparty: 'Mum', direction: 'we_owe', actor: ACTOR, now });
+    return { db, pots, debt };
+  }
+
+  const expectedLines = (db: Db, through: string) =>
+    getHorizonProjectionView(db, through, [], false, now).receiptLines.filter(
+      (line) => line.expected === true,
+    );
+
+  it('a loan that has not started yet projects its first payment (the whole point)', async () => {
+    const { db, debt } = await setUp();
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: { expectedInflow: { amountPence: p(1000), dayOfMonth: 10 } },
+    });
+    // Today is Thursday 24 September: September's 10th is behind us, so the
+    // first payment is October's — Saturday the 10th, expected on Friday the
+    // 9th (decision 7) — with nothing whatsoever borrowed yet.
+    const lines = expectedLines(db, '2026-10-31');
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0]?.dueDate, '2026-10-09');
+    assert.equal(lines[0]?.amountPence, p(1000));
+    assert.match(lines[0]?.name ?? '', /support from Mum/);
+    // No movement pins a pot yet, so the expectation uses the household's
+    // default pot; the estimate still never moves (SPEC §10.2).
+    assert.equal(lines[0]?.potLabel, 'Main account');
+    const snapshot = getMoneySnapshot(db, now);
+    assert.equal(snapshot.householdAvailablePence, p(700));
+    assert.equal(snapshot.debts.owedByHouseholdPence, 0);
+  });
+
+  it('stops at the inclusive until date, weekend shifts and all', async () => {
+    const { db, debt } = await setUp();
+    // "About five months" from October: the fifth payment is February's, and
+    // nothing is expected from March — no hand-clearing needed.
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2027-02-10' },
+      },
+    });
+    assert.deepEqual(
+      expectedLines(db, '2027-04-30').map((line) => line.dueDate),
+      ['2026-10-09', '2026-11-10', '2026-12-10', '2027-01-08', '2027-02-10'],
+    );
+    // The inclusive boundary is the configured day: the payment configured on
+    // the until date itself counts (here 10 February, a Wednesday).
+    const boundary = editDebt(db, {
+      id: debt.id,
+      expectedVersion: getDebt(db, debt.id).version,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2027-01-10' },
+      },
+    });
+    assert.equal(boundary.expectedInflowUntilDate, '2027-01-10');
+    assert.deepEqual(
+      expectedLines(db, '2027-04-30').map((line) => line.dueDate),
+      ['2026-10-09', '2026-11-10', '2026-12-10', '2027-01-08'],
+    );
+    // A single payment: the next occurrence only.
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: boundary.version,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2026-10-10' },
+      },
+    });
+    assert.deepEqual(
+      expectedLines(db, '2027-04-30').map((line) => line.dueDate),
+      ['2026-10-09'],
+    );
+  });
+
+  it('follows a changed day of month across every unrecorded month', async () => {
+    const { db, debt } = await setUp();
+    const edited = editDebt(db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2027-02-10' },
+      },
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-10-09', '2026-11-10', '2026-12-10'],
+    );
+
+    // In December the household moves the payment to the 13th to line up with
+    // its spending. Occurrences are derived, never stored, so the months that
+    // have not been recorded follow the new day — and nothing recorded moves,
+    // because nothing has been.
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: edited.version,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 13, untilDate: '2027-02-10' },
+      },
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-10-13', '2026-11-13', '2026-12-11'], // Sun 13 Dec → Fri 11 Dec
+    );
+    const snapshot = getMoneySnapshot(db, now);
+    assert.equal(snapshot.householdAvailablePence, p(700));
+    assert.equal(snapshot.debts.owedByHouseholdPence, 0);
+  });
+
+  it('a recorded month stops projecting; a mid-cycle extra borrowing does not steal the next', async () => {
+    const { db, pots, debt } = await setUp();
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2027-02-10' },
+      },
+    });
+    // October's money lands on the day the parents actually transfer — the
+    // Saturday — and is recorded. That month is answered; November is not.
+    createExternalMovement(db, {
+      potId: pots.main.id,
+      direction: 'in',
+      kind: 'loan',
+      amountPence: p(1000),
+      debtId: debt.id,
+      occurredDate: '2026-10-10',
+      actor: ACTOR,
+      now: new Date('2026-10-10T12:00:00+01:00'),
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-11-10', '2026-12-10'],
+    );
+    // An extra £200 borrowed mid-cycle is not November's payment: the
+    // expectation for the 10th is still expected.
+    createExternalMovement(db, {
+      potId: pots.main.id,
+      direction: 'in',
+      kind: 'loan',
+      amountPence: p(200),
+      debtId: debt.id,
+      occurredDate: '2026-10-20',
+      actor: ACTOR,
+      now: new Date('2026-10-20T12:00:00+01:00'),
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-11-10', '2026-12-10'],
+    );
+    assert.equal(getMoneySnapshot(db, now).debts.owedByHouseholdPence, p(1200));
+  });
+
+  it('a recorded month is answered, a voided one comes back, and settling stops the rest', async () => {
+    const { db, pots, debt } = await setUp();
+    editDebt(db, {
+      id: debt.id,
+      expectedVersion: 1,
+      actor: ACTOR,
+      now,
+      patch: {
+        expectedInflow: { amountPence: p(1000), dayOfMonth: 10, untilDate: '2027-02-10' },
+      },
+    });
+    // October's money lands on the day the parents actually transfer — the
+    // Saturday — and is recorded. That month is answered; the rest are not.
+    const borrowed = createExternalMovement(db, {
+      potId: pots.main.id,
+      direction: 'in',
+      kind: 'loan',
+      amountPence: p(1000),
+      debtId: debt.id,
+      occurredDate: '2026-10-10',
+      actor: ACTOR,
+      now: new Date('2026-10-10T12:00:00+01:00'),
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-11-10', '2026-12-10'],
+    );
+    // Voided records never count as money: the expectation returns.
+    voidExternalMovement(db, {
+      id: borrowed.id,
+      expectedVersion: borrowed.version,
+      reason: 'entered against the wrong debt',
+      actor: ACTOR,
+      now: new Date('2026-10-11T09:00:00+01:00'),
+    });
+    assert.deepEqual(
+      expectedLines(db, '2026-12-31').map((line) => line.dueDate),
+      ['2026-10-09', '2026-11-10', '2026-12-10'],
+    );
+    // Repay in full after probate: settled, so nothing further is expected,
+    // however the arrangement was configured.
+    createExternalMovement(db, {
+      potId: pots.main.id,
+      direction: 'in',
+      kind: 'loan',
+      amountPence: p(1000),
+      debtId: debt.id,
+      occurredDate: '2026-10-09',
+      actor: ACTOR,
+      now: new Date('2026-10-09T12:00:00+01:00'),
+    });
+    createExternalMovement(db, {
+      potId: pots.main.id,
+      direction: 'out',
+      kind: 'loan',
+      amountPence: p(1000),
+      debtId: debt.id,
+      occurredDate: '2026-10-20',
+      actor: ACTOR,
+      now: new Date('2026-10-20T12:00:00+01:00'),
+    });
+    assert.deepEqual(expectedLines(db, '2027-04-30'), []);
+    assert.equal(getMoneySnapshot(db, now).debts.owedByHouseholdPence, 0);
   });
 });

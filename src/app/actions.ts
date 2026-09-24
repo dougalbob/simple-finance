@@ -1303,10 +1303,13 @@ export async function editDebtAction(
   if (user === null) return NOT_SIGNED_IN;
   const inflowAmountRaw = formData.get('expectedInflowAmount');
   const inflowDayRaw = formData.get('expectedInflowDay');
+  const inflowUntilRaw = formData.get('expectedInflowUntil');
   const amountText = typeof inflowAmountRaw === 'string' ? inflowAmountRaw.trim() : '';
   const dayText = typeof inflowDayRaw === 'string' ? inflowDayRaw.trim() : '';
+  const untilText = typeof inflowUntilRaw === 'string' ? inflowUntilRaw.trim() : '';
   // The pair rides together or not at all: both blank clears the expectation,
-  // and a half-set pair fails the boundary schema.
+  // and a half-set pair fails the boundary schema. The until date (v0.7.0) is
+  // optional — blank means open-ended, and it cannot stand on its own.
   const parsed = editDebtEntrySchema.safeParse({
     debtId: numberOrNull(formData.get('debtId')),
     expectedVersion: numberOrNull(formData.get('expectedVersion')),
@@ -1316,7 +1319,11 @@ export async function editDebtAction(
       amountText === '' && dayText === ''
         ? null
         : amountText !== '' && dayText !== ''
-          ? { amountPence: parsePence(amountText), dayOfMonth: Number(dayText) }
+          ? {
+              amountPence: parsePence(amountText),
+              dayOfMonth: Number(dayText),
+              untilDate: untilText === '' ? null : untilText,
+            }
           : { amountPence: null, dayOfMonth: null },
   });
   if (!parsed.success) {

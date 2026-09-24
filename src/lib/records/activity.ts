@@ -11,8 +11,10 @@ import {
   transfers,
 } from '../db/schema';
 import { formatPence } from '../money';
-import { isValidLocalDate, toLocalDateString } from '../time';
+import { endOfLocalDate, isValidLocalDate, toLocalDateString } from '../time';
 import { categoryTree } from './categories';
+import { addDaysLocal } from './dates';
+import { expectedInflowOccurrences, expectedInflowPotId, listDebts } from './debts';
 import { listPeople } from './people';
 import { listPotsIncludingArchived } from './pots';
 import { listSuppliers } from './suppliers';
@@ -35,6 +37,11 @@ import { listVehicles } from './vehicles';
  * itself; that gap is closed, and a one-off third-party credit is income
  * rather than other money in.
  *
+ * Expected support is rendered as `EXP<` (v0.7.0, SPEC §10.2): a debt's
+ * expectation appears from its due date, flagged and outside the totals,
+ * and gives way to the real `LN<` row once that month's borrowing is
+ * recorded. It is an expectation, never income and never a movement.
+ *
  * Signs are relative to the selected pot, so one pot→pot transfer is green on
  * the receiving side and red on the sending side with no data change anywhere.
  *
@@ -45,7 +52,19 @@ import { listVehicles } from './vehicles';
 
 /** The compact type codes the household sketch asked for (SPEC §15.3). */
 export type ActivityCode =
-  'PUR' | 'REF' | 'DD' | 'SO' | 'TX<' | 'TX>' | 'LN<' | 'LN>' | 'SW<' | 'SW>' | 'BAC';
+  | 'PUR'
+  | 'REF'
+  | 'DD'
+  | 'SO'
+  | 'TX<'
+  | 'TX>'
+  | 'LN<'
+  | 'LN>'
+  | 'SW<'
+  | 'SW>'
+  | 'BAC'
+  /** An expected debt inflow, not yet recorded (v0.7.0) — always money in. */
+  | 'EXP<';
 
 export const ACTIVITY_ROW_LIMIT = 500;
 
@@ -64,7 +83,12 @@ export interface ActivityLink {
 export interface ActivityRow {
   /** Stable React key: family + record id. */
   key: string;
-  family: 'purchase' | 'transfer' | 'external' | 'receipt';
+  /**
+   * `expected` rows (v0.7.0) are a debt's expectation, not a record: they are
+   * listed and flagged, never counted in the totals, and they disappear once
+   * that month's borrowing is recorded.
+   */
+  family: 'purchase' | 'transfer' | 'external' | 'receipt' | 'expected';
   recordId: number;
   /** Local calendar date, 'YYYY-MM-DD' — the only date this page shows. */
   date: string;
@@ -98,13 +122,18 @@ export type ActivityEntry =
   { kind: 'row'; row: ActivityRow } | { kind: 'checkpoint'; checkpoint: ActivityCheckpoint };
 
 export interface ActivityTotals {
-  /** Sum of the rows actually shown, credits. */
+  /** Sum of the recorded rows actually shown, credits. */
   inPence: number;
-  /** Sum of the rows actually shown, debits. */
+  /** Sum of the recorded rows actually shown, debits. */
   outPence: number;
+  /** Recorded rows shown. Expected-support rows are counted separately. */
   rowCount: number;
   /** Rows in the window that fell off the cap — the page must say so. */
   hiddenRowCount: number;
+  /** Expected-support rows shown (v0.7.0): expectations, never movements. */
+  expectedRowCount: number;
+  /** Their total. Deliberately outside `inPence`/`outPence`/`rowCount`. */
+  expectedInPence: number;
 }
 
 export interface ActivityView {
@@ -423,6 +452,57 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
     });
   }
 
+  // --- Expected support: EXP< ---------------------------------------------
+  // A debt's expectation (SPEC §10.2, v0.7.0) joins the list from its due
+  // date: the household sees the money it is expecting, and the row is the
+  // nudge to record the borrowing when it lands. It is flagged, never
+  // counted in the totals — an expectation is not a movement — and it gives
+  // way as soon as that month's money is recorded (`expectedInflowOccurrences`
+  // answers it), leaving the real `LN<` row behind.
+  for (const debt of listDebts(db)) {
+    if (expectedInflowPotId(db, debt) !== potId) continue;
+    const occurrences = expectedInflowOccurrences(
+      db,
+      debt,
+      addDaysLocal(dateFrom, -1),
+      dateTo,
+      potId,
+    );
+    // The expectation speaks for the months since it was set, never for
+    // months before the household planned it (v0.7.0): the local date of the
+    // debt's last edit is the honest floor, and a month that has come and
+    // gone unrecorded reads as exactly that.
+    const plannedFrom = toLocalDateString(debt.updatedAt);
+    for (const occurrence of occurrences) {
+      if (occurrence.configuredDate < plannedFrom) continue;
+      // An occurrence configured on the 1st can shift back into the previous
+      // month (weekend shift, decision 7): rows outside the window are not
+      // part of it, exactly as for every other family.
+      if (occurrence.dueDate < dateFrom || occurrence.dueDate > dateTo) continue;
+      pending.push({
+        sortAt: endOfLocalDate(occurrence.dueDate).getTime(),
+        recordId: debt.id,
+        familyRank: 4,
+        row: {
+          key: `expected-debt-${debt.id}-${occurrence.dueDate}`,
+          family: 'expected',
+          recordId: debt.id,
+          date: occurrence.dueDate,
+          code: 'EXP<',
+          source: debt.counterparty,
+          category: '',
+          extraLines: 0,
+          amountPence: occurrence.amountPence,
+          direction: 'in',
+          note: debt.note ?? '',
+          link: { href: `/pots#debt-${debt.id}`, label: 'Open the loan panel' },
+          secondaryLink: null,
+          badge: 'expected — not recorded yet',
+        },
+      });
+    }
+  }
+
   // One deterministic order across families: newest first, then a stable
   // tie-break so a re-render cannot reshuffle rows sharing an instant.
   pending.sort(
@@ -441,15 +521,28 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
     countTransferRows(db, potId, dateFrom, dateTo) +
     countRows(db, externalMovements, potId, dateFrom, dateTo) +
     countRows(db, receipts, potId, dateFrom, dateTo);
-  const hiddenRowCount = Math.max(windowRowCount - shown.length, 0);
 
   let inPence = 0;
   let outPence = 0;
+  let expectedInPence = 0;
+  let expectedRowCount = 0;
+  let shownRecordCount = 0;
   const entries: ActivityEntry[] = shown.map((item) => {
+    if (item.row.family === 'expected') {
+      // An expectation is not a movement (v0.7.0): it is listed and flagged,
+      // and the page says plainly that it sits outside the totals.
+      expectedInPence += item.row.amountPence;
+      expectedRowCount += 1;
+      return { kind: 'row', row: item.row };
+    }
+    shownRecordCount += 1;
     if (item.row.direction === 'in') inPence += item.row.amountPence;
     else outPence += item.row.amountPence;
     return { kind: 'row', row: item.row };
   });
+  // Expected rows can take a slot under the cap, so the hidden count is
+  // measured against the recorded rows actually shown, not the whole list.
+  const hiddenRowCount = Math.max(windowRowCount - shownRecordCount, 0);
 
   // Checkpoint dividers (SPEC §15.3): the reported figure inside the window,
   // sitting below its own date's rows so "everything above the line happened
@@ -483,7 +576,14 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
     dateFrom,
     dateTo,
     entries,
-    totals: { inPence, outPence, rowCount: shown.length, hiddenRowCount },
+    totals: {
+      inPence,
+      outPence,
+      rowCount: shownRecordCount,
+      hiddenRowCount,
+      expectedRowCount,
+      expectedInPence,
+    },
   };
 }
 
