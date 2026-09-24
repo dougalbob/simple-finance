@@ -572,16 +572,20 @@ query instead of a duplicated tree per car.
 
 ## 14. Connectivity, PWA, notifications
 
-- **Online-only for v1** (agreed). Entry requires a signal; if connectivity drops mid-entry, the app **keeps
+- **Online-only** (agreed). Entry requires a signal; if connectivity drops mid-entry, the app **keeps
   the half-typed record on screen** and retries the save on reconnection (single in-flight submission guard —
   no duplicate posts on flaky networks). No offline queue, no sensitive financial data cached on the device,
   no service-worker caching of pages or API responses.
 - Receipt photos/uploads need connectivity like everything else (§23): the purchase save **never waits on an
   attachment**; uploads are retryable and can be added days later. The phone's own gallery is the temporary
   store for a photo taken without signal — the app keeps no offline queue of its own.
-- Responsive web; installability (manifest) is a possible later nicety **only** if it never requires caching
-  financial data or broad Access bypasses (blueprint §4). Not a v1 commitment.
-- **No notifications/reminders in v1** (agreed). Warnings live inside the app. An optional email alert
+- **Installability shipped in v0.8.0** as a web app manifest (`public/manifest.webmanifest`) and icons
+  (`icon-192.png`, `icon-512.png`, `apple-touch-icon.png`) — no service worker, no caching, no offline
+  queue. The manifest is a static file in `public/` so it is fetchable without credentials; a Next route
+  would sit behind Cloudflare Access. The manifest and icon paths are bypassed at the Cloudflare Access
+  level (path-scoped Bypass → Everyone policy); every other URL remains behind the email-policy app.
+  SPEC §14's online-only rule stands unchanged; the household confirmed they do not want offline access.
+- **No notifications/reminders** (agreed). Warnings live inside the app. An optional email alert
   channel for renewals/contract ends is a recorded **v2 roadmap item** (§22.3) — not a v1 blocker.
 
 ## 15. UX

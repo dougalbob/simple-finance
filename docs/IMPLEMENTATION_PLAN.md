@@ -10,8 +10,8 @@
 > does not publish; the image publishes only when the lower-case tag matches the version already in the tree
 > it points at — see decision 91.
 
-**Status:** Phase 5 (hardening & first release, Session 6) is complete on its session branch and awaiting
-merge: the release-blocking backup/restore capability now covers attachments, live in-place restore exists,
+**Status:** v0.8.0 builds on v0.7.0: the app is now installable as a PWA (manifest + icons, no service
+worker, no offline access). 340 tests / 85 suites green. The release-blocking backup/restore capability from Phase 5 covers attachments, live in-place restore exists,
 suppliers/interactions are audited domain operations, the container runs unprivileged, the Unraid template
 and the GHCR publish workflow are written, and the Playwright acceptance suite is defined (it runs in CI —
 this sandbox has no browser binaries and no access to the download host). **224 Node tests green** plus the
@@ -900,6 +900,24 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     (decision 116 holds): never income, never an estimate move, never an insight, and the pot moves only
     when the Borrow is actually recorded.
 
+*Session `arena/01a0d4f9-simple-finance` (2026-09-24) — PWA installability (v0.8.0):*
+
+122. **PWA ships as manifest + icons, never a service worker (OQ7 resolved).** The household configured
+    Cloudflare Access bypasses for the PWA asset paths and found them 404 — the files did not exist. The
+    fix is a static `public/manifest.webmanifest` (not a Next route, which would sit behind Access), two
+    PNG icons (192×192 and 512×512) and an `apple-touch-icon.png` (180×180), all derived from the existing
+    `docs/assets/simple-finance-icon.svg` / `.png`. The manifest declares `name`, `short_name`, `start_url`,
+    `scope`, `display: standalone`, `background_color` / `theme_color` `#0f172a`, and `purpose: any` on both
+    icons. `layout.tsx` links the manifest, apple-touch icon and apple-web-app capable via the Next 16
+    metadata API (`themeColor` in the `viewport` export, not the deprecated `metadata` field). **No service
+    worker, no caching of pages or API responses, no offline queue** — SPEC §14's online-only rule stands
+    unchanged. The household confirmed they do not want offline access.
+123. **The Access bypass surface equals the files that exist.** The path-scoped Cloudflare Bypass → Everyone
+    app should carry exactly four destinations: `/manifest.webmanifest`, `/icon-192.png`, `/icon-512.png`,
+    `/apple-touch-icon.png`. The legacy `/sw.js` destination should be deleted — no service worker ships, and
+    a public 404 is worse than no destination at all. Everything else remains behind the hostname-wide
+    email-policy app.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -910,7 +928,7 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 | OQ4 | Checkpoint effective-date granularity (date-only backdating vs full timestamp) | Date-only backdating, boundary = end of local date; revisit if users want finer. |
 | OQ5 | Receipts storage shape (own table vs signed purchase records) | **Resolved in Phase 3 (decision 55): dedicated `receipts` table** — income has no category/target (SPEC §6), so it does not reuse the split machinery; the estimate engine reads it as +signed pence. |
 | OQ6 | ~~Receipt images / attachments~~ | **Resolved 2026-09-20 — in scope (decision 26, SPEC §23).** Residual sub-questions moved to OQ9–OQ12. |
-| OQ7 | PWA installability | Post-v1 evaluation; never with offline caching of financial data or broad Access bypasses. |
+| OQ7 | ~~PWA installability~~ | **Resolved v0.8.0 (decisions 122–123): manifest + icons shipped without a service worker; bypass surface equals the files that exist.** |
 | OQ8 | Unraid host port | Pick a free port at first install; template documents it (never inherit 3005). |
 | OQ9 | Phone camera formats: accept HEIC directly, or rely on browser JPEG capture? | v1 accepts PNG/JPEG/PDF; document the iPhone "Most Compatible"/JPEG camera setting; server-side HEIC conversion only if real devices demand it. |
 | OQ10 | Supplier-level document attachments (e.g. a policy PDF not tied to a purchase)? | Defer; v1 attaches to purchases only. Renewals/suppliers hold references + notes meanwhile. |
@@ -936,6 +954,16 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   commit `0a82992` (PR #38), publish run `36042299282`, digest
   `sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18` on `v0.7.0` / `latest` /
   `sha-0a82992` — one digest, different from v0.6.0's ([`docs/RELEASE_NOTES_v0.7.0.md`](RELEASE_NOTES_v0.7.0.md)).
+- **v0.8.0 — installable PWA, no offline access (session `arena/01a0d4f9-simple-finance`, from `main` @ `837845a`)**:
+  `public/manifest.webmanifest` (static file, not a Next route), `public/icon-192.png` (192×192),
+  `public/icon-512.png` (512×512), `public/apple-touch-icon.png` (180×180), all derived from the existing
+  icon SVG/PNG; `layout.tsx` metadata (manifest link, apple-touch icon, appleWebApp, themeColor via viewport);
+  Dockerfile runtime stage gains `COPY --from=builder /app/public ./public` (the trap); Node test
+  (`tests/pwa-manifest.test.ts`, 5 tests: manifest parses, required fields, icon files exist at declared pixel
+  sizes, colours); Playwright spec (`e2e/pwa.spec.ts`: four paths return 200 with correct content types); CI
+  docker job and publish workflow both smoke-test the four PWA paths. Decisions **122–123**, OQ7 resolved.
+  SPEC §14 updated. `npm test` **340 tests / 85 suites green**, format and typecheck clean, production build
+  green.
 - **Pre-v0.1.0 history** (no tag, no image, no deployment existed yet): **Phase 0 + Phase 1 merged to `main` on
   2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
   container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,
@@ -1045,21 +1073,25 @@ src/components/site-nav.tsx     — app chrome: menu pages + version badge (desk
 src/components/purchase-filter-form.tsx — Purchases GET filters; phone collapse + in-card layout (decision 92)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
 scripts/e2e-server.mts        — Playwright webServer: isolated `.e2e-data` seed (fictional) + `next dev`
-e2e/{home,desktop,backup}.spec.ts — browser acceptance specs (mobile till moment, desktop review incl. the
-                                calendar-consistency check, backup download + UI restore)
+e2e/{home,desktop,backup,pwa}.spec.ts — browser acceptance specs (mobile till moment, desktop review incl. the
+                                calendar-consistency check, backup download + UI restore, PWA asset 200s)
 playwright.config.ts          — Playwright projects (mobile/desktop/backup) and the webServer wiring
 docker-entrypoint.sh          — .env → dirs → one-time chown → migrations → exec server as PUID:PGID
 Dockerfile                    — multi-stage production image (gosu, unprivileged default 99:100)
 simple-finance.xml            — Unraid container template (appdata, free host port, PUID/PGID, AUTH_*)
-.github/workflows/ci.yml      — gates + browser acceptance + docker smoke (asserts uid 99)
+public/manifest.webmanifest   — PWA manifest (static file, not a route; fetchable without Access credentials)
+public/icon-192.png           — 192×192 app icon (derived from docs/assets/simple-finance-icon.svg)
+public/icon-512.png           — 512×512 app icon
+public/apple-touch-icon.png   — 180×180 apple touch icon
+.github/workflows/ci.yml      — gates + browser acceptance + docker smoke (asserts uid 99, PWA assets)
 .github/workflows/publish.yml — tag-triggered GHCR publication with pre-push smoke test and digest check
 docs/assets/simple-finance-icon.{svg,png} — app/template icon (generated placeholder, fictional)
 .env.example                  — placeholders incl. DOCUMENTS_DIR and the container PUID/PGID notes
 .env.example                  — placeholder configuration (real values only in the private install)
-tests/*.test.ts               — 182 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
+tests/*.test.ts               — 340 regression tests: money, time (+ local dates), filename (DST/midnight), config, auth verify,
                                 current-user fail-closed, db slice, backup/restore round-trip (3 migrations), route, migrate
                                 script, version, splits, categories (SPEC §12 seed), parties (people/vehicles/suppliers),
-                                purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void)
+                                purchases (E1/E2/E6/E7 + refunds/edit/void), transfers (E4 + edit/void), PWA manifest
 tests/{dates,estimate,projection}.test.ts — Phase 3 pure-engine tests: local-date arithmetic + DST days (E3 sweep inputs),
                                 comparison-precision rule (E5), E8 projection to the penny + tiers + pot watch
 tests/schedule-lifecycle.test.ts — Phase 3 E3: 26th→30th counted-exactly-once timeline, crash self-heal, DST-midnight
