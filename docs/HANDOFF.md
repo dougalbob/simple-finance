@@ -3,6 +3,12 @@
 Date: 2026-09-24. Branch: `arena/01a0d55f-simple-finance` (from `main` @ `2255607`, post-v0.8.0 and its
 release).
 
+**Released as v0.9.0 on 2026-09-24** — annotated tag `v0.9.0` on merge commit `19e878c` (PR #43), digest
+`sha256:4384d7d2…d12aa809` on `v0.9.0` / `latest` / `sha-19e878c`. The household's two steps in Unraid:
+back up, then Force Update. Facts are stamped in
+[`docs/RELEASE_NOTES_v0.9.0.md`](RELEASE_NOTES_v0.9.0.md); the version-badge check is
+`v0.9.0 · pre-release`.
+
 **This session redesigned the mobile Quick Entry experience and added the second balance figure the
 household asked for.** The household's question was: a "free to spend" figure based only on the last
 checkpoint is dangerous — standing in Tesco with £500 showing and a £600 mortgage leaving three days before
