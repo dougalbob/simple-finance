@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { waitForTill } from './support';
 
 /**
  * Settings → Category tree (SPEC §15.2). Regression for a field report on
@@ -90,8 +91,10 @@ test.describe('category tree', () => {
  * Quick entry settings (SPEC §15.1, v0.9.0): the pot the till form starts on
  * is an explicit choice, not a guess from a pot's label. Runs in the settings
  * project, after the mobile project has asserted the seeded default, and
- * moves the default to the Salary account — the later specs drive the till
- * form through the pot chips anyway, so nothing downstream depends on it.
+ * leaves the installation with the default *cleared* — that state is the point
+ * of the last assertion. So any spec that runs after this one and records a
+ * purchase names its pot itself (see `backup.spec.ts`); the till cannot save
+ * without one.
  */
 test.describe('quick entry settings', () => {
   test('the default purchase pot moves the till form', async ({ page }) => {
@@ -106,6 +109,7 @@ test.describe('quick entry settings', () => {
     });
 
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Salary account');
 
@@ -118,6 +122,7 @@ test.describe('quick entry settings', () => {
       timeout: 30_000,
     });
     await page.goto('/');
+    await waitForTill(page);
     await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Choose…');
   });
 });

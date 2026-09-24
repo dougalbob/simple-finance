@@ -961,6 +961,28 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     directly on the dark quick-entry card with `text-slate-800` labels — dark grey on near-black, effectively
     unreadable. Every quick-entry panel is now a light card, and touch targets are at least 44px.
 
+131. **The till announces when it is listening (SPEC §15.1).** The v0.9.0 form is bigger, and the acceptance
+    suite started losing races it used to win: a tap on a tab before React hydrated switched nothing, and a
+    value typed into a controlled input was wiped by the hydration render — the CI run failed four specs
+    with `expected number, received null`, a dead tab and a frozen hint. The fix is in the product, not the
+    test: the quick-entry section renders `data-till-ready="false"`, flips it to `true` when it mounts, and
+    the tab strip and the forms are `inert` until then, so input that arrives too early is refused rather
+    than swallowed. Locator *assertions* auto-wait; locator *actions* (and `pressSequentially` in
+    particular — measured, it waits for neither `inert`, `disabled` nor `readonly`) do not, so the specs wait
+    on the signal first (`e2e/support.ts` · `waitForTill`, 25 call sites).
+132. **A purchase must name its pot.** Decision 127 removed the fallback, so "no pot selected" is a reachable
+    state for the first time — and the server rejects a purchase without one, which surfaced as a raw
+    `Invalid input: expected number, received null`. Save is now disabled until a pot is chosen and the panel
+    says why ("Choose the pot this came out of — no default is set, so nothing is preselected"). The settings
+    project ends by clearing the default on purpose, so specs that record a purchase after it name their pot
+    themselves (`backup.spec.ts`).
+133. **The browser suite can run in this sandbox (SANDBOX entry 8).** `cdn.playwright.dev` is blocked and
+    `apt-get` cannot install `libnss3`, but `registry.npmjs.org` serves `@sparticuz/chromium`, which carries
+    both a Chromium build and the AL2023 shared libraries in its tarball. With `LD_LIBRARY_PATH` pointed at
+    the extracted libs, the real Playwright suite runs green locally (50 tests, ~2 minutes) through a
+    throwaway config overlay. Sixteen CI minutes per guess became two local ones, which is how the failures
+    above were diagnosed instead of guessed at.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |

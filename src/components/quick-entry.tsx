@@ -141,9 +141,21 @@ type LineDraft = {
 
 export function QuickEntry({ data }: { data: QuickEntryData }) {
   const [mode, setMode] = useState<'purchase' | 'fuel' | 'balance' | 'move'>('purchase');
+  /**
+   * Until React has hydrated this island, a tap switches nothing and a
+   * keystroke in a controlled input is wiped by the hydration render. So the
+   * till says whether it is listening (SPEC §15.1): `data-till-ready` is the
+   * form's own signal, and `inert` keeps it from silently swallowing input it
+   * cannot act on yet.
+   */
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
   return (
     <section
       aria-labelledby="quick-entry-heading"
+      data-till-ready={ready ? 'true' : 'false'}
       className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -160,6 +172,7 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
           </p>
         </div>
         <div
+          inert={!ready}
           className="flex rounded-lg bg-slate-800 p-1 text-sm"
           role="tablist"
           aria-label="Quick entry type"
@@ -179,7 +192,7 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
         </div>
       </div>
 
-      <div className="mt-5">
+      <div inert={!ready} className="mt-5">
         {mode === 'purchase' ? <PurchaseForm data={data} /> : null}
         {mode === 'fuel' ? <FuelForm data={data} /> : null}
         {mode === 'balance' ? <BalanceForm data={data} /> : null}
@@ -383,7 +396,14 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
       targetId: line.targetKind === 'household' ? null : line.targetId,
     })),
   );
-  const canSave = pending || !balanced || data.people.length === 0 || data.pots.length === 0;
+  // A pot is as required as a balanced split: v0.9.0 lets the form start with
+  // none selected, and the server refuses a purchase without one.
+  const canSave =
+    pending ||
+    !balanced ||
+    selectedPot === null ||
+    data.people.length === 0 ||
+    data.pots.length === 0;
 
   function selectSupplier(name: string) {
     setSupplierName(name);
@@ -509,6 +529,11 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
               onChange={setPotId}
               options={data.pots.map((pot) => ({ value: pot.id, label: pot.label }))}
             />
+            {potId === '' ? (
+              <p className="text-xs font-semibold text-amber-700">
+                Choose the pot this came out of — no default is set, so nothing is preselected.
+              </p>
+            ) : null}
             <PotBalance pot={selectedPot} />
             <CycleSummary cycle={data.cycle} />
 

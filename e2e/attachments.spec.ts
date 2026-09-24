@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 
 /**
  * Receipt removal (SPEC §23.4). The PNG is generated fictional bytes — never a
@@ -18,6 +19,7 @@ test.describe('removing a receipt', () => {
   }) => {
     test.slow();
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await entry.locator('input[name="supplierName"]').fill('Playwright Receipt Shop');
     await entry.locator('input[name="amount"]').fill('4.50');

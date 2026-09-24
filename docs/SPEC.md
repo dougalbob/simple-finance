@@ -651,7 +651,14 @@ Home = four big actions:
      the panels still scroll sideways, and every field on the second panel is reachable by keyboard. On a
      laptop (`lg:` and up) they are the original two columns.
    - The default pot is **a setting**, not a guess from a pot's label (§15.2 Settings). With none configured
-     the form starts with no pot selected.
+     the form starts with no pot selected, and Save stays off until one is chosen — a purchase has to name
+     the pot it came out of, and the server refuses one that does not.
+   - **The till says whether it is listening.** The form is a client island: before React hydrates it, a tap
+     switches nothing and a keystroke typed into a controlled input is wiped by the hydration render. So the
+     section carries `data-till-ready` (false in the server-rendered HTML, true once mounted) and the tab
+     strip and forms are `inert` until then, refusing input instead of silently swallowing it. The acceptance
+     suite waits on that signal (`e2e/support.ts` · `waitForTill`) before it drives the till; assertions
+     auto-wait, keystrokes do not.
 2. **Add Fuel** — prefills payer (signed-in user), pot default, category Fuel, target = the payer's own
    vehicle (one-tap flip to the other vehicle). The **amount is the only required typing**.
 3. **Update Balance** — pick pot (defaults to least-recently-updated), enter figure, save. Optional effective

@@ -72,6 +72,15 @@ the panel says exactly that instead of guessing.
 - **Legibility and touch:** the quick-entry panels are light cards (the purchase,
   fuel and balance forms had dark labels on the dark panel — effectively
   unreadable), and inputs and buttons are at least 44px tall.
+- **The form waits for itself before it takes input.** On a slow phone the page
+  paints before the form is live; anything tapped or typed in that moment used to
+  be silently dropped or wiped. Now the section refuses input until it is ready
+  (`inert`), and only then accepts it — so a half-second of impatience costs
+  nothing and never records the wrong figure.
+- **Save needs a pot.** With no default configured, Save stays off until a pot is
+  chosen, and the panel says which one it is waiting for. The server refuses a
+  purchase that names no pot, so a half-filled form can never be recorded against
+  the wrong account.
 
 Everything else is untouched: the home page's money section, projection, due this
 week, key dates, schedules, pots and recent entries; the menu; the Fuel, Balance

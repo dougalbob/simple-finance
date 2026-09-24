@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 import { APP_RELEASE_STAGE, APP_VERSION } from '../src/lib/version';
 
 /**
@@ -17,6 +18,7 @@ function parsePounds(text: string): number {
 test.describe('mobile quick entry', () => {
   test('records a purchase at the till, then refuses an unbalanced split', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
 
     // The app identifies itself: the version badge is part of the release check.
     await expect(
@@ -49,6 +51,7 @@ test.describe('mobile quick entry', () => {
 
   test('records a balance checkpoint, labelled as a checkpoint', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await entry.getByRole('tab', { name: 'Balance' }).click();
     await entry.getByLabel('Balance now').fill('987.65');
@@ -60,6 +63,7 @@ test.describe('mobile quick entry', () => {
 
   test('the amount alone fills line 1, balances the split and enables Save', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const line1 = entry.getByLabel('Line 1 amount');
 
@@ -83,6 +87,7 @@ test.describe('mobile quick entry', () => {
 
   test('every keystroke updates line 1 — 8 then 5 is 85.00, not 8.00', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -103,6 +108,7 @@ test.describe('mobile quick entry', () => {
 
   test('a half-typed or deleted total never lies about line 1', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -131,6 +137,7 @@ test.describe('mobile quick entry', () => {
     page,
   }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -159,6 +166,7 @@ test.describe('mobile quick entry', () => {
     page,
   }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -188,6 +196,7 @@ test.describe('mobile quick entry', () => {
 
   test('Add split leaves line 1 alone, and so does a later correction', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -231,6 +240,7 @@ test.describe('mobile quick entry', () => {
   test('Add another starts the following over', async ({ page }) => {
     test.slow(); // its own purchase, against the dev server
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
@@ -259,6 +269,7 @@ test.describe('mobile quick entry', () => {
     page,
   }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
 
     // Pot first (SPEC §15.1): the balance is context for the entry, not
@@ -293,6 +304,7 @@ test.describe('mobile quick entry', () => {
     page,
   }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const supplier = entry.locator('input[name="supplierName"]');
     const amount = entry.locator('input[name="amount"]');
@@ -325,6 +337,7 @@ test.describe('mobile quick entry', () => {
 
   test('the second panel is one swipe away, and Save is on both', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
 
     // Save lives on both panels: a purchase is always completable from the
@@ -342,6 +355,7 @@ test.describe('mobile quick entry', () => {
   test('a purchase can be completed without ever opening the second panel', async ({ page }) => {
     test.slow(); // its own purchase, against the dev server
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
 
     await entry.locator('input[name="supplierName"]').fill('Playwright No Swipe Shop');
@@ -359,6 +373,7 @@ test.describe('mobile quick entry', () => {
 
   test('every page stays reachable on a phone viewport', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const nav = page.getByRole('navigation', { name: 'Pages' });
     for (const label of [
       'Overview',
@@ -417,6 +432,7 @@ test.describe('mobile quick entry', () => {
 
   test('the Move tab records a transfer; a same-day pair reads one leg low', async ({ page }) => {
     await page.goto('/');
+    await waitForTill(page);
     const before = await page.getByRole('heading', { name: /household:/i }).textContent();
     if (before === null) throw new Error('household heading missing');
     const beforePence = Math.round(parsePounds(before) * 100);

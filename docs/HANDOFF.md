@@ -46,7 +46,10 @@ incoming money at all**. New SPEC §7.7.
   `tests/settings-domain.test.ts`, `formatShortLocalDate` in `tests/time.test.ts`; Playwright: four new
   mobile specs in `e2e/home.spec.ts`, a new settings spec, and `.first()` on the now-duplicated Save button
   in `home`/`desktop`/`attachments`/`backup`.
-- **Decisions 124–130** in `docs/IMPLEMENTATION_PLAN.md`; **v0.9.0** in the four version places.
+- **Decisions 124–133** in `docs/IMPLEMENTATION_PLAN.md`; **v0.9.0** in all five version places (code,
+  lockfile, badge, Unraid template, release notes).
+- **`e2e/support.ts` (new)** — `waitForTill(page)`: every spec that drives the till waits for
+  `[data-till-ready="true"]` first (25 call sites). See the watch-outs below.
 
 ## Watch out for (learned this session)
 
@@ -69,20 +72,35 @@ incoming money at all**. New SPEC §7.7.
   specs and screen readers keep working while the visible panel stays quiet.
 - **Scroll-snap is enhancement only.** Panel 2 is reachable by tab and by keyboard; Playwright's `fill()`
   scrolls the container itself, so specs may hop panels without asserting it.
+- **The till must be hydrated before a spec touches it, and it now says so.** The form renders
+  `data-till-ready="false"`, flips it to `true` on mount, and the tab strip and forms are `inert` until
+  then. Locator *actions* do not auto-wait for hydration (assertions do), which is what cost four `browser`
+  job failures: a tab tap that switched nothing, a keystroke wiped by the hydration render, and a save that
+  reached the server with an empty amount (`Invalid input: expected number, received null`). If you add a
+  spec that records anything from Quick Entry, call `waitForTill(page)` after `page.goto('/')`.
+- **A purchase must name a pot.** With the default cleared there is no preselected pot, Save stays off and
+  the panel says why; the server refuses a pot-less purchase. Spec order matters here: the `settings`
+  project ends by clearing the default on purpose, so any spec after it that records a purchase selects its
+  pot itself (`e2e/backup.spec.ts`).
 
 ## Test state
 
 `npm test` — **357 tests, all green, 90 suites** (was 340/85). `npm run format:check`, `npx tsc --noEmit`
-and `npm run build` are clean. Playwright cannot run in this sandbox (`docs/SANDBOX.md` entry 2) — CI's
-`browser` job is the proof. The new/changed specs: `e2e/home.spec.ts` (four new mobile specs plus the
-label/heading updates), `e2e/settings.spec.ts` (default pot moves the till form, then clears), and the
-`.first()` fixes elsewhere.
+and `npm run build` are clean.
+
+**The browser suite now runs in this sandbox too** — 50 tests, every project, green in ~2 minutes
+(`docs/SANDBOX.md` entry 8: `@sparticuz/chromium` from the npm registry, its AL2023 libs on
+`LD_LIBRARY_PATH`, a throwaway `playwright.local.config.ts` overlay). That is how the four CI failures above
+were diagnosed rather than guessed at; entry 2 is now marked as partly superseded. CI's `browser` job is
+still the acceptance gate — locally the seed, the Playwright version and the emulated phone are ours, not
+the household's.
 
 ## Open / deferred (not forgotten)
 
-- **The swipe physics themselves are only proven by CI.** No browser exists in the sandbox, so the
-  scroll-snap behaviour, the dots and the above-the-fold layout on a real phone are CI's evidence plus the
-  household's own eyes. If the panels feel wrong, the CSS is one class list to change.
+- **The swipe physics have only been driven by emulation.** The panels, the dots and the scroll-snap
+  behaviour pass under Playwright's Pixel 7 profile (locally and in CI) — but a real thumb on a real phone is
+  still the household's verdict, and emulation cannot tell us how the keyboard covers the form. If the panels
+  feel wrong, the CSS is one class list to change.
 - **Dot indicators** shipped (the handoff's open decision): two dots plus a hint line, mobile only.
 - **"Add another" resets to Panel 1 and focuses the supplier** — implemented as probably-yes.
 - **Home page mobile layout is still untouched** (the money section, projection, due-this-week, schedules,
