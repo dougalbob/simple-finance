@@ -932,8 +932,10 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   date, stops when the debt is settled and moves its day forward-looking (decision 120), and it is visible
   as flagged `EXP<` rows on All Transactions, in the projection panel and on the debt panel (decision 121).
   SPEC §7.2/§7.6/§10.2/§15.3/§17 E11 amended; `npm test` **335 tests / 84 suites green**, format and
-  typecheck clean, production build green. Publication details (merge commit, tag, publish run, digest)
-  are completed in [`docs/RELEASE_NOTES_v0.7.0.md`](RELEASE_NOTES_v0.7.0.md) at release.
+  typecheck clean, production build green. **Published 2026-09-24**: annotated tag `v0.7.0` on merge
+  commit `0a82992` (PR #38), publish run `36042299282`, digest
+  `sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18` on `v0.7.0` / `latest` /
+  `sha-0a82992` — one digest, different from v0.6.0's ([`docs/RELEASE_NOTES_v0.7.0.md`](RELEASE_NOTES_v0.7.0.md)).
 - **Pre-v0.1.0 history** (no tag, no image, no deployment existed yet): **Phase 0 + Phase 1 merged to `main` on
   2026-09-20 (PR #2, Session 1)** — application code now exists; CI runs gates and a Docker image build +
   container smoke test on every PR and push. **Phase 2a merged to `main` on 2026-09-20 (PR #3,

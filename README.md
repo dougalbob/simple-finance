@@ -9,10 +9,10 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged and released, and **v0.6.0 is the published image** (`latest` on the
-  registry is the v0.6.0 build from the `main` merge of the anchor-reset day-to-day work). **v0.7.0 —
-  expected support with a real start, a changeable day and an end — is built and awaiting its release**,
-  so the next Force Update in Unraid turns a debt's expectation into a plan the app carries: it
+- **Status:** Phases 0–5 are merged and released, and **v0.7.0 is the published image** (`latest` on the
+  registry is the v0.7.0 build from the `main` merge of the expected-support work). **v0.7.0 —
+  expected support with a real start, a changeable day and an end — is released**, so the next Force
+  Update in Unraid turns a debt's expectation into a plan the app carries: it
   pre-projects before the first payment arrives, follows a day-of-month change forward-looking, ends by
   itself on an optional until date, stops when the debt is settled, and shows up in All Transactions as
   flagged `EXP<` rows that stay out of the totals — borrowed money is still never income. Merging a pull
@@ -178,11 +178,9 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 ## Version
 
 The app version is `v0.7.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
-release tag must agree; the publish workflow refuses to push an image when they do not. **v0.6.0 is the
-published image** — `v0.6.0`, `latest` and the merge SHA of that release are one digest; details live in
-[`docs/RELEASE_NOTES_v0.6.0.md`](docs/RELEASE_NOTES_v0.6.0.md), and v0.7.0's own notes
-([`docs/RELEASE_NOTES_v0.7.0.md`](docs/RELEASE_NOTES_v0.7.0.md)) are completed at its release with the
-merge commit, tag, publish run and digest.
+release tag must agree; the publish workflow refuses to push an image when they do not. **v0.7.0 is
+published** — `v0.7.0`, `latest` and the merge SHA of this release are one digest; details live in
+[`docs/RELEASE_NOTES_v0.7.0.md`](docs/RELEASE_NOTES_v0.7.0.md).
 
 The tag must be lower-case `vX.Y.Z` *and must sit on a commit that already carries that version*. The first
 `v0.1.4` tag pointed at the PR #13 merge, whose `package.json` still said `0.1.3`; the run reached the
