@@ -5,6 +5,7 @@ import { ProjectionSettingsForm } from '@/components/recurring';
 import {
   AddVehicleForm,
   CategoryTreeEditor,
+  DefaultPurchasePotForm,
   PotEditForm,
   TargetRenameForm,
   WarningLeadsForm,
@@ -18,6 +19,7 @@ import { listPots } from '@/lib/records/pots';
 import { getProjectionView } from '@/lib/records/money-view';
 import {
   getContractEndWarningLeadDays,
+  getDefaultPurchasePotId,
   getMonthlyFuelByVehicle,
   getRenewalWarningLeadDays,
   getWeeklyGroceriesPence,
@@ -44,6 +46,7 @@ export default async function SettingsPage() {
   const pots = listPots(db);
   const tree = categoryTree(db);
   const fuelByVehicle = getMonthlyFuelByVehicle(db);
+  const defaultPurchasePotId = getDefaultPurchasePotId(db);
   const projection = getProjectionView(db, now);
   const documentsStatus = await inspectDocuments(getDbHandle());
 
@@ -104,6 +107,24 @@ export default async function SettingsPage() {
               Add the household people from the home page, or add a shared vehicle here.
             </p>
           ) : null}
+        </section>
+
+        <section
+          aria-labelledby="quick-entry-settings-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 id="quick-entry-settings-heading" className="mb-1 text-lg font-semibold">
+            Quick entry
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            The till form (home page and Overview) shows the chosen pot&apos;s last reported balance
+            and what is left before income lands. Both come from the records here — never a bank
+            feed.
+          </p>
+          <DefaultPurchasePotForm
+            pots={pots.map(({ id, label }) => ({ id, label }))}
+            defaultPotId={defaultPurchasePotId}
+          />
         </section>
 
         <section

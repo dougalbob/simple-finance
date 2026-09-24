@@ -15,11 +15,16 @@ import { renamePerson, DuplicatePersonLabelError } from '../src/lib/records/peop
 import { renameVehicle, DuplicateVehicleLabelError } from '../src/lib/records/vehicles';
 import {
   getContractEndWarningLeadDays,
+  getDefaultPurchasePotId,
   getRenewalWarningLeadDays,
+  InvalidSettingValueError,
   setContractEndWarningLeadDays,
+  setDefaultPurchasePotId,
   setRenewalWarningLeadDays,
 } from '../src/lib/records/settings';
 import { createPurchase } from '../src/lib/records/purchases';
+import { and, eq } from 'drizzle-orm';
+import { auditEntries } from '../src/lib/db/schema';
 import { VersionConflictError } from '../src/lib/records/errors';
 
 /**
@@ -279,5 +284,61 @@ describe('settings: target renames and warning leads', () => {
     setContractEndWarningLeadDays(db, 0, ACTOR, NOW);
     assert.equal(getRenewalWarningLeadDays(db), 30);
     assert.equal(getContractEndWarningLeadDays(db), 0);
+  });
+});
+
+/**
+ * The default pot for purchases (SPEC §15.1, v0.9.0). The household's
+ * daily-spend pot is not called "Main account", so the old label match chose
+ * the wrong pot every time. The setting is explicit, validated against the
+ * live pots, and clearable back to "pick one each time".
+ */
+describe('settings: default pot for purchases', () => {
+  let fixture: HouseholdFixture;
+  after(() => fixture.close());
+  before(async () => {
+    fixture = await createHouseholdFixture();
+  });
+
+  it('is unset until the household chooses one', () => {
+    assert.equal(getDefaultPurchasePotId(fixture.db), null);
+  });
+
+  it('stores the choice, reads it back and clears it', () => {
+    const { db, pots } = fixture;
+    setDefaultPurchasePotId(db, pots.salary.id, ACTOR, NOW);
+    assert.equal(getDefaultPurchasePotId(db), pots.salary.id);
+
+    setDefaultPurchasePotId(db, pots.alexCash.id, ACTOR, NOW);
+    assert.equal(getDefaultPurchasePotId(db), pots.alexCash.id);
+
+    setDefaultPurchasePotId(db, null, ACTOR, NOW);
+    assert.equal(getDefaultPurchasePotId(db), null);
+  });
+
+  it('refuses a pot that does not exist', () => {
+    assert.throws(
+      () => setDefaultPurchasePotId(fixture.db, 9999, ACTOR, NOW),
+      InvalidSettingValueError,
+    );
+    assert.throws(
+      () => setDefaultPurchasePotId(fixture.db, 0, ACTOR, NOW),
+      InvalidSettingValueError,
+    );
+  });
+
+  it('audits every change with the previous value', () => {
+    const { db, pots } = fixture;
+    setDefaultPurchasePotId(db, pots.main.id, ACTOR, NOW);
+    const rows = db
+      .select()
+      .from(auditEntries)
+      .where(eq(auditEntries.entityId, 'default_purchase_pot_id'))
+      .all();
+    assert.ok(rows.length > 0);
+    const last = rows[rows.length - 1];
+    assert.ok(last !== undefined);
+    assert.equal(last.action, 'setting.update');
+    assert.equal(last.actor, ACTOR);
   });
 });

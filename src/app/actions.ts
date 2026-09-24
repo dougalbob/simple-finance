@@ -156,6 +156,7 @@ import {
 import {
   InvalidSettingValueError,
   setContractEndWarningLeadDays,
+  setDefaultPurchasePotId,
   setMonthlyFuelPence,
   setRenewalWarningLeadDays,
   setWeeklyGroceriesPence,
@@ -957,6 +958,45 @@ const PAGE_PATHS = [
 
 function revalidatePages(): void {
   for (const page of PAGE_PATHS) revalidatePath(page);
+}
+
+/**
+ * The pot the Quick Entry purchase form starts on (SPEC §15.1, v0.9.0).
+ * A setting rather than a guess: the household's daily-spend pot is not
+ * called "Main account", and the old label match pointed the till form at the
+ * wrong pot. An empty value clears the default and the form starts with no
+ * pot selected.
+ */
+export async function saveDefaultPurchasePotAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  const raw = formData.get('potId');
+  const text = typeof raw === 'string' ? raw.trim() : '';
+  const potId = text === '' ? null : Number(text);
+  if (potId !== null && (!Number.isInteger(potId) || potId <= 0)) {
+    return { status: 'error', message: 'Choose a pot from the list, or “No default”.' };
+  }
+  try {
+    const db = getDbHandle().db;
+    setDefaultPurchasePotId(db, potId, user.email);
+    revalidatePages();
+    return {
+      status: 'ok',
+      message:
+        potId === null
+          ? 'Default cleared — the till form starts with no pot selected.'
+          : 'Default pot saved — the till form starts there.',
+    };
+  } catch (err) {
+    if (err instanceof InvalidSettingValueError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The default pot could not be saved. Please try again.' };
+  }
 }
 
 export async function editPurchaseAction(

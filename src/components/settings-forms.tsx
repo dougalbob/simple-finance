@@ -6,6 +6,7 @@ import {
   editPotAction,
   renameTargetAction,
   saveCategoryAction,
+  saveDefaultPurchasePotAction,
   saveWarningLeadsAction,
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
@@ -433,6 +434,54 @@ export function WarningLeadsForm({ renewalLeadDays, contractEndLeadDays }: Warni
       </div>
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Save warning leads'}
+      </button>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+export interface DefaultPurchasePotFormProps {
+  pots: Array<{ id: number; label: string }>;
+  defaultPotId: number | null;
+}
+
+/**
+ * Which pot the till form starts on (SPEC §15.1, v0.9.0). The household's
+ * default was inferred from a pot labelled "Main account", which silently
+ * pointed the phone at the wrong pot. One explicit choice, saved with the
+ * usual audit trail, replaces the guess.
+ */
+export function DefaultPurchasePotForm({ pots, defaultPotId }: DefaultPurchasePotFormProps) {
+  const [state, formAction, pending] = useActionState(
+    saveDefaultPurchasePotAction,
+    initialActionState,
+  );
+  return (
+    <form action={formAction} className="flex flex-col gap-3 sm:max-w-md">
+      <div className="flex flex-col gap-1">
+        <label htmlFor="default-purchase-pot" className={labelClass}>
+          Default pot for purchases
+        </label>
+        <select
+          id="default-purchase-pot"
+          name="potId"
+          defaultValue={defaultPotId?.toString() ?? ''}
+          className={inputClass}
+        >
+          <option value="">No default — pick a pot each time</option>
+          {pots.map((pot) => (
+            <option key={pot.id} value={pot.id}>
+              {pot.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-slate-500">
+          Every purchase can still be recorded against any pot — this only decides where the form
+          starts. A cash pot can be the default; the form simply shows no balance for cash.
+        </p>
+      </div>
+      <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
+        {pending ? 'Saving…' : 'Save default pot'}
       </button>
       <FormMessage status={state.status} message={state.message} />
     </form>

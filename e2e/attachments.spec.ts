@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 
 /**
  * Receipt removal (SPEC §23.4). The PNG is generated fictional bytes — never a
@@ -18,12 +19,13 @@ test.describe('removing a receipt', () => {
   }) => {
     test.slow();
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await entry.locator('input[name="supplierName"]').fill('Playwright Receipt Shop');
     await entry.locator('input[name="amount"]').fill('4.50');
     await entry.getByLabel('Line 1 amount').fill('4.50');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
-    await entry.getByRole('button', { name: 'Save purchase' }).click();
+    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
 
     await page.goto('/purchases');

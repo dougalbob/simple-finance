@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 import { APP_VERSION } from '../src/lib/version';
 
 // The filename contract follows the released version; deriving it here keeps
@@ -72,12 +73,17 @@ test.describe('backup and restore in a browser', () => {
 
     // Change the data after the archive was taken...
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    // The pot is named here rather than inherited: the settings project has
+    // already cleared the default pot, and a purchase cannot be recorded
+    // without one (v0.9.0 made "no default" a real state, SPEC §15.2).
+    await entry.getByLabel('Pot').selectOption({ label: 'Main account' });
     await entry.locator('input[name="supplierName"]').fill('After The Backup');
     await entry.locator('input[name="amount"]').fill('5.00');
     await entry.getByLabel('Line 1 amount').fill('5.00');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
-    await entry.getByRole('button', { name: 'Save purchase' }).click();
+    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
     await page.goto('/purchases');
     const results = page.locator('section[aria-labelledby="results-heading"]');

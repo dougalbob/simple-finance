@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
-import { settings } from '../db/schema';
+import { pots, settings } from '../db/schema';
 import { isValidPenceAmount, MAX_ABS_PENCE } from '../money';
 
 /**
@@ -25,6 +25,7 @@ const KEY_WEEKLY_GROCERIES = 'weekly_groceries_pence';
 const KEY_FUEL_PREFIX = 'monthly_fuel_pence:';
 const KEY_RENEWAL_LEAD = 'renewal_warning_lead_days';
 const KEY_CONTRACT_END_LEAD = 'contract_end_warning_lead_days';
+const KEY_DEFAULT_PURCHASE_POT = 'default_purchase_pot_id';
 
 export const DEFAULT_RENEWAL_WARNING_LEAD_DAYS = 21;
 export const DEFAULT_CONTRACT_END_WARNING_LEAD_DAYS = 21;
@@ -137,10 +138,55 @@ export function setContractEndWarningLeadDays(
   upsertSetting(db, KEY_CONTRACT_END_LEAD, String(checkedLeadDays(days)), actor, 'key dates', now);
 }
 
+/**
+ * The pot the Quick Entry purchase form starts on (SPEC §15.1, v0.9.0).
+ * Fixed by the household in Settings rather than guessed from a pot label:
+ * the real installation's daily-spend pot is not called "Main account", and
+ * a string match silently pointed the till flow at the wrong pot. null =
+ * nothing chosen yet, and the form starts with no pot selected.
+ */
+export function getDefaultPurchasePotId(db: Db): number | null {
+  const row = settingRow(db, KEY_DEFAULT_PURCHASE_POT);
+  if (row === null || row.value === '') return null;
+  const potId = Number(row.value);
+  if (!Number.isInteger(potId) || potId <= 0) return null;
+  return isLivePot(db, potId) ? potId : null;
+}
+
+export function setDefaultPurchasePotId(
+  db: Db,
+  potId: number | null,
+  actor: string,
+  now?: Date,
+): void {
+  if (potId !== null && (!Number.isInteger(potId) || potId <= 0 || !isLivePot(db, potId))) {
+    throw new InvalidSettingValueError(
+      'That pot does not exist (or is archived), so it cannot be the default for purchases.',
+    );
+  }
+  upsertSetting(
+    db,
+    KEY_DEFAULT_PURCHASE_POT,
+    potId === null ? '' : String(potId),
+    actor,
+    'quick entry',
+    now,
+  );
+}
+
+/** A pot that still exists and has not been archived. */
+function isLivePot(db: Db | DbTx, potId: number): boolean {
+  const row = db
+    .select({ id: pots.id })
+    .from(pots)
+    .where(and(eq(pots.id, potId), isNull(pots.archivedAt)))
+    .get();
+  return row !== undefined;
+}
+
 function fuelKey(vehicleId: number): string {
   return `${KEY_FUEL_PREFIX}${vehicleId}`;
 }
-
 function settingRow(db: Db | DbTx, key: string): { value: string } | null {
   const row = db.select().from(settings).where(eq(settings.key, key)).get();
   return row ?? null;

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 
 /**
  * Household-boundary money (SPEC §10.2): informal debts, borrowing and
@@ -44,6 +45,7 @@ test.describe('external money', () => {
     // £1,000.00 beside it — both are owed, never income).
     await expect(debts.getByText('we owe £50.00')).toBeVisible();
     await page.goto('/');
+    await waitForTill(page);
     // The household now owes Mum's £1,000 plus the £50 just borrowed.
     const owedLine = page.locator('p', { hasText: /Owe others/ }).first();
     await expect(owedLine).toContainText('£1,050.00');
@@ -64,6 +66,7 @@ test.describe('external money', () => {
     await expect(debts.getByText('we owe £30.00')).toBeVisible();
 
     await page.goto('/');
+    await waitForTill(page);
     const before = await page.getByRole('heading', { name: /household:/i }).textContent();
     if (before === null) throw new Error('household heading missing');
     const beforePence = Math.round(parsePounds(before) * 100);
@@ -87,6 +90,7 @@ test.describe('external money', () => {
     // counts immediately; the in-leg into Alex's cash is absorbed until a
     // later checkpoint. The household total reads exactly one leg low.
     await page.goto('/');
+    await waitForTill(page);
     const after = await page.getByRole('heading', { name: /household:/i }).textContent();
     if (after === null) throw new Error('household heading missing');
     expect(Math.round(parsePounds(after) * 100)).toBe(beforePence - 1000);

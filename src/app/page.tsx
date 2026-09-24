@@ -17,6 +17,7 @@ import { categoryTree } from '@/lib/records/categories';
 import { addDaysLocal } from '@/lib/records/dates';
 import { buildEntryData } from '@/lib/records/entry-view';
 import {
+  getCycleOutlook,
   getMoneySnapshot,
   getProjectionView,
   getUpcomingCommitments,
@@ -35,6 +36,7 @@ import { listSuppliersForEntry } from '@/lib/records/suppliers';
 import { listVehicles } from '@/lib/records/vehicles';
 import { formatInstantLocal, formatRelativeAge, toLocalDateString } from '@/lib/time';
 import { ProjectionSection } from '@/app/overview/projection-panel';
+import { CycleOutlookLine, PotOutlookLine } from '@/components/pot-outlook';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +52,9 @@ export default async function HomePage() {
   // advances) first, so every figure below reflects the converted state.
   const money = getMoneySnapshot(db, now);
   const projection = getProjectionView(db, now);
+  // The "before income lands" figures (SPEC §7.7, v0.9.0) — one outlook, read
+  // by the pot cards and the quick-entry balance.
+  const outlook = getCycleOutlook(db, now, money);
   const dueThisWeek = getUpcomingCommitments(db, addDaysLocal(today, 7), now);
   const keyDates = getKeyDateAlerts(db, now);
 
@@ -150,6 +155,7 @@ export default async function HomePage() {
               Not a bank balance · last reported amount
             </span>
           </div>
+          <CycleOutlookLine outlook={outlook} className="mb-3" />
           {pots.length === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
               Add the household&apos;s pots below. A typical setup has two bank accounts and three
@@ -188,6 +194,10 @@ export default async function HomePage() {
                             </span>
                           </p>
                         ) : null}
+                        <PotOutlookLine
+                          pot={outlook.pots.find((entry) => entry.potId === pot.id)}
+                          incomeDate={outlook.incomeDate}
+                        />
                       </>
                     ) : (
                       <p className="mt-3 text-sm text-slate-500">

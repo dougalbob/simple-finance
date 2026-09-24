@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForTill } from './support';
 
 /**
  * All Transactions (SPEC §15.3, plan decisions 101–108): a read-only,
@@ -68,6 +69,7 @@ test.describe('all transactions', () => {
     // Transfers are recorded where they always were: the Move tab. This page
     // only reads.
     await page.goto('/');
+    await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await entry.getByRole('tab', { name: 'Move' }).click();
     await entry.getByLabel('From pot').selectOption({ label: 'Main account' });

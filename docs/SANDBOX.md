@@ -39,6 +39,11 @@ This file is append-only. Each entry is a constraint we actually hit, plus the w
 
 ## 2. `cdn.playwright.dev` is blocked — no browser download
 
+> **Partly superseded by entry 8 (2026-09-24):** the *download* is still blocked and `apt` still has
+> no `libnss3`, but `@sparticuz/chromium` on the npm registry provides both a browser and the libs, and
+> the real Playwright suite runs locally through a throwaway config overlay. Read entry 8 before you
+> accept a red `browser` job.
+
 **Symptom:** `npx playwright install chromium` fails with `ECONNRESET` to `cdn.playwright.dev`. `npx playwright install --with-deps chromium` also fails — `apt-get` can't reach `deb.debian.org` and the required libs (`libnss3`, `libgbm`, `libgtk-3`, etc.) are absent (`ldconfig` finds none), so even a sideloaded binary wouldn't start.
 
 **What works here:**
@@ -109,8 +114,77 @@ Staging `~/.cache/node-gyp/22.22.3/config.gypi` (`installVersion: 2`) is not eno
 
 ---
 
+## 8. A browser *can* run here — `@sparticuz/chromium` from the npm registry (2026-09-24)
+
+**Correction to entries 2 and 3.** "No browser download" and "no `apt` system deps" are both still true, but
+that does not make the browser suite impossible. `registry.npmjs.org` is reachable, and
+`@sparticuz/chromium` ships a Chromium build **inside its npm tarball** (no CDN fetch) together with the
+Amazon-Linux shared libraries Chromium needs from an `al2023.tar.br` blob.
+
+**Recipe (proven — the whole suite runs green locally):**
+
+```bash
+mkdir -p /tmp/pwbrowsers && cd /tmp/pwbrowsers && npm init -y && npm i @sparticuz/chromium
+# writes the binary to /tmp/chromium (+ /tmp/fonts, /tmp/swiftshader)
+node -e "import('@sparticuz/chromium').then(async (m) => console.log(await m.default.executablePath()))"
+# the al2023 libs are only auto-extracted when the package detects Amazon Linux, so inflate them yourself
+node -e "import('/tmp/pwbrowsers/node_modules/@sparticuz/chromium/build/lambdafs.js').then(m => m.inflate('/tmp/pwbrowsers/node_modules/@sparticuz/chromium/bin/al2023.tar.br'))"
+LD_LIBRARY_PATH=/tmp/al2023/lib /tmp/chromium --version   # Chromium 153.0.8010.0
+```
+
+A throwaway config overlay points the repo's own projects at that binary (the repo's
+`playwright.config.ts` stays untouched, and the overlay is never committed):
+
+```ts
+// playwright.local.config.ts
+import { defineConfig } from '@playwright/test';
+import base from './playwright.config';
+const launchOptions = {
+  executablePath: '/tmp/chromium',
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+};
+export default defineConfig({
+  ...base,
+  projects: (base.projects ?? []).map((project) => ({ ...project, use: { ...project.use, launchOptions } })),
+  use: { ...base.use, launchOptions },
+});
+```
+
+```bash
+LD_LIBRARY_PATH=/tmp/al2023/lib npx playwright test --config playwright.local.config.ts
+```
+
+Notes from using it: the package's own `chromium.args` include `--single-process`, which Playwright does not
+like — pass your own args as above. Playwright wanted 153.0.8010.12 and got 153.0.8010.0; the version gap has
+not mattered. The suite needs the web server, and Playwright starts it (`reuseExistingServer` is on outside
+CI, so kill any server already on 3100 if you want a fresh seed — the server reseeds `.e2e-data` on start).
+Fifty tests across all projects took ~2 minutes, versus ~16 CI minutes per push: fix browser failures here,
+not in CI.
+
+## 9. Turbopack dev serves a stale SSR module after an edit (2026-09-24)
+
+**Symptom:** you add an attribute to a client component and `curl http://127.0.0.1:3100/` never shows it,
+even though the file on disk has it and the page hot-reloads. (Here: `inert` never appeared because the
+server-rendered HTML kept coming from the pre-edit module.)
+
+**What works:** restart the dev server, and if the new markup still does not appear, `rm -rf .next` first. A
+fresh `scripts/e2e-server.mts` start after clearing `.next` rendered the attribute immediately. Do not
+conclude the code is wrong from a `curl` against a long-running dev server.
+
+---
+
 ## History
 
+- **2026-09-24 (v0.9.0, session `arena/01a0d55f-simple-finance`):** entries 8 and 9 added. The v0.9.0 `browser`
+  job came back red on four specs, and this time the annotations alone were not enough to be sure of the
+  cause — so the suite was brought up locally instead. Entry 8's recipe is the result: `@sparticuz/chromium`
+  from the npm registry, its `al2023.tar.br` libs inflated by hand, `LD_LIBRARY_PATH` set, a throwaway
+  `playwright.local.config.ts` overlay — and the full suite (50 tests, every project, seeded server) runs
+  green in ~2 minutes. The four failures were one race: taps and keystrokes landing before React hydrated the
+  quick-entry island. Fixed in the product (`data-till-ready` + `inert`, SPEC §15.1 · decision 131), in the
+  specs (`e2e/support.ts` · `waitForTill`) and in the pot guard (decision 132). Entry 9 records the Turbopack
+  dev-cache surprise found on the way. Everything else behaved as recorded: `npm ci --ignore-scripts`,
+  `npm test`, `tsc --noEmit`, `format:check`, `next build` all green locally.
 - **2026-09-22:** Initial entries after v0.1.8 (category-tree revalidation). Verified in this sandbox: `npm ci --ignore-scripts` → 86 packages, 248/248 Node tests, `next build` green, Playwright blocked as above. Source: session `arena/01a0ca74-simple-finance` discussion 2026-09-22 19:xx UTC.
 - **2026-09-23:** Committed in v0.1.9 and every claim above re-probed in a **fresh** sandbox (session `arena/01a0cc97-simple-finance`), since uncommitted working-tree drafts do not survive between sessions. All reproduced: 86 packages, 248/248 tests, 67 suites, `tsc --noEmit` clean, `prettier --check .` clean, `next build` 15 routes, `npm audit --omit=dev` 0 vulnerabilities. Hosts re-confirmed — `nodejs.org` / `cdn.playwright.dev` / `objects.githubusercontent.com` fail with curl exit 35 (`SSL_ERROR_SYSCALL`), `deb.debian.org` with exit 52 and `apt-get update` failing all three indices at `151.101.x.x:80`, while `registry.npmjs.org`, `api.github.com` and `codeload.github.com` return HTTP/2 200. Missing browser libs re-confirmed absent via `ldconfig` (`libnss3`, `libgbm`, `libgtk-3`, `libxdamage`, `libxkbcommon`) and no `Xvfb`. One correction: `~/.nodebuild/nodedir` did not exist in the fresh sandbox, so entry 1 now says plainly that the header tree must be assembled first.
 - **2026-09-23 (later, same session):** entries 6 and 7 added after hitting them while verifying the v0.1.9 publish. `ghcr.io` blocked with curl exit 35 including the anonymous pull-token endpoint, and no Docker daemon, so registry verification went via the publish workflow's step conclusion plus `/users/dougalbob/packages/container/simple-finance/versions` on `api.github.com` — note the **user** scope (`/orgs/...` 404s) and that the digest is the `name` field, since `digest` is always `null`. GitHub Actions log text blocked via `productionresultssa5.blob.core.windows.net`, so step conclusions were read instead. v0.1.9 resolved to `sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d` on tags `v0.1.9` / `latest` / `sha-9393a85`, differing from v0.1.8's `sha256:da65d23e…`, which was not retagged.

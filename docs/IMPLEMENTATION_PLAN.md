@@ -918,6 +918,71 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     a public 404 is worse than no destination at all. Everything else remains behind the hostname-wide
     email-policy app.
 
+*Session `arena/01a0d55f-simple-finance` (2026-09-24) — the phone-first till form and the "before income lands" figure (v0.9.0):*
+
+124. **Two balance figures, not one (SPEC §7.7).** The household's objection is concrete: standing in Tesco
+    with a "free to spend" £500 while a £600 mortgage leaves three days before payday is worse than no
+    figure at all. Both facts therefore show together — the pot's **last reported checkpoint** (what the
+    bank last said, with its age) and **what is left before income lands**: household available-now minus
+    the commitments and projected day-to-day events due in `(today, next income]`. The figure deliberately
+    **counts no income** — it is the dip, not the balance after payday; adding the salary back in would hide
+    exactly the case the household raised. It is now a named concept rather than a derivation of §7.2: the
+    projection panel's `projected_low` equals it when no other receipt lands in the window, and
+    `tests/cycle-outlook.test.ts` pins that agreement so the till and the panel cannot drift.
+125. **The per-pot version is the §7.5 pot watch, and cash stays silent.** Per pot the figure is
+    `estimate(P) − commitments due from P in the window`, i.e. §7.5's transfer watch with the window taken
+    to the next income instead of a named payday; it warns only when the pot itself goes short (the money
+    may be in the other account, which is exactly what a transfer fixes). Projected day-to-day events are
+    household-level and stay out of the per-pot figure, per §7.5's reasoning. A pot with no checkpoint, a
+    household with no income schedule, and a cash pot all show nothing rather than a guess — "no window, no
+    figure", null rather than zero.
+126. **Where the figures live.** The Quick Entry purchase panel (headline + the selected pot's checkpoint
+    and shortfall) and the pot cards on the home page and Overview. The rest of the home page stays as the
+    household agreed; a dedicated mobile menu and mobile-specific hiding remain later decisions.
+127. **Pot-first till form, with the default pot as a setting (SPEC §15.1).** The pot selector moves to the
+    top of the form and the purchase form starts on `default_purchase_pot_id`, chosen in Settings. The old
+    `pots.find(label === 'Main account') ?? pots[0]` guess is deleted: the household's real pot is not called
+    "Main account", so the till form was opening on the first alphabetical cash pot. With nothing configured
+    the form starts with **no pot selected** and the user picks one.
+128. **Inline supplier typeahead replaces the `<datalist>`.** Recents-first when the field is empty, filtered
+    case-insensitively as the user types, rendered as tappable rows under the field; tapping one fills the
+    name, applies the remembered most-used category and moves focus to Amount. Ranking is pure
+    (`rankSupplierMatches`, `nearestSupplierName` in `records/quick-entry.ts`) so it is unit-tested; the
+    "did you mean" near-match prompt is unchanged. No library, no request.
+129. **Swipe panels as progressive enhancement (mobile only).** Panel 1 records it (pot + figures, supplier,
+    amount, paid-by, date, "+ Note", save); Panel 2 holds category, "For" and the split lines. On a phone
+    they are a `scroll-snap-type: x mandatory` pair with dots and a hint; **Save is on both panels** so a
+    purchase never needs a swipe. At `lg:` and up they are the previous two columns with no snapping. The
+    secondary things the household asked for ride along: the "Split the payment" title becomes "Category &
+    allocation", "Line 1 amount" is invisible when there is only one line (the amount mirrors the till
+    figure, and the accessible name is unchanged), the note collapses behind "+ Note", focus order is
+    supplier → amount → save, and "Add another" resets to Panel 1 on the supplier field.
+130. **Contrast fix while in there.** Panel 1 of the purchase form (and the Fuel and Balance forms) sat
+    directly on the dark quick-entry card with `text-slate-800` labels — dark grey on near-black, effectively
+    unreadable. Every quick-entry panel is now a light card, and touch targets are at least 44px.
+
+131. **The till announces when it is listening (SPEC §15.1).** The v0.9.0 form is bigger, and the acceptance
+    suite started losing races it used to win: a tap on a tab before React hydrated switched nothing, and a
+    value typed into a controlled input was wiped by the hydration render — the CI run failed four specs
+    with `expected number, received null`, a dead tab and a frozen hint. The fix is in the product, not the
+    test: the quick-entry section renders `data-till-ready="false"`, flips it to `true` when it mounts, and
+    the tab strip and the forms are `inert` until then, so input that arrives too early is refused rather
+    than swallowed. Locator *assertions* auto-wait; locator *actions* (and `pressSequentially` in
+    particular — measured, it waits for neither `inert`, `disabled` nor `readonly`) do not, so the specs wait
+    on the signal first (`e2e/support.ts` · `waitForTill`, 25 call sites).
+132. **A purchase must name its pot.** Decision 127 removed the fallback, so "no pot selected" is a reachable
+    state for the first time — and the server rejects a purchase without one, which surfaced as a raw
+    `Invalid input: expected number, received null`. Save is now disabled until a pot is chosen and the panel
+    says why ("Choose the pot this came out of — no default is set, so nothing is preselected"). The settings
+    project ends by clearing the default on purpose, so specs that record a purchase after it name their pot
+    themselves (`backup.spec.ts`).
+133. **The browser suite can run in this sandbox (SANDBOX entry 8).** `cdn.playwright.dev` is blocked and
+    `apt-get` cannot install `libnss3`, but `registry.npmjs.org` serves `@sparticuz/chromium`, which carries
+    both a Chromium build and the AL2023 shared libraries in its tarball. With `LD_LIBRARY_PATH` pointed at
+    the extracted libs, the real Playwright suite runs green locally (50 tests, ~2 minutes) through a
+    throwaway config overlay. Sixteen CI minutes per guess became two local ones, which is how the failures
+    above were diagnosed instead of guessed at.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -954,6 +1019,16 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   commit `0a82992` (PR #38), publish run `36042299282`, digest
   `sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18` on `v0.7.0` / `latest` /
   `sha-0a82992` — one digest, different from v0.6.0's ([`docs/RELEASE_NOTES_v0.7.0.md`](RELEASE_NOTES_v0.7.0.md)).
+- **v0.9.0 — the phone-first till form and the "before income lands" figure (session
+  `arena/01a0d55f-simple-finance`, from `main` @ `2255607`)**: SPEC §7.7 added (two balance figures, no
+  income counted, per-pot = §7.5's watch), §15.1 rewritten for the redesign, §15.2 Settings row gains the
+  default pot. New: `getCycleOutlook`/`getDefaultPurchasePotId`/`setDefaultPurchasePotId`,
+  `formatShortLocalDate`, `rankSupplierMatches`/`nearestSupplierName`, `components/pot-outlook.tsx`, the
+  Quick Entry rewrite (pot-first, balances, typeahead, swipe panels, focus order, note collapse) and the
+  Settings "Quick entry" section. Decisions **124–130**. Tests: `tests/cycle-outlook.test.ts` (6),
+  typeahead ranking in `tests/quick-entry.test.ts`, the setting in `tests/settings-domain.test.ts`,
+  `formatShortLocalDate` in `tests/time.test.ts`, and mobile/settings Playwright specs. `npm test`
+  **357 tests / 90 suites green**, format, typecheck and production build clean.
 - **v0.8.0 — installable PWA, no offline access (session `arena/01a0d4f9-simple-finance`, from `main` @ `837845a`)**:
   `public/manifest.webmanifest` (static file, not a Next route), `public/icon-192.png` (192×192),
   `public/icon-512.png` (512×512), `public/apple-touch-icon.png` (180×180), all derived from the existing

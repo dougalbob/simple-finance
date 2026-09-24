@@ -242,43 +242,15 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
   // combined with the earliest expected debt inflow — earliest wins (the
   // planning cycle flips to whichever money is expected next, v0.5.0). After
   // the due pass, every unconverted instance is strictly in the future.
-  const receiptInstances = db
-    .select({
-      instance: scheduleInstances,
-      scheduleName: schedules.name,
-      scheduleId: schedules.id,
-      potId: schedules.potId,
-      amountPence: schedules.amountPence,
-    })
-    .from(scheduleInstances)
-    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
-    .where(
-      and(
-        eq(scheduleInstances.state, 'upcoming'),
-        eq(schedules.kind, 'receipt'),
-        gte(scheduleInstances.dueDate, addDaysLocal(today, 1)),
-      ),
-    )
-    .orderBy(asc(scheduleInstances.dueDate), asc(scheduleInstances.id))
-    .all();
-  const expectedInflowDates = expectedInflowLines(db, today, null, null).map(
-    (line) => line.dueDate,
-  );
-  const paydayDate =
-    receiptInstances[0] !== undefined && expectedInflowDates[0] !== undefined
-      ? minDate(receiptInstances[0].instance.dueDate, expectedInflowDates[0])
-      : receiptInstances[0] !== undefined
-        ? receiptInstances[0].instance.dueDate
-        : expectedInflowDates[0] !== undefined
-          ? expectedInflowDates[0]
-          : null;
-  const payday = receiptInstances[0] ?? null;
-  if (paydayDate === null) {
+  const income = nextExpectedIncome(db, today);
+  if (income === null) {
     // No expected-receipt schedule and no expected debt inflow → no planning
     // cycle → no projection. The estimate still exists; the UI says exactly
     // what is missing.
     return null;
   }
+  const paydayDate = income.date;
+  const payday = income.scheduleId === null ? null : { scheduleId: income.scheduleId };
 
   const windowUpper = paydayDate;
   const windowLower = addDaysLocal(today, 1);
@@ -290,81 +262,34 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
           lte(scheduleInstances.dueDate, windowUpper),
         );
 
-  const toLines = (
-    rows: Array<{
-      instance: typeof scheduleInstances.$inferSelect;
-      scheduleName: string;
-      scheduleId: number;
-      scheduleKind: ScheduleKind;
-      potId: number;
-      amountPence: number;
-    }>,
-  ): ProjectionLine[] =>
+  const toLines = (rows: WindowLineRow[]): ProjectionLine[] =>
     rows.map((row) => ({
       scheduleId: row.scheduleId,
-      name: row.scheduleName,
+      name: row.name,
       potId: row.potId,
       amountPence: row.amountPence,
-      dueDate: row.instance.dueDate,
+      dueDate: row.dueDate,
       potLabel: potLabel.get(row.potId) ?? `Pot ${row.potId}`,
       scheduleKind: row.scheduleKind,
     }));
 
-  const commitmentRows = db
-    .select({
-      instance: scheduleInstances,
-      scheduleName: schedules.name,
-      scheduleId: schedules.id,
-      scheduleKind: schedules.kind,
-      potId: schedules.potId,
-      amountPence: schedules.amountPence,
-    })
-    .from(scheduleInstances)
-    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
-    .where(
-      and(
-        eq(scheduleInstances.state, 'upcoming'),
-        or(eq(schedules.kind, 'dd'), eq(schedules.kind, 'so')),
-        ...(inWindow === undefined ? [] : [inWindow]),
-      ),
-    )
-    .orderBy(asc(scheduleInstances.dueDate), asc(schedules.name))
-    .all();
-  const receiptRows = db
-    .select({
-      instance: scheduleInstances,
-      scheduleName: schedules.name,
-      scheduleId: schedules.id,
-      scheduleKind: schedules.kind,
-      potId: schedules.potId,
-      amountPence: schedules.amountPence,
-    })
-    .from(scheduleInstances)
-    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
-    .where(
-      and(
-        eq(scheduleInstances.state, 'upcoming'),
-        eq(schedules.kind, 'receipt'),
-        ...(inWindow === undefined ? [] : [inWindow]),
-      ),
-    )
-    .orderBy(asc(scheduleInstances.dueDate), asc(schedules.name))
-    .all();
+  const commitmentRows = windowLines(db, 'commitment', today, paydayDate);
+  const receiptRows = windowLines(db, 'receipt', today, paydayDate);
 
   const commitments = commitmentRows.map((row) => ({
     scheduleId: row.scheduleId,
-    name: row.scheduleName,
+    name: row.name,
     potId: row.potId,
     amountPence: row.amountPence,
-    dueDate: row.instance.dueDate,
+    dueDate: row.dueDate,
   }));
   const receiptLines = [
     ...receiptRows.map((row) => ({
       scheduleId: row.scheduleId,
-      name: row.scheduleName,
+      name: row.name,
       potId: row.potId,
       amountPence: row.amountPence,
-      dueDate: row.instance.dueDate,
+      dueDate: row.dueDate,
     })),
     // Debt expected inflows join the window as receipts flagged expected —
     // "expected support" is a planning figure, never received income
@@ -410,7 +335,7 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
   return {
     snapshot,
     result,
-    paydayScheduleName: payday === null ? null : payday.scheduleName,
+    paydayScheduleName: income.scheduleName,
     paydayScheduleId: payday === null ? null : payday.scheduleId,
     commitmentLines: toLines(commitmentRows),
     receiptLines: [...toLines(receiptRows), ...expectedInflowLines(db, today, today, windowUpper)],
@@ -422,6 +347,143 @@ export function getProjectionView(db: Db, nowArg?: Date): ProjectionView | null 
         .map((pot) => [pot.pot.id, pot.estimatePence as number]),
     ),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* The cycle outlook: what is safe to spend before income lands (v0.9.0) */
+/* ------------------------------------------------------------------ */
+
+export interface CycleOutlookPot {
+  potId: number;
+  estimatePence: number | null;
+  /** Σ of this pot's unconverted commitments due before income lands. */
+  commitmentsPence: number;
+  /** estimate − commitments; null when the pot has no estimate (no checkpoint). */
+  spendablePence: number | null;
+  /** How far short of its own bills the pot would be; null when it covers them. */
+  shortfallPence: number | null;
+  /** The bills counted in the figure, soonest first — never invisible arithmetic. */
+  outgoing: Array<{ name: string; amountPence: number; dueDate: string }>;
+}
+
+/**
+ * "What is left before income lands" (SPEC §7.7, v0.9.0). The Quick Entry
+ * balance is two figures, not one: the last reported checkpoint (what the
+ * bank said) and this outlook — everything already expected to leave between
+ * now and the next expected income, so standing in a shop with a healthy
+ * checkpoint cannot hide next week's direct debit.
+ *
+ * `freeToSpendPence` deliberately counts **no income**: it is the dip just
+ * before the money lands, which is the moment that decides whether a card
+ * bounces. Adding the salary in would turn a £500-with-a-£600-mortgage-
+ * pending day into a comfortable £1,800 picture and hide exactly the risk
+ * the household asked to see.
+ *
+ * The household figure includes projected day-to-day events (§7.3), because
+ * the weekly shop and the fuel fill will really happen. The per-pot figures
+ * exclude them (§7.5's reasoning: groceries vary by pot and payment method,
+ * and a pot-scoped figure is a transfer-planning signal). Per pot, the number
+ * is `pot_watch` (SPEC §7.5) with the window taken to the next expected
+ * income rather than a named payday.
+ */
+export interface CycleOutlook {
+  asOf: Date;
+  /** The next expected income (SPEC §11.3) — null when none is scheduled. */
+  incomeDate: string | null;
+  incomeSource: string | null;
+  /** Whole days from today to income; 0 when nothing is expected. */
+  days: number;
+  /** household_available_now (SPEC §7.1); null when no pot is checkpointed. */
+  householdAvailablePence: number | null;
+  commitmentsPence: number;
+  dayToDayPence: number;
+  /** available − commitments − projected shops/fills inside the window. */
+  freeToSpendPence: number | null;
+  /** The day the money bottoms out (the last outgoing before income); null when nothing is due. */
+  lowDate: string | null;
+  pots: CycleOutlookPot[];
+  commitments: Array<{
+    name: string;
+    amountPence: number;
+    dueDate: string;
+    potId: number;
+    potLabel: string;
+  }>;
+  dayToDayEvents: Array<{ name: string; amountPence: number; dueDate: string }>;
+}
+
+/**
+ * The cycle outlook read model. Callers that have already built the money
+ * snapshot (the home page) pass it in rather than paying for it twice.
+ */
+export function getCycleOutlook(db: Db, nowArg?: Date, snapshotArg?: MoneySnapshot): CycleOutlook {
+  const now = nowArg ?? new Date();
+  const snapshot = snapshotArg ?? getMoneySnapshot(db, now);
+  const today = toLocalDateString(now);
+  const income = nextExpectedIncome(db, today);
+  const potLabel = new Map(snapshot.pots.map((entry) => [entry.pot.id, entry.pot.label]));
+
+  const commitmentRows = income === null ? [] : windowLines(db, 'commitment', today, income.date);
+  const dayToDayEvents = income === null ? [] : projectDayToDayEvents(db, today, income.date);
+  const commitments = commitmentRows.map((row) => ({
+    name: row.name,
+    amountPence: row.amountPence,
+    dueDate: row.dueDate,
+    potId: row.potId,
+    potLabel: potLabel.get(row.potId) ?? `Pot ${row.potId}`,
+  }));
+  const commitmentsPence = sumPence(commitments);
+  const dayToDayPence = sumPence(dayToDayEvents);
+
+  const pots: CycleOutlookPot[] = snapshot.pots.map((entry) => {
+    const own = commitments.filter((line) => line.potId === entry.pot.id);
+    const ownPence = sumPence(own);
+    // No expected income → no window → no "before income lands" figure. The
+    // estimate still shows on the review pages; this one stays silent rather
+    // than pretending an endless window.
+    const spendablePence =
+      income === null || entry.estimatePence === null ? null : entry.estimatePence - ownPence;
+    return {
+      potId: entry.pot.id,
+      estimatePence: entry.estimatePence,
+      commitmentsPence: ownPence,
+      spendablePence,
+      shortfallPence:
+        spendablePence !== null && spendablePence < 0 ? Math.abs(spendablePence) : null,
+      outgoing: own.map(({ name, amountPence, dueDate }) => ({ name, amountPence, dueDate })),
+    };
+  });
+
+  const dueDates = [
+    ...commitments.map((line) => line.dueDate),
+    ...dayToDayEvents.map((event) => event.dueDate),
+  ].sort((a, b) => a.localeCompare(b));
+
+  return {
+    asOf: now,
+    incomeDate: income?.date ?? null,
+    incomeSource: income?.source ?? null,
+    days: income === null ? 0 : daysBetween(today, income.date),
+    householdAvailablePence: snapshot.householdAvailablePence,
+    commitmentsPence,
+    dayToDayPence,
+    freeToSpendPence:
+      income === null || snapshot.householdAvailablePence === null
+        ? null
+        : snapshot.householdAvailablePence - commitmentsPence - dayToDayPence,
+    lowDate: dueDates[dueDates.length - 1] ?? null,
+    pots,
+    commitments,
+    dayToDayEvents: dayToDayEvents.map(({ name, amountPence, dueDate }) => ({
+      name,
+      amountPence,
+      dueDate,
+    })),
+  };
+}
+
+function sumPence(lines: Array<{ amountPence: number }>): number {
+  return lines.reduce((total, line) => total + line.amountPence, 0);
 }
 
 /** Engine-shaped lines for projected day-to-day events (pot-less, id-less). */
@@ -478,8 +540,118 @@ function expectedInflowLines(
   return lines;
 }
 
-function minDate(a: string, b: string): string {
-  return a <= b ? a : b;
+/**
+ * One schedule instance inside the payday window, flattened for the UI
+ * helpers below. Both the projection panel and the cycle outlook (SPEC §7.7)
+ * read the window through these two functions, so the two views can never
+ * disagree about which commitments are counted.
+ */
+interface WindowLineRow {
+  scheduleId: number;
+  name: string;
+  potId: number;
+  amountPence: number;
+  dueDate: string;
+  scheduleKind: ScheduleKind;
+}
+
+/**
+ * Unconverted dd/so instances (commitments) or receipt instances inside
+ * (today, throughDate]. The lazy due pass has already run, so every
+ * unconverted instance is strictly in the future.
+ */
+function windowLines(
+  db: Db,
+  kind: 'commitment' | 'receipt',
+  today: string,
+  throughDate: string,
+): WindowLineRow[] {
+  const kindFilter =
+    kind === 'commitment'
+      ? or(eq(schedules.kind, 'dd'), eq(schedules.kind, 'so'))
+      : eq(schedules.kind, 'receipt');
+  return db
+    .select({
+      dueDate: scheduleInstances.dueDate,
+      scheduleName: schedules.name,
+      scheduleId: schedules.id,
+      scheduleKind: schedules.kind,
+      potId: schedules.potId,
+      amountPence: schedules.amountPence,
+    })
+    .from(scheduleInstances)
+    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
+    .where(
+      and(
+        eq(scheduleInstances.state, 'upcoming'),
+        kindFilter,
+        gte(scheduleInstances.dueDate, addDaysLocal(today, 1)),
+        lte(scheduleInstances.dueDate, throughDate),
+      ),
+    )
+    .orderBy(asc(scheduleInstances.dueDate), asc(schedules.name))
+    .all()
+    .map((row) => ({
+      scheduleId: row.scheduleId,
+      name: row.scheduleName,
+      potId: row.potId,
+      amountPence: row.amountPence,
+      dueDate: row.dueDate,
+      scheduleKind: row.scheduleKind,
+    }));
+}
+
+/**
+ * The next money the household expects in (SPEC §11.3, §10.2): the earliest
+ * of the unconverted receipt instances and a debt's expected support — the
+ * planning-cycle payday. null when nothing is expected at all.
+ */
+interface NextIncome {
+  date: string;
+  /** The schedule's name, or "support from {counterparty}" for a debt. */
+  source: string;
+  /** Set only when the next income is an income schedule, not an expectation. */
+  scheduleId: number | null;
+  scheduleName: string | null;
+}
+
+function nextExpectedIncome(db: Db, today: string): NextIncome | null {
+  const schedule = db
+    .select({
+      dueDate: scheduleInstances.dueDate,
+      scheduleId: schedules.id,
+      scheduleName: schedules.name,
+    })
+    .from(scheduleInstances)
+    .innerJoin(schedules, eq(schedules.id, scheduleInstances.scheduleId))
+    .where(
+      and(
+        eq(scheduleInstances.state, 'upcoming'),
+        eq(schedules.kind, 'receipt'),
+        gte(scheduleInstances.dueDate, addDaysLocal(today, 1)),
+      ),
+    )
+    .orderBy(asc(scheduleInstances.dueDate), asc(scheduleInstances.id))
+    .limit(1)
+    .get();
+  const inflow = expectedInflowLines(db, today, null, null)[0] ?? null;
+
+  const scheduleOption: NextIncome | null =
+    schedule === undefined
+      ? null
+      : {
+          date: schedule.dueDate,
+          source: schedule.scheduleName,
+          scheduleId: schedule.scheduleId,
+          scheduleName: schedule.scheduleName,
+        };
+  const inflowOption: NextIncome | null =
+    inflow === null
+      ? null
+      : { date: inflow.dueDate, source: inflow.name, scheduleId: null, scheduleName: null };
+  if (scheduleOption === null) return inflowOption;
+  if (inflowOption === null) return scheduleOption;
+  return scheduleOption.date <= inflowOption.date ? scheduleOption : inflowOption;
 }
 
 /**

@@ -59,6 +59,24 @@ export function isValidLocalDate(value: string): boolean {
 }
 
 /**
+ * Short, human label for a 'YYYY-MM-DD' local calendar date, e.g.
+ * "Fri 27 Sep". The value is already a local date, so it is assembled from
+ * parts in UTC rather than parsed as an instant — no timezone drift, and the
+ * same string on the server and in the browser.
+ */
+export function formatShortLocalDate(dateString: string): string {
+  const match = DATE_ONLY_PATTERN.exec(dateString);
+  if (match === null) return dateString;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+}
+
+/**
  * Local calendar date of an instant as 'YYYY-MM-DD' in the business timezone.
  * Assembled from formatToParts so the shape never depends on locale order.
  */
