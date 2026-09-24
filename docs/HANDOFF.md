@@ -44,6 +44,13 @@ SPEC §14's online-only rule stands unchanged; the household confirmed they do n
 - **`next build` rewrites `next-env.d.ts`** — run `git checkout -- next-env.d.ts` before committing
   unless that change is the point (the `.next/dev` ↔ `.next` reference paths flip).
 
+## Published
+
+**v0.8.0** — annotated tag `v0.8.0` on merge commit `45a1ad0` (PR #41), publish run `36052970042`,
+digest `sha256:f2603aa8caa2cc9dd8ae76421f2f487a4f51148d8b923f2534f3c3b94be1258e` on `v0.8.0` /
+`latest` / `sha-45a1ad0` — one digest, different from v0.7.0's
+`sha256:3b1dcc809d876fa8c598c4471432d2e28c4617e63db7c6605b145e50d47fcb18`.
+
 ## Test state
 
 `npm test` — **340 tests, all green, 85 suites** (was 335/84). New coverage:
