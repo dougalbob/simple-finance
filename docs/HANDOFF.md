@@ -2,6 +2,11 @@
 
 Date: 2026-09-23. Branch: `arena/01a0cee8-simple-finance` (from `main` @ `11689bc`, post-v0.3.0).
 
+**v0.4.0 is published.** Annotated tag `v0.4.0` on merge commit `4183cf4` (PR #32); `v0.4.0`,
+`latest` and `sha-4183cf4` all resolve to `sha256:2d09b35ba93f0125acfdda7133a07c47f1f63045043a1f0759f450fa9e6833e8`.
+Release notes: [`docs/RELEASE_NOTES_v0.4.0.md`](RELEASE_NOTES_v0.4.0.md). Nothing to do but take a
+backup and Force Update in Unraid.
+
 **This session built income.** The previous handoff was the investigation that deferred it (plan
 decision 103); it is superseded by this note. Read [`docs/SPEC.md`](SPEC.md) §6, §11.3, §15.2 and
 §15.3, and [`docs/IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) decisions **109–113** — those
@@ -75,4 +80,12 @@ field, edit/void, the payday rule (mid-month, 1st-of-month, repair of a leftover
 conversion on the Friday), the view model and the summary. `tests/activity.test.ts` now asserts
 `BAC` rows instead of their absence. A new Playwright project **`income`**
 (`e2e/income.spec.ts`, 4 specs) runs after `transactions` and before `backup`; browsers cannot run
-in this sandbox, so CI's `browser` job is the proof.
+in this sandbox, so CI's `browser` job is the proof — **39 specs across 9 projects passed** on the
+PR run and again on the merge commit.
+
+Two of the four new income specs failed on their first CI run and both were spec faults, not product
+faults: a row matched on `hasText: 'Salary'` also matches every row whose pot picker offers
+"Salary account", and re-clicking a row's "Correct or void" after a save had re-rendered the list
+*closed* the disclosure box instead of opening it. Worth remembering for any future spec that drives
+an inline `<details>` form: reload before the second interaction, or assert the field is visible
+before filling it.
