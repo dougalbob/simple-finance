@@ -9,16 +9,14 @@ miss.
   account, no bank connection.
 - **Not built for:** anyone else. There is no sign-up, no multi-tenancy, no telemetry, no external
   services. The app talks to nothing but its own SQLite database and filesystem.
-- **Status:** Phases 0–5 are merged and released, and **v0.7.0 is the published image** (`latest` on the
-  registry is the v0.7.0 build from the `main` merge of the expected-support work). **v0.7.0 —
-  expected support with a real start, a changeable day and an end — is released**, so the next Force
-  Update in Unraid turns a debt's expectation into a plan the app carries: it
-  pre-projects before the first payment arrives, follows a day-of-month change forward-looking, ends by
-  itself on an optional until date, stops when the debt is settled, and shows up in All Transactions as
-  flagged `EXP<` rows that stay out of the totals — borrowed money is still never income. Merging a pull
+- **Status:** Phases 0–5 are merged and released, and **v0.8.0 is the published image** (`latest` on the
+  registry). **v0.8.0 makes the app installable as a PWA** — a web app manifest and icons (no service worker,
+  no offline caching, no offline queue). Android Chrome offers Install; iOS Safari → Share → Add to Home Screen
+  gives the icon and a standalone window. The manifest and icon paths are served without Access credentials via
+  a path-scoped Bypass → Everyone policy; every other URL remains behind the email-policy app. Merging a pull
   request publishes nothing on its own — the lower-case tag does. See
   [`docs/HANDOFF.md`](docs/HANDOFF.md) and
-  [`docs/RELEASE_NOTES_v0.7.0.md`](docs/RELEASE_NOTES_v0.7.0.md).
+  [`docs/RELEASE_NOTES_v0.8.0.md`](docs/RELEASE_NOTES_v0.8.0.md).
 - **Docs:** [`docs/HANDOFF.md`](docs/HANDOFF.md) (continuation point — read this first),
   [`docs/SPEC.md`](docs/SPEC.md) (product spec), [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
   (plan + decision log). [`AGENT_APP_BLUEPRINT.md`](AGENT_APP_BLUEPRINT.md) is the engineering contract from
@@ -56,9 +54,36 @@ The supported path is the Unraid container template. The household's data lives 
    uses different ownership.
 4. **Start the container.** The entrypoint aligns `/data` ownership, applies migrations, then runs the
    server as `PUID:PGID` — never as root. The health endpoint is `/api/health`.
-5. **Put Cloudflare Access in front** of the published port and point it at the same hostname as
-   `AUTH_ISSUER`. Until `AUTH_ISSUER`, `AUTH_AUDIENCE` and `AUTH_ALLOWED_EMAILS` are set, the app refuses
-   everyone (fail closed, `docs/SPEC.md` §3).
+5. **Set up Cloudflare Access with two applications:**
+
+   **First app — hostname-wide, email policy.** This is the main Access application protecting the
+   published port. It uses a Google sign-in policy with the two authorised household email addresses
+   as the allowlist. Point the hostname at the same origin as `AUTH_ISSUER`. Until `AUTH_ISSUER`,
+   `AUTH_AUDIENCE` and `AUTH_ALLOWED_EMAILS` are set, the app refuses everyone (fail closed,
+   `docs/SPEC.md` §3).
+
+   **Second app — path-scoped, Bypass → Everyone.** A separate Access application for the four
+   PWA asset paths. Set the **application domain** to the same hostname as above but configure it
+   with the following specific paths under Bypass → Everyone:
+   - `/<host>/manifest.webmanifest`
+   - `/<host>/icon-192.png`
+   - `/<host>/icon-512.png`
+   - `/<host>/apple-touch-icon.png`
+
+   Remove any legacy `/sw.js` destination — no service worker ships, and a public 404 is worse than
+   no destination at all. Keep this app's bypass scoped to those four paths and nothing else.
+
+   **Access sessions default to 24 hours.** If daily re-authentication on the home-screen app is
+   unwelcome, the application session duration can be raised to up to one month in the main app's
+   Access settings.
+
+   **Sanity check** (replace `<host>` with the real hostname):
+   ```
+   curl -sI https://<host>/manifest.webmanifest
+   ```
+   This should return `200` with `Content-Type: application/manifest+json` — and no Cloudflare
+   Access login redirect. Every other URL (including `/`) should still ask for sign-in.
+
 6. **Open the app in a browser** and sign in through Cloudflare Access. On first run the Overview/Household
    panels ask for the two people and any vehicles (household data is never seeded); categories already
    exist because they are product content, not household data.
@@ -157,7 +182,7 @@ The same commands CI runs, all from the repository root:
 npm ci                 # CI uses a plain install; this sandbox needs --ignore-scripts
 npm run format:check   # Prettier (markdown is excluded deliberately)
 npm run typecheck      # tsc --noEmit
-npm test               # Node test runner: 286 tests across 76 suites
+npm test               # Node test runner: 340 tests across 85 suites
 npm run build          # production build (Turbopack)
 npm audit --omit=dev   # production dependencies must report 0 vulnerabilities
 npm run test:e2e       # browser acceptance suite (needs: npx playwright install --with-deps chromium)
@@ -177,10 +202,8 @@ Real configuration lives in `/data/.env` inside the private installation, and re
 
 ## Version
 
-The app version is `v0.7.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
-release tag must agree; the publish workflow refuses to push an image when they do not. **v0.7.0 is
-published** — `v0.7.0`, `latest` and the merge SHA of this release are one digest; details live in
-[`docs/RELEASE_NOTES_v0.7.0.md`](docs/RELEASE_NOTES_v0.7.0.md).
+The app version is `v0.8.0` and is shown in the navigation bar. `package.json`, `src/lib/version.ts` and the
+release tag must agree; the publish workflow refuses to push an image when they do not.
 
 The tag must be lower-case `vX.Y.Z` *and must sit on a commit that already carries that version*. The first
 `v0.1.4` tag pointed at the PR #13 merge, whose `package.json` still said `0.1.3`; the run reached the

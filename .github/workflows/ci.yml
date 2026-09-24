@@ -108,3 +108,23 @@ jobs:
           echo "documents/ writable by uid 99"
           docker rm -f sf-run3
           sudo rm -rf /tmp/sf-bind
+
+          # PWA assets: manifest and icons must be served from the image's
+          # public/ directory.  No Access cookie is required — these paths
+          # are bypassed at the Cloudflare level in the real installation.
+          docker run -d --name sf-run4 -p 3000:3000 $AUTH_ENV simple-finance:ci
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          for PWA_PATH in /manifest.webmanifest /icon-192.png /icon-512.png /apple-touch-icon.png; do
+            HTTP_CODE="$(curl -sI -o /dev/null -w '%{http_code}' http://127.0.0.1:3000$PWA_PATH)"
+            test "$HTTP_CODE" = "200" || { echo "$PWA_PATH returned $HTTP_CODE, expected 200" >&2; exit 1; }
+            echo "PWA asset $PWA_PATH: 200"
+          done
+          # Verify content types.
+          curl -sI http://127.0.0.1:3000/manifest.webmanifest | grep -qi 'application/manifest+json'
+          echo "manifest content-type: application/manifest+json"
+          curl -sI http://127.0.0.1:3000/icon-192.png | grep -qi 'image/png'
+          echo "icon content-type: image/png"
+          docker rm -f sf-run4

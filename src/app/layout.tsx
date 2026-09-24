@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { SiteNav } from '@/components/site-nav';
 import { APP_NAME, APP_RELEASE_STAGE, APP_VERSION } from '@/lib/version';
@@ -9,6 +9,13 @@ export const metadata: Metadata = {
   description:
     'Private household spending tracker for two people watching money carefully. Self-hosted; protected by Cloudflare Access.',
   robots: { index: false, follow: false },
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: APP_NAME },
+  icons: { apple: '/apple-touch-icon.png' },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0f172a',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
