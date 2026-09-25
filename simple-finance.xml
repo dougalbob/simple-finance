@@ -49,7 +49,7 @@
   <DonateText/>
   <DonateLink/>
   <Description>
-    Simple Finance (v0.10.0). Internal port 3000; choose a free host port.
+    Simple Finance (v0.11.0). Internal port 3000; choose a free host port.
     Data lives in /mnt/user/appdata/simple-finance (database, .env, documents,
     logging). Health endpoint: /api/health. Backups: Settings → Backup &amp;
     restore (encrypted archive of the database and every attachment).

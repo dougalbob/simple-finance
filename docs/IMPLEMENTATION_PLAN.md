@@ -1052,6 +1052,61 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     on the v0.9.0 schema restores as ten migrations with the new columns; one with a future migration is
     refused and the target keeps its data.
 
+143. **The till never widens the page, and its cards move only on purpose (SPEC §15.1, v0.11.0).** The
+    household's Android phone (larger-than-default text) showed the whole page panning sideways. The cause
+    was the Quick Entry tab strip: `flex` buttons with `whitespace-nowrap` text had a fixed minimum width,
+    which overflowed the card at 320px (page 322px), at 360px with 115% text (370px) and at 130% (418px).
+    Emulation at 360–412px with default text had looked clean. Fix: the tabs are a `grid-cols-4` of
+    shrinkable cells (`min-w-0`, `text-xs` below `sm:`), the Move sub-tabs are a 2×2/4 grid, the "£…"
+    headline wraps, and the section has `overflow-x: clip` as a safety net. Two home-page grids further
+    down (`Add a pot`/`Record a balance checkpoint`) had implicit `auto` tracks that grew to their widest
+    input and are now `grid-cols-1`. The swipe area is no longer a native `overflow-x-auto snap-x`
+    container, because any diagonal thumb dragged it: the viewport is `overflow-x: clip`, the track moves
+    by `translateX` with a 200ms transition, `touch-action: pan-y`, and it switches only on Next, the
+    dots or a touch swipe of ≥50px that is ≥1.5× more sideways than down. The hidden card is `inert`,
+    and at `lg:` it is two static columns (`useWideLayout` via `matchMedia`). On a phone the black card
+    is `p-2`. Specs: `scrollWidth <= clientWidth` at 320px and at 360px with `html{font-size:130%}` on
+    every tab and both cards. A diagonal CDP touch drag (20px across, 200px down) leaves the card alone;
+    a horizontal one, Next and the dots switch it. This reverses decision 129's scroll-snap design.
+144. **Save only on card 2; card 1 ends with "Next: category →" (reverses decision 129's "Save on both").**
+    The household's reason: a supplier's remembered category is preselected on card 2, so saving from card
+    1 recorded it unseen, and a new supplier got no category at all. Next is full-width and ≥48px. It slides to
+    card 2 and focuses Line 1's Category (the focus waits for the render so it never lands in an inert
+    card). Implicit submission is blocked: Enter in a card-1 input is intercepted (`panelOneKeyDown`).
+    Supplier → Amount, anything else → Next. The typeahead's own Enter on a highlighted row claims the
+    event first. "Add another" still returns to card 1 on Supplier (decision 137). `canSave`, which was
+    true when saving was *blocked*, is renamed `saveBlocked` and now also requires a payer.
+145. **Paid by and Date move to card 2; `ChipGroup` for short choices; fuel-only supplier recents.** Card 2
+    order: Category → For → lines → "+ Add split" → Paid by → Date (full width) → Save. `ChipGroup` is real
+    radio inputs styled as ≥44px pills in a `role="radiogroup"` (arrow keys, form posting and screen
+    readers come free), used for Paid by (both forms) and Vehicle. The old `ChipSelect` rendered a
+    `<select>` and is renamed `SelectField` (the pot stays a select). Changing Paid by re-targets lines
+    still on the old payer's `defaultTarget`. The Fuel form's supplier is the shared `SupplierTypeahead`
+    fed `QuickEntryData.fuelSuppliers`: `listFuelSupplierIds` (records/fuel.ts) applies the fuel purchase
+    definition (live, not a refund, Fuel lines all to one vehicle), newest fill first. "Did you mean"
+    uses the same list.
+146. **The till starts on whoever is signed in: "Signs in as" (migration 0010).** `buildEntryData` used
+    `people[0]` for both Paid by and the vehicle default whatever the sign-in, a bug against §15.1's
+    "prefills payer (signed-in user)". Vehicles already had an Owner, and the household confirmed Owner is
+    the "main driver". What was missing was which sign-in is which person. Migration `0010_people_email`
+    adds a nullable, unique, lower-case `people.email`. Settings shows a per-person select of
+    `signInEmailChoices` (the `AUTH_ALLOWED_EMAILS` allowlist, plus the dev identity under the dev bypass,
+    plus any already-stored value). `setPersonEmail` validates against that list, moves an email already
+    held by someone else, and audits `person.email`. The pages pass `user.email`. The pure
+    `entryDefaults` picks the linked person (else first) and the vehicle they own (else first). On the
+    Fuel form the vehicle follows Paid by until the user taps a vehicle (`vehiclePicked`). The e2e seed
+    links the dev identity to Alex; the fuel spec moves it to Sam and back and sees Vehicle B.
+147. **"Filled to full" is off by default (reverses decision 139's default-on, SPEC §16.6).** Forgetting the
+    tick on a real full tank only lengthens a stretch (its litres roll into the next full tank, so the
+    figure stays right). Ticking a part fill by mistake produces a wrong mpg. So the till starts unticked
+    with the hint "Tick only when the pump clicked off at full". The database default for old rows and the
+    Fuel details editor (showing the stored value) are unchanged. Insights adds `fillsWithoutFullTank`:
+    when the latest ≥3 fills in a row have none marked full it says "no full tank marked in the last N
+    fills — mpg needs one".
+148. **Real-phone check still owed.** The layout was verified in emulation (Pixel 7, 320px, 360px at
+    115%/130% text) and with synthetic touch. The household's before screenshots (2026-09-25 10:38/10:39/
+    10:41) are to be matched by the same three views after the update. Their real thumb is the final check.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
