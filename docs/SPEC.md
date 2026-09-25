@@ -885,6 +885,9 @@ edit or void anything.
    transfer watch.
 6. **Fuel economy (v0.10.0, §16.6)** — per vehicle mpg and fuel cost per mile from the litres and odometer
    readings recorded with fuel purchases.
+7. **Charts (v0.14.0, §16.7)** — the same figures drawn, on their own page at `/charts`: the month ahead,
+   the weekly shop, personal spending and the fixed commitments. Insights keeps the tables; the two always
+   agree, because they read the same records.
 
 ### 16.6 Fuel economy — how mpg is worked out (v0.10.0)
 
@@ -905,6 +908,62 @@ edit or void anything.
   gallons — a ratio of totals, never an average of averages); fuel cost per mile; the latest price per litre;
   recent fills missing litres (or, on a full tank, the odometer), each linked to its Purchases row; and the
   recent fills.
+
+### 16.7 Charts — the four drawings, and the rules they all keep (v0.14.0)
+
+`/charts` answers four questions with four pictures. Every figure on it is the same arithmetic the tables
+on `/insights` use, over the same records, so the two can never disagree.
+
+**A. Where the balance goes, today to a month ahead.** A step area of the **household total** (every pot,
+day-to-day included) from today to one month out, from the same projection engine as Overview and Horizon.
+Today's point is the household's own reported figure plus recorded activity; every later point is
+projected. The y-axis **always includes zero**, with room on both sides: going below zero is a place on the
+chart, tinted, not a line that clips at the axis. The overdraft limit is a dashed line when the chart
+reaches that far down and a sentence in the caption when it does not. The lowest point is labelled on the
+drawing, income days are ticked along the axis, and the verdict sentence states the amount and the date —
+"Projected to go £1,831.27 below zero on Fri 9 Oct. That is past the £800.00 overdraft limit from Mon 28
+Sept." A laptop also gets the three biggest outgoing days and a day-by-day breakdown of what lands.
+
+**B. Is the weekly shop creeping up?** Bars for Monday–Sunday weeks of everything under the Groceries
+parent — 12 weeks on a phone, 26 on a laptop — against two reference lines: the configured weekly figure
+and the trailing 8-week average. **A week with no shop is a zero week, not a missing one**; anything else
+would flatter the average. The week being lived is drawn hatched and never counts towards the average,
+which is the honesty loop's rule (§16.4) and its exact figure.
+
+**C. Hers, his, household.** Stacked monthly bars of discretionary spending — 6 months on a phone, 12 on a
+laptop — split into one series per person plus a Household series. Attribution is **"For: person"**, the
+allocation's target, never "Paid by": whose card was used says nothing about whose spending it was.
+Household-marked spending (a joint takeaway, a shared subscription) is its own bar and is **never split**
+between people. The scope is the parents *Personal* and *Entertainment & Eating Out*, resolved from the
+live category tree rather than a fixed list of children, so a child added under Personal is in scope the
+day it is created. Chips filter the chart by person; the choice lives in the URL.
+
+**D. Are the direct debits coming down?** Monthly bars of the household's **tracked fixed commitments**.
+"Direct debit" is not a field on a purchase, so the definition is an explicit list of child categories,
+ticked in Settings (`commitment_category_ids`) — Insurance and Road Tax, say, but not Fuel, which is why
+the list is by child and not by parent. Until something is saved, the chart tracks the categories the
+household's own direct debits and standing orders already use, and says so. A **schedule-converted only**
+toggle narrows the chart to purchases the app converted from a schedule (`purchases.scheduleInstanceId`) —
+true DD/SOs, no hand-typed bills.
+
+**Rules every chart keeps.**
+
+- **Hand-rolled SVG, server-rendered** (`src/components/charts/`), no chart library and no client
+  JavaScript: the drawing is in the first paint on a phone, with nothing to hydrate.
+- **A verdict sentence above the drawing**, and the same sentence as the SVG's `aria-label`; the SVG is one
+  `role="img"` to a screen reader.
+- **A table twin under `<details>`** for every chart — the same numbers, exact, copyable, keyboard
+  reachable, working without JavaScript.
+- **Reported vs projected is always stated**, as a badge and in words.
+- **Colour is never the only signal**: every series is named in a legend and in the table twin, and an
+  in-progress period is hatched as well as labelled.
+- **Drill-down is a real link.** A bar wraps an `<a>` at `/purchases?from=…&to=…&categoryId=…` (the same
+  link is repeated in the table twin, which is the keyboard path), so it can be opened in a new tab or sent
+  to the other person. Those filters match the **purchase**, and a matched purchase comes back with all of
+  its lines, receipt-style — so a split shop appears whole, not as the single line that matched. The page
+  says so.
+- **Responsive by `viewBox` and two variants**: a 320px-wide drawing for a phone, a 720px one for a laptop,
+  chosen by CSS. Neither pans the page sideways at 320px, or at 360px with 130% text.
 
 Later candidates (explicitly **not** v1): supplier top-N, category trends over many months, cash-vs-card
 mix, seasonal comparisons.

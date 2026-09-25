@@ -6,6 +6,7 @@ import {
   editPotAction,
   renameTargetAction,
   saveCategoryAction,
+  saveCommitmentCategoriesAction,
   saveDefaultPurchasePotAction,
   savePersonEmailAction,
   saveWarningLeadsAction,
@@ -533,6 +534,82 @@ export function PersonSignInForm({ personId, personLabel, email, choices }: Pers
         When this sign-in opens the till, Paid by starts on {personLabel} and Fuel starts on the
         vehicle {personLabel} owns.
       </p>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+export interface CommitmentCategoriesFormProps {
+  groups: Array<{
+    parentId: number;
+    parent: string;
+    children: Array<{
+      id: number;
+      name: string;
+      ticked: boolean;
+      usedBySchedule: boolean;
+      retired: boolean;
+    }>;
+  }>;
+  /** 'schedules' = nothing saved yet, the ticks are the useful default. */
+  source: 'configured' | 'schedules';
+}
+
+/**
+ * Which child categories count as fixed commitments (SPEC §16.7 D, v0.14.0).
+ * A checkbox list grouped by parent, because the household's own example is
+ * exactly why parent-level would not do: Vehicle Running holds Insurance and
+ * Road Tax (bills) next to Fuel (not a bill).
+ */
+export function CommitmentCategoriesForm({ groups, source }: CommitmentCategoriesFormProps) {
+  const [state, formAction, pending] = useActionState(
+    saveCommitmentCategoriesAction,
+    initialActionState,
+  );
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      {source === 'schedules' ? (
+        <p className="rounded bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          Nothing saved yet, so these are pre-ticked from the categories your direct debits and
+          standing orders already use. Save to make the list your own.
+        </p>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((group) => (
+          <fieldset key={group.parentId} className="rounded-lg border border-slate-200 p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {group.parent}
+            </legend>
+            <ul className="space-y-1">
+              {group.children.map((child) => (
+                <li key={child.id}>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="categoryId"
+                      value={child.id}
+                      defaultChecked={child.ticked}
+                      className="mt-1"
+                    />
+                    <span>
+                      {child.name}
+                      {child.usedBySchedule ? (
+                        <span className="ml-1 text-xs text-slate-500">· used by a schedule</span>
+                      ) : null}
+                      {child.retired ? (
+                        <span className="ml-1 text-xs text-slate-400">· retired</span>
+                      ) : null}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        ))}
+      </div>
+      <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
+        {pending ? 'Saving…' : 'Save tracked commitments'}
+      </button>
       <FormMessage status={state.status} message={state.message} />
     </form>
   );

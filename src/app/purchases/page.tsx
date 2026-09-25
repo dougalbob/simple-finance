@@ -40,7 +40,8 @@ interface SearchParams {
   to?: string;
   potId?: string;
   supplierId?: string;
-  categoryId?: string;
+  /** Repeatable (v0.14.0): a chart bar links with one id per child. */
+  categoryId?: string | string[];
   targetKind?: string;
   targetId?: string;
   paidByPersonId?: string;
@@ -53,6 +54,14 @@ function toNumber(value: string | undefined): number | undefined {
   if (value === undefined || value === '') return undefined;
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function toNumbers(value: string | string[] | undefined): number[] {
+  const raw = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  return raw.flatMap((entry) => {
+    const n = toNumber(entry);
+    return n === undefined ? [] : [n];
+  });
 }
 
 export default async function PurchasesPage({
@@ -68,12 +77,28 @@ export default async function PurchasesPage({
   const today = toLocalDateString(now);
   const params = await searchParams;
 
+  // A category link may name a parent (a chart bar covers all of its
+  // children) and may name several at once. Expand parents against the live
+  // tree, then filter on the resulting leaves — allocations only ever point
+  // at a leaf, so an unexpanded parent id would match nothing at all.
+  const tree = categoryTree(db);
+  const childrenOfParent = new Map(
+    tree.map((parent) => [parent.id, parent.children.map((child) => child.id)] as const),
+  );
+  const requestedCategoryIds = toNumbers(params.categoryId);
+  const resolvedCategoryIds = [
+    ...new Set(requestedCategoryIds.flatMap((id) => childrenOfParent.get(id) ?? [id])),
+  ];
+
   const filters: PurchaseFilters = {
     potId: toNumber(params.potId),
     supplierId: toNumber(params.supplierId),
-    categoryId: toNumber(params.categoryId),
+    categoryId: resolvedCategoryIds.length === 1 ? resolvedCategoryIds[0] : undefined,
+    categoryIds: resolvedCategoryIds.length > 1 ? resolvedCategoryIds : undefined,
     targetKind:
-      params.targetKind === 'person' || params.targetKind === 'vehicle'
+      params.targetKind === 'person' ||
+      params.targetKind === 'vehicle' ||
+      params.targetKind === 'household'
         ? params.targetKind
         : undefined,
     targetId: toNumber(params.targetId),
@@ -94,10 +119,18 @@ export default async function PurchasesPage({
   const suppliers = listSuppliersForEntry(db);
   const entryData = buildEntryData(db, now, user.email);
   const categoryNames = new Map(
-    categoryTree(db).flatMap((parent) =>
+    tree.flatMap((parent) =>
       parent.children.map((child) => [child.id, `${parent.name} / ${child.name}`] as const),
     ),
   );
+  // The filter select offers every parent as "all children", so a link from a
+  // chart (which filters by parent) round-trips through the form unchanged.
+  const filterCategories = tree.flatMap((parent) => [
+    { id: parent.id, parentName: parent.name, childName: 'all children' },
+    ...parent.children
+      .filter((child) => child.retiredAt === null)
+      .map((child) => ({ id: child.id, parentName: parent.name, childName: child.name })),
+  ]);
   const potNames = new Map(pots.map((pot) => [pot.id, pot.label]));
   const supplierNames = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]));
   const personNames = new Map(people.map((person) => [person.id, person.label]));
@@ -120,8 +153,8 @@ export default async function PurchasesPage({
         suppliers={suppliers.map((supplier) => ({ id: supplier.id, name: supplier.name }))}
         people={people.map((person) => ({ id: person.id, label: person.label }))}
         vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, label: vehicle.label }))}
-        categories={entryData.categories}
-        active={params}
+        categories={filterCategories}
+        active={{ ...params, categoryId: requestedCategoryIds[0]?.toString() }}
       />
 
       <section aria-labelledby="results-heading" className="mt-6">

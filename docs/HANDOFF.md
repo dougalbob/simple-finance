@@ -1,71 +1,81 @@
-# Handoff: the till opens with nothing focused (v0.13.1)
+# Handoff: Charts — the money, drawn (v0.14.0)
 
-Date: 2026-09-25. Branch: `arena/01a0d93c-simple-finance` (from `main` @ `2df45db`, the v0.13.0 merge).
+Date: 2026-09-25. Branch: `arena/01a0d991-simple-finance` (from `main` @ `c50cfa7`, the v0.13.1 merge).
 
-**Released as v0.13.1 on 2026-09-25.** Annotated tag `v0.13.1` is on merge commit `a8827b7` (PR #56).
-Digest `sha256:cced2519…02bea4` is on `v0.13.1` / `latest` / `sha-a8827b7`. Details are in
-[`docs/RELEASE_NOTES_v0.13.1.md`](RELEASE_NOTES_v0.13.1.md), and the version badge reads
-`v0.13.1 · pre-release`. The household does two things in Unraid: back up, then Force Update.
+**Released as v0.14.0 on 2026-09-25.** Release facts (merge commit, tag, digest) are stamped in
+[`docs/RELEASE_NOTES_v0.14.0.md`](RELEASE_NOTES_v0.14.0.md); the version badge reads
+`v0.14.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
-## What changed (decision 151)
+## What changed (decisions 152–157)
 
-The household opened the home page on the real phone after Force Updating to v0.13.0 and sent two
-screenshots: the till autofocused **Supplier**, the keyboard rose, and the **Purchase / Fuel / Balance /
-Move** tab strip scrolled off the top of the screen. Measured on the page before the fix: `scrollY` 1342,
-tab strip at `y=-35` — entirely above an 839px viewport. Their words: *"It is not necessary for any control
-on the form to get focus when it opens — the user can make that decision by tapping whatever control they
-want to change."*
+The household asked for data visualisation and answered the three open questions themselves: **hand-rolled
+SVG** (no chart library), the page is called **Charts**, and the scope is **all four charts plus the
+settings key** in one release.
 
-The rule now: **no field is focused as a side-effect of the till becoming ready, or of a type tab becoming
-visible.**
-
-- `src/components/quick-entry.tsx`: dropped the `ready` → `supplierRef.focus()` effect from `PurchaseForm`
-  (and the `ready` prop, which existed only to feed it). The wrapper's `inert={!ready}` guard is untouched —
-  the till still refuses input it cannot act on, and `data-till-ready` is still the specs' signal.
-- Same file: removed `autoFocus` from the **Fuel amount** and the **Balance amount** — both stole focus as
-  their tab appeared, with the same keyboard-and-scroll cost.
-- Universal, not phone-only: desktop has room, so autofocus cost it nothing there, and one rule is simpler
-  than a media query's worth of exceptions.
-- **Kept, on purpose:** every focus move that answers something the household did — tapping a supplier
-  suggestion (→ Amount), Enter in Supplier (→ Amount), **Next: category →** (→ Category, including
-  `pendingFocus` after the panel switch), **+ Note** (→ the note it just opened), **Add another** (→
-  Supplier on card 1). Enter still never saves from card 1.
-- **SPEC §15.1**: the "lands on the supplier once it is ready" sentence is replaced by two bullets — nothing
-  focused on open (with the reason), and the focus order *once the household is typing*. The v0.10.0 line
-  lower down now says v0.13.1 reverses it. **Decision 151** in [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+- **`/charts`** (`src/app/charts/page.tsx`) — four sections, each rendered twice: a 320px figure for a
+  phone (`lg:hidden`) and a 720px one for a laptop (`hidden lg:block`). Linked from the nav between
+  Insights and Settings, and from a card on the home page **below** the till.
+  - **A. Forecast** — household total, today → one month, from `getHorizonProjectionView(db, +1 month, [],
+    true)`. Zero always on the axis; below zero tinted; the overdraft line only when the domain reaches it
+    (otherwise a caption sentence, decision 152); lowest point labelled; income days ticked.
+  - **B. Groceries** — Mon–Sun weeks (12/26) against the configured figure and the trailing 8-week
+    average. An empty week is a zero week; the current week is hatched and never averaged.
+  - **C. Personal** — stacked months (6/12) by **"For: person"**; Household is its own segment and is
+    never split; scope from the **live** tree (decision 154). Chips are links: `?who=person:3,household`.
+  - **D. Fixed commitments** — monthly bars over `commitment_category_ids` (decision 156), with a
+    `?scheduleOnly=1` toggle reading `purchases.scheduleInstanceId`.
+- **Chart kit** (`src/components/charts/`, decision 155) — `ChartFigure` (verdict sentence, badge, caption,
+  table twin), `chart-primitives` (gridlines, sub-zero band, reference lines, band labels), `scale.ts`
+  (domain/ticks/geometry), `StepAreaChart`, `BarChart`, `StackedBarChart`. Server components only.
+- **Pure resolvers** in `src/lib/records/chart-series.ts` (integer pence, no DB, no framework) with DB
+  assembly in `src/lib/records/charts-view.ts`.
+- **Settings** — `commitment_category_ids` in the existing key/value table:
+  `getCommitmentCategoryIds`/`setCommitmentCategoryIds` in `settings.ts`,
+  `saveCommitmentCategoriesAction` in `actions.ts`, `CommitmentCategoriesForm` in `settings-forms.tsx`,
+  section `#commitment-categories` on `/settings`. **No schema change, no migration.**
+- **`/purchases`** (decision 157) — repeatable `categoryId`, parent→children expansion,
+  `targetKind=household`, and a "<Parent> / all children" option in the filter form.
 
 ## Watch out for (learned this session)
 
-- **Two specs were checked to fail against the pre-fix component.** That is the only proof they guard
-  anything: `git show HEAD:src/components/quick-entry.tsx > src/components/quick-entry.tsx`, run the two
-  specs (they catch `supplierName` and then `amount` focused by themselves), then restore. A focus assertion
-  that passes either way is decoration.
-- **Playwright has no on-screen-keyboard signal.** The household-visible proxies used instead: the active
-  element is not `input`/`select`/`textarea`, and `window.scrollY === 0` after `waitForTill`. The tab
-  strip's own box is asserted *after* `scrollIntoView`, because on a Pixel 7 the till starts ~1300px down the
-  page — the household scrolls to it, it is not in the first viewport.
-- **Don't bump the version while the suite is running.** The backup spec derives its filename regex from
-  `APP_VERSION`, so a mid-run bump reds it against a server that still has the old module loaded.
-- `e2e/home.spec.ts` has a shared `expectNoFieldFocused(page)` helper — a **tab button the household just
-  tapped keeps its own focus**, which is right; only a text field focused unprompted is the bug.
+- **The screenshots found what the assertions could not.** Headless Chromium (SANDBOX entry 8) rendered
+  `/charts` at 1400px and 320px, and reading the PNGs back caught two real defects no locator would have:
+  the groceries reference labels printed on top of each other (fixed by alternating start/end and a white
+  `paintOrder` halo), and the forecast legend named an overdraft line that was off the chart (fixed by
+  drawing the legend entry only when the domain reaches the limit). Look at the picture before shipping a
+  picture.
+- **A second `next dev` in the same directory exits 1** with "Another next dev server is already running"
+  after printing `✓ Ready` — Next 16 guards the project directory, not the port. SANDBOX entry 12.
+- **A throwaway database is the cheapest way to see a state the seed cannot produce.** `cp -r .e2e-data
+  /tmp/low-data`, add a checkpoint and a fat schedule with the repo's own domain functions, point one dev
+  server at it — that is how the below-zero forecast (tint, overdraft line, "£1,831.27 below zero"
+  headline) was verified in a browser without touching the seeded specs.
+- **The e2e seed now carries history** (about six months of weekly shops, a year of discretionary spending
+  and monthly bills). Every row is dated **≥ 10 days before today** and the new supplier names avoid
+  `corner` and `insurer`, which `e2e/home.spec.ts:410-413` matches on. Keep both rules if you extend it.
+- **Don't bump the version while the Playwright suite is running** — the backup spec derives its filename
+  regex from `APP_VERSION` (unchanged advice from v0.13.1).
+- `next build` still flips `next-env.d.ts`; `git checkout -- next-env.d.ts` before committing.
 
 ## Test state
 
-`npm test`: 416 tests / 103 suites green. `format:check`, `tsc --noEmit` and `next build` clean. Local
-Playwright (SANDBOX entry 8 recipe, `playwright.local.config.ts`, git-excluded): **63 tests green** (62
-before + 2 new mobile specs − 1 replaced). CI's `browser` job is the gate — and it went green on the PR
-(run `36158432999`, 3m08s) and again on the `main` merge commit (run `36158820173`), so the two new
-mobile specs have now run in CI's own Chromium as well as locally.
+`npm test`: **459 tests / 111 suites green** (43 new). `format:check`, `tsc --noEmit`, `next build` and
+`npm audit --omit=dev` clean. Local Playwright (SANDBOX entry 8 recipe, `playwright.local.config.ts`,
+git-excluded): **70 tests green** across every project, including the new `charts` project (7 specs). CI's
+`browser` job is the gate and went green on the PR and on the `main` merge commit.
 
 ## Open / deferred
 
+- **Printing or exporting a chart** was explicitly out of scope this session, as were email/alert channels,
+  bank feeds and card-level merchant data. Ask before adding any of them.
+- **The tracked-commitment list can go stale**: a category the household adds later is not tracked until
+  someone ticks it. A future session could nudge with "your schedules now use categories this chart does not
+  track" — the data for it is already there (`scheduleCommitmentCategoryIds` vs the saved set).
 - **Empty pot selection = every pot** on Horizon is kept and stated under the checkboxes. Still waiting on
   whether "untick all" should mean *none* (marker param + §7.6 wording + spec).
-- **The household's real phone is still the final check (148).** This change is itself phone-driven: after
-  they Force Update, ask them to open the home page once and confirm the tabs stay put with the keyboard
-  down — the same three views as the 2026-09-25 10:38 / 10:39 / 10:41 screenshots.
-- **Data visualisation** — the household asked to talk through ideas for charts/graphs in the app; nothing
-  designed or committed yet, see the note at the end of this session.
+- **The household's real phone is still the final check (decision 148).** After they Force Update, ask them
+  to open `/charts` on the phone: four charts, no sideways pan, and "Show the numbers" agreeing with each
+  drawing.
 - Overview hydration warning (`<p>` wrapping `<details>`/`<form>` at `overview/page.tsx:305`) — still out of
   scope.
 - UK gallons; supplier-level documents (OQ10); home-page mobile layout beyond the till.
