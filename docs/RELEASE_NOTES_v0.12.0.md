@@ -1,7 +1,11 @@
 # Release notes — v0.12.0 (collapsible supplier cards and mobile menu drawer)
 
-**Published:** 2026-09-25.
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.12.0` · `latest`
+**Published:** 2026-09-25 (tag pushed 11:47 UTC, image verified in the registry 11:50 UTC).
+**Merge commit:** `da1555186fb357221b8181f22c8160cc119e0968` (PR #49; short SHA `da15551`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.12.0` · `latest` · `sha-da15551`
+**Digest:** `sha256:153efbad7e8147721dfa99ef81b22649720f619b444af5cfd5a812696bdd4c32`, one digest for all
+three tags, different from v0.11.0's `sha256:6f39143d…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36131371166` passed).
 **Version badge:** `v0.12.0 · pre-release`
 
 ## What changed
