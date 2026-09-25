@@ -2,9 +2,11 @@
 
 Date: 2026-09-25. Branch: `arena/01a0d807-simple-finance` (from `main` @ `d3ff42e`, the v0.10.0 merge).
 
-**Release status:** see [`docs/RELEASE_NOTES_v0.11.0.md`](RELEASE_NOTES_v0.11.0.md). The merge commit, tag
-and digest are stamped there once they are published. The household does two things in Unraid: back up,
-then Force Update. After updating they set **Settings → Household names → Signs in as** for each person.
+**Released as v0.11.0 on 2026-09-25.** Annotated tag `v0.11.0` is on merge commit `625ef62` (PR #47).
+Digest `sha256:6f39143d…10077f` is on `v0.11.0` / `latest` / `sha-625ef62`. Details are in
+[`docs/RELEASE_NOTES_v0.11.0.md`](RELEASE_NOTES_v0.11.0.md), and the version badge reads
+`v0.11.0 · pre-release`. The household does two things in Unraid: back up, then Force Update. After
+updating they set **Settings → Household names → Signs in as** for each person.
 
 ## What changed (decisions 143–148)
 
