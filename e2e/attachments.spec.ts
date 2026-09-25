@@ -52,6 +52,7 @@ test.describe('removing a receipt', () => {
     const supplierCard = page.getByRole('article').filter({
       has: page.getByRole('heading', { name: 'Playwright Receipt Shop', exact: true }),
     });
+    await supplierCard.getByRole('button', { name: 'Playwright Receipt Shop' }).click();
     await expect(
       supplierCard.getByRole('button', { name: `Remove receipt ${RECEIPT_NAME}` }).first(),
     ).toBeVisible();

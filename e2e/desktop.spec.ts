@@ -164,6 +164,7 @@ test.describe('desktop review', () => {
     const card = page
       .locator('article', { has: page.getByRole('heading', { name: 'Corner Foods', exact: true }) })
       .first();
+    await card.getByRole('button', { name: /Corner Foods/i }).click();
     await expect(card.getByRole('link', { name: '01632 960111' })).toBeVisible();
 
     // Add a reference pair and see it listed on the same card.
@@ -248,6 +249,7 @@ test.describe('desktop review', () => {
       .locator('article', { has: page.getByRole('heading', { name: supplierName, exact: true }) })
       .first();
     await expect(card).toBeVisible({ timeout: 30_000 });
+    await card.getByRole('button', { name: supplierName }).click();
     await card.getByText('Edit contact card').click();
     await card.getByLabel('Phone').fill('01632 960333');
     await card.getByRole('button', { name: 'Save contact card' }).click();
