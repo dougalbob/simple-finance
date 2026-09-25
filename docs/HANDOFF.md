@@ -1,8 +1,11 @@
-# Handoff: Horizon opens the day before payday, and the date applies itself (v0.13.0, unreleased)
+# Handoff: Horizon opens the day before payday, and the date applies itself (v0.13.0)
 
 Date: 2026-09-25. Branch: `arena/01a0d8b1-simple-finance` (from `main` @ `7a2a3a4`, the v0.12.1 merge).
 
-**Not released yet.** The household chooses the timing; this is a behaviour change, so **v0.13.0**.
+**Released as v0.13.0 on 2026-09-25.** Annotated tag `v0.13.0` is on merge commit `8fcc65b` (PR #54).
+Digest `sha256:5264c114…084df0` is on `v0.13.0` / `latest` / `sha-8fcc65b`. Details are in
+[`docs/RELEASE_NOTES_v0.13.0.md`](RELEASE_NOTES_v0.13.0.md), and the version badge reads
+`v0.13.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
 ## What changed (decision 150)
 
@@ -40,9 +43,6 @@ green** (58 + 4 new horizon specs). CI's `browser` job is the gate.
 
 ## Open / deferred
 
-- **Release v0.13.0 is the household's call** — not bumped, tagged or published yet. When they say go:
-  five version places, PR, merge commit, annotated tag, publish, registry check, notes (mention the long
-  default window for an annual-only income), GitHub release (`docs/RELEASE_PROCESS.md`).
 - **Empty pot selection = every pot** is kept and now stated under the checkboxes. Asked the household
   whether "untick all" should mean *none* instead (needs a marker param, a §7.6 wording change and a spec).
 
