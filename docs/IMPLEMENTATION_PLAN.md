@@ -1106,6 +1106,23 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 148. **Real-phone check still owed.** The layout was verified in emulation (Pixel 7, 320px, 360px at
     115%/130% text) and with synthetic touch. The household's before screenshots (2026-09-25 10:38/10:39/
     10:41) are to be matched by the same three views after the update. Their real thumb is the final check.
+149. **A "Supplier card" link names the supplier it came from (SPEC §21.2a, v0.12.1).** v0.12.0 painted those
+    links on Recurring Payments and Contracts & Renewals but sent them to a bare `/suppliers`, so the
+    household landed on a collapsed list of everything instead of the card they clicked from. The links now
+    carry the identity — `/suppliers?supplierId=<id>`, built in one place (`supplierCardHref`,
+    `lib/records/supplier-focus.ts`) and used by the schedule row, the contract-end row and the follow-up
+    rows (the follow-up list gained the supplier id it needed for this). The resolver is pure and unit-tested
+    (`tests/supplier-focus.test.ts`, 15 cases): `?supplierId=`, the `?id=` alias, `?q=` (exact name, else
+    first partial) and the `#supplier-<id>` / `#<name>` fragment all resolve to one card; an id not held
+    falls back to the plain list, never to a wrong card; a plain visit is unchanged. The server page resolves
+    it so the card is open in the **first paint**, and the client island re-resolves only the fragment (a
+    server never sees it) on mount, sets the filter box, expands the card and smooth-scrolls it into view
+    (`scroll-mt-24` clears the sticky header; `prefers-reduced-motion` disables the animation). The list is
+    keyed by the resolved focus (`supplierFocusKey`) because a client-side hop from one
+    `?supplierId=` link to another is the *same route* — without the key React would keep the first link's
+    filter. Typed filters and manually opened cards survive a form action, as before. Browser acceptance:
+    the Recurring spec clicks the link and asserts URL, filter value, a single card and `aria-expanded`;
+    the Contracts spec clicks "BroadbandCo card →" and asserts the same, then goes back.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
@@ -1127,6 +1144,14 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 
 ## Release history
 
+- **v0.12.1 — a "Supplier card" link opens that supplier (session `arena/01a0d879-simple-finance`, from
+  `main` @ `63c77c7`, the v0.12.0 merge)**: the links v0.12.0 painted on Recurring Payments and Contracts &
+  Renewals pointed at a bare `/suppliers`. They now carry `/suppliers?supplierId=<id>` and the page opens
+  that card expanded, filtered and scrolled into view (decision **149**). New pure resolver
+  `src/lib/records/supplier-focus.ts` (SPEC §21.2a) with `tests/supplier-focus.test.ts` (15 cases); browser
+  assertions added to both `e2e/desktop.spec.ts` specs. No schema change, no migration. `npm test`
+  **404 tests / 101 suites green**, format, typecheck and production build clean, local Playwright
+  **58 tests green** (SANDBOX entry 8 recipe).
 - **Releases v0.1.0 → v0.6.0 are published** — each a lower-case annotated tag on its pull-request merge
   commit with its own digest; the notes file is the release record and earlier notes are never rewritten
   (`docs/RELEASE_NOTES_v0.1.0.md` … `docs/RELEASE_NOTES_v0.6.0.md`). Before v0.7.0, `latest` is the **v0.6.0**
@@ -1271,6 +1296,9 @@ src/lib/records/attachments.ts — the one attachment pipeline: content sniffing
                                 read path (used by action, route, backup, restore)
 src/lib/records/supplier-details.ts — reference pairs + interaction log as audited domain operations,
                                 `upcomingSupplierFollowUps` for the contracts page
+src/lib/records/supplier-focus.ts — v0.12.1 pure deep-link resolver for /suppliers (?supplierId= / ?id= /
+                                ?q= / #supplier-<id>) + `supplierCardHref`/`supplierFocusKey` (decision 149)
+tests/supplier-focus.test.ts  — v0.12.1: 15 cases over that resolver (stale ids, junk ids, the focus key)
 src/app/api/restore/route.ts  — live in-place restore endpoint (confirmed, bounded, same-origin, authenticated)
 src/app/api/attachments/[fileKey]/route.ts — authenticated private serving (nosniff, no-store)
 src/components/backup-panel.tsx — Settings backup & restore UI (download + typed-confirmation restore)

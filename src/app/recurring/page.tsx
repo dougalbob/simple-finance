@@ -19,6 +19,7 @@ import { listPots } from '@/lib/records/pots';
 import { listRenewals } from '@/lib/records/renewals';
 import { listInstances, listSchedules } from '@/lib/records/schedules';
 import { getMonthlyFuelByVehicle, getWeeklyGroceriesPence } from '@/lib/records/settings';
+import { supplierCardHref } from '@/lib/records/supplier-focus';
 import { listSuppliersForEntry } from '@/lib/records/suppliers';
 import { toLocalDateString } from '@/lib/time';
 import { listVehicles } from '@/lib/records/vehicles';
@@ -347,7 +348,10 @@ export default async function RecurringPage({
                       {schedule.supplierId !== null ? (
                         <>
                           {' · '}
-                          <Link href="/suppliers" className="text-sky-700 hover:underline">
+                          <Link
+                            href={supplierCardHref(schedule.supplierId)}
+                            className="text-sky-700 hover:underline"
+                          >
                             Supplier card
                           </Link>
                         </>

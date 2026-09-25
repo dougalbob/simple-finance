@@ -1,65 +1,58 @@
-# Handoff: the till fits the phone, and fuel defaults (v0.11.0)
+# Handoff: "Supplier card" links open that supplier (v0.12.1)
 
-Date: 2026-09-25. Branch: `arena/01a0d807-simple-finance` (from `main` @ `d3ff42e`, the v0.10.0 merge).
+Date: 2026-09-25. Branch: `arena/01a0d879-simple-finance` (from `main` @ `63c77c7`, the v0.12.0 merge).
 
-**Released as v0.11.0 on 2026-09-25.** Annotated tag `v0.11.0` is on merge commit `625ef62` (PR #47).
-Digest `sha256:6f39143d…10077f` is on `v0.11.0` / `latest` / `sha-625ef62`. Details are in
-[`docs/RELEASE_NOTES_v0.11.0.md`](RELEASE_NOTES_v0.11.0.md), and the version badge reads
-`v0.11.0 · pre-release`. The household does two things in Unraid: back up, then Force Update. After
-updating they set **Settings → Household names → Signs in as** for each person.
+**Released as v0.12.1 on 2026-09-25.** Annotated tag `v0.12.1` on merge commit `PENDING` (PR #51). Digest
+`sha256:PENDING` is on `v0.12.1` / `latest` / `sha-PENDING`. Details are in
+[`docs/RELEASE_NOTES_v0.12.1.md`](RELEASE_NOTES_v0.12.1.md), and the version badge reads
+`v0.12.1 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
-## What changed (decisions 143–148)
+## What changed (decision 149)
 
-- **No sideways page (143).** The Quick Entry tab strip is a shrinkable `grid-cols-4`, the Move sub-tabs a
-  2×2/4 grid, and the headline wraps. The section has `overflow-x: clip`, and on a phone the black card is
-  `p-2`. Two home-page `grid` wrappers gained `grid-cols-1`: their implicit `auto` tracks grew to the widest
-  input.
-- **Explicit card switching (143).** The native scroll-snap container is gone. The track moves by
-  `translateX` inside a clipped viewport with `touch-action: pan-y`. It switches on Next, the dots, or a
-  touch swipe of ≥50px that is ≥1.5× more sideways than down. The hidden card is `inert`, and `lg:` keeps
-  two static columns (`useWideLayout`). `data-active-panel` on `[data-panel-track]` is the spec hook.
-- **Next instead of Save on card 1 (144).** Save is only on card 2. Enter on card 1 is intercepted
-  (Supplier → Amount, else Next). `canSave` is now `saveBlocked`.
-- **Card 2 order and chips (145).** Category → For → lines → "+ Add split" → Paid by (`ChipGroup`) → Date →
-  Save. `ChipGroup` = radios as pills in a `radiogroup`. `ChipSelect` is renamed `SelectField` (the pot
-  stays a select). The Fuel supplier uses `SupplierTypeahead` over `QuickEntryData.fuelSuppliers`
-  (`listFuelSupplierIds`).
-- **Signed-in defaults (146).** Migration `0010_people_email` adds `people.email` (nullable, unique).
-  Settings has a per-person "Signs in as" select (`signInEmailChoices`, `setPersonEmail`, audit
-  `person.email`), and vehicle cards show their Owner. `buildEntryData(db, now, user.email)` uses the pure
-  `entryDefaults`. The Fuel vehicle follows Paid by until a vehicle is tapped.
-- **Full tank off by default (147)** and the Insights nudge `fillsWithoutFullTank` (≥3 fills with none
-  full).
-- **Docs:** SPEC §15.1 (rewritten), §15.2 Settings row, §16.6; decisions 143–148; v0.11.0 in all five places.
+- **The link names the supplier (149).** v0.12.0 painted "Supplier card" on the Recurring schedule rows, the
+  Contracts & Renewals contract-end rows and (as a bare `/suppliers`) the follow-up rows — all of them landed
+  on a collapsed list of every supplier. They now carry `/suppliers?supplierId=<id>`, built in one place:
+  `supplierCardHref` in **`src/lib/records/supplier-focus.ts`**. `upcomingSupplierFollowUps` now returns
+  `supplierId`, which is what let the follow-up rows join in.
+- **One pure resolver, read twice.** `resolveSupplierFocus` accepts `?supplierId=`, the `?id=` alias, `?q=`
+  (exact name, else first partial) and the `#supplier-<id>` / `#<supplier name>` fragment. The **server page**
+  resolves the query string so the card is expanded in the first paint; the **client island**
+  (`SupplierCardList`) resolves only the fragment on mount (a server never sees it), sets the filter box,
+  expands the card and smooth-scrolls it into view (`scroll-mt-24` clears the sticky header;
+  `prefers-reduced-motion` skips the animation).
+- **A stale link is not a wrong card.** An id the household no longer holds falls back to the plain list;
+  junk ids (`0`, `-2`, `3x`) are ignored; a plain `/suppliers` visit is unchanged.
+- **The list is keyed by the resolved focus** (`supplierFocusKey`). A client-side hop from one
+  `?supplierId=` link to another is the *same route*, and without the key React kept the first link's filter.
+  The key only changes when the link changes, so a typed filter and manually opened cards survive a form
+  action exactly as before.
+- **Tests:** `tests/supplier-focus.test.ts` (15 cases, pure); the Recurring spec clicks the link and asserts
+  URL + filter + one card + `aria-expanded: true`; the Contracts spec clicks "BroadbandCo card →" and asserts
+  the same, then goes back. SPEC §21.2a added.
 
 ## Watch out for (learned this session)
 
-- **Emulation with default text is not enough.** Android font/display size broke a layout that looked fine
-  at 360–412px. Keep testing at 320px and at 360px with `html{font-size:130%}`. Never put `nowrap` on
-  anything unbounded, and give grids explicit `grid-cols-1` (not the implicit `auto` track).
-- **The hidden till card is `inert`.** Specs must switch cards before acting on the other card's fields
-  (`showPanel` in `e2e/home.spec.ts`). Assertions still see off-screen elements; actions do not work on them.
-  Desktop projects (1400px) see both columns and need nothing.
-- **Swipes in specs** use CDP `Input.dispatchTouchEvent` (the `drag` helper). Scroll the start point to the
-  middle of the screen first, or the sticky nav eats the touch.
-- **Chips in specs:** click the pill's `<label>` inside `getByRole('radiogroup', { name })`, then assert the
-  radio `toBeChecked()` (the `pickChip` helper).
-- **Turbopack stale SSR (SANDBOX entry 9)** bit again while taking screenshots: `rm -rf .next` and restart.
-- **The Overview page logs a hydration warning** (`<p>` containing a `<details>`/`<form>` at
-  `overview/page.tsx:305`). It was there before this release and is out of scope here, but worth fixing
-  soon.
+- **The Suppliers page has the `Filter suppliers` label twice.** Decorative `<h2>` headings inside expanded
+  cards are matched by `getByRole('heading')`, so a spec that clicks a card's *button* by heading name can
+  hit a strict-mode violation. Scope to the card and use `card.locator('p', { hasText: … })` when asserting
+  notes text — the notes *textarea* holds the same string.
+- **Same-route client navigation keeps component state.** Anything derived from `searchParams` on a page that
+  also holds filters needs either a key or a sync effect (decision 149's `supplierFocusKey`).
+- **A server never sees the fragment.** Anything promised as `#supplier-3` has to be handled in the client.
+- Local Playwright was run with the SANDBOX entry 8 recipe again (throwaway `playwright.local.config.ts`
+  overlay, `@sparticuz/chromium` at `/tmp/chromium`, `LD_LIBRARY_PATH=/tmp/al2023/lib`): **58 tests green**.
 
 ## Test state
 
-`npm test`: all green (new `tests/entry-defaults.test.ts`; the fuel-economy nudge test; restore counts
-eleven migrations). `format:check`, `tsc --noEmit` and `build` are clean. Local Playwright (SANDBOX entry
-8): all 58 tests passed across every project. The swipe test failed once in the first full run (the start
-point was under the sticky nav). It was fixed, and the mobile project then passed twice in a row. CI's
+`npm test`: 404 tests / 101 suites green (the new `tests/supplier-focus.test.ts`). `format:check`,
+`tsc --noEmit` and `next build` clean. Local Playwright: all 58 tests passed across every project. CI's
 `browser` job is the gate.
 
 ## Open / deferred
 
-- **The household's real phone is the final check (148).** Ask for the same three views as the before
+- **The household's real phone is still the final check (148).** Ask for the same three views as the before
   screenshots (2026-09-25 10:38 / 10:39 / 10:41).
+- **The Overview page logs a hydration warning** (`<p>` containing a `<details>`/`<form>` at
+  `overview/page.tsx:305`) — carried over from v0.11.0, still out of scope, still worth fixing.
 - UK gallons still assumed. Supplier-level documents are still deferred (OQ10).
 - Home page mobile layout beyond the till is still the household's later call.

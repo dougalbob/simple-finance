@@ -221,3 +221,12 @@ local check reports it — run `npx prettier --write playwright.local.config.ts`
   CI. Also worth remembering: `next build` rewrites `next-env.d.ts` (its two `reference` imports flip
   between `./.next/dev/types/…` and `./.next/types/…`), so `git checkout -- next-env.d.ts` before committing
   unless the change is the point.
+- **2026-09-25 (v0.12.1, session `arena/01a0d879-simple-finance`):** entry 8 re-proved a third time in a fresh
+  sandbox (Debian 12): `@sparticuz/chromium` from the registry, `al2023.tar.br` inflated by hand,
+  `LD_LIBRARY_PATH=/tmp/al2023/lib`, the throwaway `playwright.local.config.ts` overlay — the full suite,
+  58 tests across every project, green in ~2.5 minutes. `npm ci --ignore-scripts`, `npm test` (404/101),
+  `tsc --noEmit`, `format:check` and `next build` all green locally. Two small additions to the watch-list:
+  a throwaway spec that seeds supplier rows directly with `better-sqlite3` (no domain write needed) is a quick
+  way to force a long `/suppliers` list and check that a deep link really scrolls the named card to the top;
+  and `next build` flipped `next-env.d.ts` again — reverted with `git checkout -- next-env.d.ts` as entry 8's
+  history already advises.

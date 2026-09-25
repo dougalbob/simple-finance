@@ -194,6 +194,21 @@ test.describe('desktop review', () => {
     await expect(contractRow.getByText(/in \d+ days|ends today|rolled/i)).toBeVisible();
     await expect(page.getByText('Vehicle A insurance').first()).toBeVisible();
 
+    // "BroadbandCo card →" names the supplier it came from (decision 149): the
+    // Suppliers page opens filtered to that supplier with the card already
+    // open, not as a collapsed list of everyone.
+    await contracts.getByRole('link', { name: 'BroadbandCo card →' }).click();
+    await expect(page).toHaveURL(/\/suppliers\?supplierId=\d+/);
+    await expect(page.getByLabel('Filter suppliers')).toHaveValue('BroadbandCo');
+    await expect(
+      page
+        .locator('article', {
+          has: page.getByRole('heading', { name: 'BroadbandCo', exact: true }),
+        })
+        .getByRole('button', { name: 'BroadbandCo' }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    await page.goBack();
+
     // The renewal is editable in place.
     await page.getByText('Edit renewal').first().click();
     await expect(page.getByLabel('Warn days before').first()).toBeVisible();
@@ -241,15 +256,25 @@ test.describe('desktop review', () => {
     // (the edit-form <option> list also contains it, so avoid getByText alone).
     const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
     await expect(scheduleItem).toContainText(supplierName, { timeout: 30_000 });
-    await expect(scheduleItem.locator('a', { hasText: 'Supplier card' })).toBeVisible();
+    const supplierLink = scheduleItem.locator('a', { hasText: 'Supplier card' });
+    await expect(supplierLink).toBeVisible();
 
-    // It appears on the Suppliers page and contact details can be edited.
-    await page.goto('/suppliers');
+    // The link lands on that supplier — filtered to it, card already open, in
+    // view — instead of the collapsed full list (decision 149).
+    await supplierLink.click();
+    await expect(page).toHaveURL(/\/suppliers\?supplierId=\d+/);
+    await expect(page.getByLabel('Filter suppliers')).toHaveValue(supplierName);
+    await expect(page.locator('article')).toHaveCount(1);
     const card = page
       .locator('article', { has: page.getByRole('heading', { name: supplierName, exact: true }) })
       .first();
     await expect(card).toBeVisible({ timeout: 30_000 });
-    await card.getByRole('button', { name: supplierName }).click();
+    await expect(card.getByRole('button', { name: supplierName })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+
+    // Contact details can be edited straight away.
     await card.getByText('Edit contact card').click();
     await card.getByLabel('Phone').fill('01632 960333');
     await card.getByRole('button', { name: 'Save contact card' }).click();
