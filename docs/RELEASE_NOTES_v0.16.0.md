@@ -1,9 +1,11 @@
 # Release notes — v0.16.0 (colour lives in one place)
 
-**Published:** 2026-09-25.
-**Merge commit:** _stamped after merge (see below)._
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.16.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _stamped after publish._
+**Published:** 2026-09-25 (tag pushed, Publish run `36198977745` passed, image verified in the registry).
+**Merge commit:** `8adab266ae085c00d092f1eb0d80b2c5919c6c1f` (PR #62; short SHA `8adab26`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.16.0` · `latest` · `sha-8adab26`
+**Digest:** `sha256:e0b7994fb1a20da797934ad573417fe5f6982c6ad33f670ade139377ce9743ab`, one digest for all
+three tags, different from v0.15.0's `sha256:224cfdc9…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.16.0 · pre-release`
 
 ## What changed
