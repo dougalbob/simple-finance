@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 export interface PurchaseFilterValues {
   from?: string;
@@ -40,6 +40,17 @@ export function PurchaseFilterForm({
   const [open, setOpen] = useState(filtersAreActive(active));
   const [targetKind, setTargetKind] = useState(active.targetKind ?? '');
   const [targetId, setTargetId] = useState(active.targetId ?? '');
+  /**
+   * Until React has hydrated this island, a change in a controlled select is
+   * swallowed by the hydration render and the dependent Target picker never
+   * populates (SPEC §15.1 · the decision 131 rule, applied to this form). The
+   * form says whether it is listening: `data-filters-ready` is its signal, and
+   * `inert` keeps it from silently discarding input it cannot act on yet.
+   */
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
   const panelId = useId();
   const targetOptions = targetKind === 'person' ? people : targetKind === 'vehicle' ? vehicles : [];
   const inputClass =
@@ -52,6 +63,8 @@ export function PurchaseFilterForm({
     <form
       method="GET"
       aria-label="Purchase filters"
+      data-filters-ready={ready ? 'true' : 'false'}
+      inert={!ready}
       className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
     >
       <button

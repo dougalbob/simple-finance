@@ -20,6 +20,18 @@ export async function waitForTill(page: Page): Promise<void> {
 }
 
 /**
+ * Wait until the /purchases filter form is listening (SPEC §15.1 — the
+ * decision 131 rule applied to the filter island). The form's dependent
+ * selects (Target type → Target) are controlled React state: a `selectOption`
+ * landing before hydration is silently swallowed and the picker never
+ * populates, which is exactly what a fast test does on a cold runner. The form
+ * is `inert` until then and publishes `data-filters-ready`.
+ */
+export async function waitForFilters(page: Page): Promise<void> {
+  await expect(page.locator('[data-filters-ready="true"]')).toBeAttached();
+}
+
+/**
  * Today's date as the app sees it — the household's calendar in
  * Europe/London, not the test runner's. CI runs in UTC, so for an hour every
  * summer night (23:00–00:00 UTC is already tomorrow in London) a spec that

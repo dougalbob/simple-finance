@@ -42,9 +42,13 @@ let handle: DbHandle | null = null;
  * they cannot be applied (blueprint §7).
  */
 export function getDbHandle(config: AppConfig = loadAppConfig()): DbHandle {
+  // `raw.name` is the path AS PASSED — resolve both sides before comparing,
+  // or a relative DATABASE_PATH never matches and every call closes and
+  // reopens the handle (its first victim: /settings, which calls this twice
+  // and used to die mid-render with "The database connection is not open").
   if (
     handle === null ||
-    handle.raw.name !== path.resolve(config.databasePath) ||
+    path.resolve(handle.raw.name) !== path.resolve(config.databasePath) ||
     !sameDatabaseFile(handle.fileIdentity, config.databasePath)
   ) {
     if (handle !== null) handle.raw.close();
