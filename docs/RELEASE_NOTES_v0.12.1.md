@@ -1,11 +1,11 @@
 # Release notes — v0.12.1 ("Supplier card" links open that supplier)
 
-**Published:** 2026-09-25 (tag pushed PENDING, image verified in the registry PENDING).
-**Merge commit:** `PENDING` (PR #51; short SHA `PENDING`)
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.12.1` · `latest` · `sha-PENDING`
-**Digest:** `sha256:PENDING`, one digest for all three tags, different from v0.12.0's
-`sha256:153efbad…` (verified through `/users/dougalbob/packages/container/simple-finance/versions` after
-Publish run `PENDING` passed).
+**Published:** 2026-09-25 (tag pushed 12:37 UTC, image verified in the registry 12:40 UTC).
+**Merge commit:** `bb308137c7accd2f5ec963454b80751cc6a1ded0` (PR #51; short SHA `bb30813`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.12.1` · `latest` · `sha-bb30813`
+**Digest:** `sha256:4fe6c12f2e274163c5487491319cf119e21ef452ea2d081b356c0fc9e8fc0000`, one digest for all
+three tags, different from v0.12.0's `sha256:153efbad…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36136002907` passed).
 **Version badge:** `v0.12.1 · pre-release`
 
 ## What changed

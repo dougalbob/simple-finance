@@ -2,8 +2,8 @@
 
 Date: 2026-09-25. Branch: `arena/01a0d879-simple-finance` (from `main` @ `63c77c7`, the v0.12.0 merge).
 
-**Released as v0.12.1 on 2026-09-25.** Annotated tag `v0.12.1` on merge commit `PENDING` (PR #51). Digest
-`sha256:PENDING` is on `v0.12.1` / `latest` / `sha-PENDING`. Details are in
+**Released as v0.12.1 on 2026-09-25.** Annotated tag `v0.12.1` is on merge commit `bb30813` (PR #51).
+Digest `sha256:4fe6c12f…fc0000` is on `v0.12.1` / `latest` / `sha-bb30813`. Details are in
 [`docs/RELEASE_NOTES_v0.12.1.md`](RELEASE_NOTES_v0.12.1.md), and the version badge reads
 `v0.12.1 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 

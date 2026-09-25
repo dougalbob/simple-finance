@@ -1151,7 +1151,11 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   `src/lib/records/supplier-focus.ts` (SPEC §21.2a) with `tests/supplier-focus.test.ts` (15 cases); browser
   assertions added to both `e2e/desktop.spec.ts` specs. No schema change, no migration. `npm test`
   **404 tests / 101 suites green**, format, typecheck and production build clean, local Playwright
-  **58 tests green** (SANDBOX entry 8 recipe).
+  **58 tests green** (SANDBOX entry 8 recipe). **Published 2026-09-25**: annotated tag `v0.12.1` on merge
+  commit `bb30813` (PR #51), publish run `36136002907`, digest
+  `sha256:4fe6c12f2e274163c5487491319cf119e21ef452ea2d081b356c0fc9e8fc0000` on `v0.12.1` / `latest` /
+  `sha-bb30813` — one digest, different from v0.12.0's
+  ([`docs/RELEASE_NOTES_v0.12.1.md`](RELEASE_NOTES_v0.12.1.md)).
 - **Releases v0.1.0 → v0.6.0 are published** — each a lower-case annotated tag on its pull-request merge
   commit with its own digest; the notes file is the release record and earlier notes are never rewritten
   (`docs/RELEASE_NOTES_v0.1.0.md` … `docs/RELEASE_NOTES_v0.6.0.md`). Before v0.7.0, `latest` is the **v0.6.0**
