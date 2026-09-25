@@ -3,18 +3,23 @@ import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
 import { formatPence } from '@/lib/money';
 import { addDaysLocal } from '@/lib/records/dates';
+import { HorizonLookAheadForm } from '@/components/horizon-look-ahead-form';
+import { resolveHorizonThrough } from '@/lib/records/horizon-default';
 import {
   ensureScheduleState,
   getHorizonProjectionView,
   landPenceOf,
+  nextScheduledIncomeDate,
 } from '@/lib/records/money-view';
 import { listPots } from '@/lib/records/pots';
-import { isValidLocalDate, toLocalDateString } from '@/lib/time';
+import { toLocalDateString } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 /** The furthest the household can look ahead (a planning figure, not a promise). */
 const HORIZON_MAX_DAYS = 400;
+/** The default window when no scheduled income is ahead (five weeks). */
+const HORIZON_FALLBACK_DAYS = 35;
 
 interface SearchParams {
   through?: string;
@@ -57,15 +62,19 @@ export default async function HorizonPage({
   const minSelectable = addDaysLocal(today, 1);
   const maxSelectable = addDaysLocal(today, HORIZON_MAX_DAYS);
 
-  // The chosen date: any valid date up to today + 400, else a sensible
-  // default (five weeks ahead). Clamped, never trusted from the client.
-  const requestedThrough = typeof params.through === 'string' ? params.through : '';
-  const throughDate =
-    isValidLocalDate(requestedThrough) &&
-    requestedThrough >= minSelectable &&
-    requestedThrough <= maxSelectable
-      ? requestedThrough
-      : addDaysLocal(today, 35);
+  // The chosen date (decision 150): a valid `?through=` inside the window is
+  // used as given; otherwise the day before the next scheduled income (the
+  // salary — a debt's expected support never counts), clamped into the
+  // window; with no scheduled income at all, five weeks ahead. Never trusted
+  // from the client.
+  const { date: throughDate } = resolveHorizonThrough({
+    today,
+    requested: typeof params.through === 'string' ? params.through : null,
+    nextIncomeDate: nextScheduledIncomeDate(db, today),
+    minDate: minSelectable,
+    maxDate: maxSelectable,
+    fallbackDays: HORIZON_FALLBACK_DAYS,
+  });
 
   // Selected pots: empty or "all" opts into every pot; otherwise ids.
   // HTML checkboxes submit repeated `pots=…` params, which Next.js surfaces
@@ -152,43 +161,11 @@ export default async function HorizonPage({
         aria-label="Choose the horizon"
         className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
-        <form method="GET" action="/horizon" className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="horizon-through" className="text-xs font-medium text-slate-600">
-                Look ahead to
-              </label>
-              <input
-                id="horizon-through"
-                name="through"
-                type="date"
-                min={minSelectable}
-                max={maxSelectable}
-                defaultValue={throughDate}
-                className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="horizon-daytoday" className="text-xs font-medium text-slate-600">
-                Day-to-day
-              </label>
-              <select
-                id="horizon-daytoday"
-                name="daytoday"
-                defaultValue={includeDayToDay ? '1' : '0'}
-                className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-              >
-                <option value="1">Include groceries &amp; fuel</option>
-                <option value="0">Bills only (leave out day-to-day)</option>
-              </select>
-            </div>
-            <button
-              type="submit"
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-            >
-              Look ahead
-            </button>
-          </div>
+        <HorizonLookAheadForm
+          minDate={minSelectable}
+          maxDate={maxSelectable}
+          throughDate={throughDate}
+        >
           <fieldset>
             <legend className="text-xs font-medium text-slate-600">
               Which pots count?{' '}
@@ -215,10 +192,25 @@ export default async function HorizonPage({
             <p className="mt-1 text-xs text-slate-500">
               {allSelected
                 ? 'Every pot is counted. A debt’s expected support counts only when the pot it lands in is ticked.'
-                : 'Only ticked pots are counted. A debt’s expected support counts only when the pot it lands in is ticked.'}
+                : 'Only ticked pots are counted. A debt’s expected support counts only when the pot it lands in is ticked.'}{' '}
+              Unticking every pot counts every pot.
             </p>
           </fieldset>
-        </form>
+          <div className="flex flex-col gap-1 self-start">
+            <label htmlFor="horizon-daytoday" className="text-xs font-medium text-slate-600">
+              Day-to-day
+            </label>
+            <select
+              id="horizon-daytoday"
+              name="daytoday"
+              defaultValue={includeDayToDay ? '1' : '0'}
+              className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            >
+              <option value="1">Include groceries &amp; fuel</option>
+              <option value="0">Bills only (leave out day-to-day)</option>
+            </select>
+          </div>
+        </HorizonLookAheadForm>
       </section>
 
       <section className="mb-6 grid gap-4 lg:grid-cols-3">

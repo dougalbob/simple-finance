@@ -1,54 +1,50 @@
-# Handoff: "Supplier card" links open that supplier (v0.12.1)
+# Handoff: Horizon opens the day before payday, and the date applies itself (v0.13.0, unreleased)
 
-Date: 2026-09-25. Branch: `arena/01a0d879-simple-finance` (from `main` @ `63c77c7`, the v0.12.0 merge).
+Date: 2026-09-25. Branch: `arena/01a0d8b1-simple-finance` (from `main` @ `7a2a3a4`, the v0.12.1 merge).
 
-**Released as v0.12.1 on 2026-09-25.** Annotated tag `v0.12.1` is on merge commit `bb30813` (PR #51).
-Digest `sha256:4fe6c12f…fc0000` is on `v0.12.1` / `latest` / `sha-bb30813`. Details are in
-[`docs/RELEASE_NOTES_v0.12.1.md`](RELEASE_NOTES_v0.12.1.md), and the version badge reads
-`v0.12.1 · pre-release`. The household does two things in Unraid: back up, then Force Update.
+**Not released yet.** The household chooses the timing; this is a behaviour change, so **v0.13.0**.
 
-## What changed (decision 149)
+## What changed (decision 150)
 
-- **The link names the supplier (149).** v0.12.0 painted "Supplier card" on the Recurring schedule rows, the
-  Contracts & Renewals contract-end rows and (as a bare `/suppliers`) the follow-up rows — all of them landed
-  on a collapsed list of every supplier. They now carry `/suppliers?supplierId=<id>`, built in one place:
-  `supplierCardHref` in **`src/lib/records/supplier-focus.ts`**. `upcomingSupplierFollowUps` now returns
-  `supplierId`, which is what let the follow-up rows join in.
-- **One pure resolver, read twice.** `resolveSupplierFocus` accepts `?supplierId=`, the `?id=` alias, `?q=`
-  (exact name, else first partial) and the `#supplier-<id>` / `#<supplier name>` fragment. The **server page**
-  resolves the query string so the card is expanded in the first paint; the **client island**
-  (`SupplierCardList`) resolves only the fragment on mount (a server never sees it), sets the filter box,
-  expands the card and smooth-scrolls it into view (`scroll-mt-24` clears the sticky header;
-  `prefers-reduced-motion` skips the animation).
-- **A stale link is not a wrong card.** An id the household no longer holds falls back to the plain list;
-  junk ids (`0`, `-2`, `3x`) are ignored; a plain `/suppliers` visit is unchanged.
-- **The list is keyed by the resolved focus** (`supplierFocusKey`). A client-side hop from one
-  `?supplierId=` link to another is the *same route*, and without the key React kept the first link's filter.
-  The key only changes when the link changes, so a typed filter and manually opened cards survive a form
-  action exactly as before.
-- **Tests:** `tests/supplier-focus.test.ts` (15 cases, pure); the Recurring spec clicks the link and asserts
-  URL + filter + one card + `aria-expanded: true`; the Contracts spec clicks "BroadbandCo card →" and asserts
-  the same, then goes back. SPEC §21.2a added.
+- **Default date = the day before the next scheduled income.** The household said "income" means the
+  **salary**, so only **receipt schedules** count. A debt's expected support never sets the default, even when
+  it lands first. The payday window (§7.2) and the till figure (§7.7) still count it, on purpose, and a test
+  pins the difference. New pure resolver **`src/lib/records/horizon-default.ts`** (`resolveHorizonThrough`);
+  new export **`nextScheduledIncomeDate`** in `money-view.ts`, which shares one query with the private
+  `nextExpectedIncome`. The clamp: income tomorrow ⇒ tomorrow; beyond 400 days ⇒ today + 400; no scheduled
+  income ⇒ today + 35; a valid in-range `?through=` wins unchanged. The default also applies alongside other
+  params (`?daytoday=0` alone still gets it).
+- **A date change applies the look-ahead.** Form order is pots → Day-to-day → date → button. The client island
+  **`src/components/horizon-look-ahead-form.tsx`** keeps the plain `GET /horizon` form and runs
+  `requestSubmit()` on the date's `change`. It does not submit when the field is empty or invalid. Pots and
+  Day-to-day do not apply on their own; the button handles those, and it is the whole path without
+  JavaScript. `data-horizon-ready` marks hydration. The form dims while navigating, and a bfcache restore
+  un-dims it.
+- **Specs:** `tests/horizon-default.test.ts` (12). `e2e/horizon.spec.ts` now has 9 specs. The default-date
+  spec reads the Income page's "Next payday" (same definition) instead of re-deriving dates. The
+  seeded-scope spec now names `?through=+35` because the default window can be only a day or two long.
 
 ## Watch out for (learned this session)
 
-- **The Suppliers page has the `Filter suppliers` label twice.** Decorative `<h2>` headings inside expanded
-  cards are matched by `getByRole('heading')`, so a spec that clicks a card's *button* by heading name can
-  hit a strict-mode violation. Scope to the card and use `card.locator('p', { hasText: … })` when asserting
-  notes text — the notes *textarea* holds the same string.
-- **Same-route client navigation keeps component state.** Anything derived from `searchParams` on a page that
-  also holds filters needs either a key or a sync effect (decision 149's `supplierFocusKey`).
-- **A server never sees the fragment.** Anything promised as `#supplier-3` has to be handled in the client.
-- Local Playwright was run with the SANDBOX entry 8 recipe again (throwaway `playwright.local.config.ts`
-  overlay, `@sparticuz/chromium` at `/tmp/chromium`, `LD_LIBRARY_PATH=/tmp/al2023/lib`): **58 tests green**.
+- **The income project moves the seeded salary** (weekend probe) and adds a Car allowance on the 15th, so by
+  the time horizon runs the "next payday" is not the 27th. Never hard-code it; read it from `/income`.
+- **Date-input `fill()` now navigates.** Wait for `form[data-horizon-ready="true"]` first, or the change
+  fires before hydration and nothing happens. Then assert the URL; do not click the button afterwards.
+- A one-off spec file needs `horizon` in its name to be picked up by the `horizon` project's `testMatch`.
 
 ## Test state
 
-`npm test`: 404 tests / 101 suites green (the new `tests/supplier-focus.test.ts`). `format:check`,
-`tsc --noEmit` and `next build` clean. Local Playwright: all 58 tests passed across every project. CI's
-`browser` job is the gate.
+`npm test`: 416 tests / 103 suites green. `format:check`, `tsc --noEmit` and `next build` are clean. Local
+Playwright (SANDBOX entry 8 recipe, `playwright.local.config.ts` added to `.git/info/exclude`): **62 tests
+green** (58 + 4 new horizon specs). CI's `browser` job is the gate.
 
 ## Open / deferred
+
+- **Release v0.13.0 is the household's call** — not bumped, tagged or published yet. When they say go:
+  five version places, PR, merge commit, annotated tag, publish, registry check, notes (mention the long
+  default window for an annual-only income), GitHub release (`docs/RELEASE_PROCESS.md`).
+- **Empty pot selection = every pot** is kept and now stated under the checkboxes. Asked the household
+  whether "untick all" should mean *none* instead (needs a marker param, a §7.6 wording change and a spec).
 
 - **The household's real phone is still the final check (148).** Ask for the same three views as the before
   screenshots (2026-09-25 10:38 / 10:39 / 10:41).
