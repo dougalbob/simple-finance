@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
-import { attachments, purchases } from '../db/schema';
+import { attachments, purchases, receipts } from '../db/schema';
 
 /**
  * Receipt/invoice attachments (SPEC §23). One shared, framework-free pipeline
@@ -114,9 +114,18 @@ export function sanitizeOriginalName(raw: string): string {
   return cleaned.slice(0, 200);
 }
 
+/**
+ * What a document is attached to (decision 138): a purchase (receipts,
+ * invoices) or, since v0.10.0, an income record (payslips). Exactly one.
+ */
+export type AttachmentOwner = { kind: 'purchase'; id: number } | { kind: 'receipt'; id: number };
+
 export interface StoreAttachmentInput {
   db: Db;
-  purchaseId: number;
+  /** A purchase's receipt or invoice. Give this or `receiptId`, never both. */
+  purchaseId?: number;
+  /** An income record's document — a payslip, typically (v0.10.0). */
+  receiptId?: number;
   originalName: string;
   bytes: Buffer;
   actor: string;
@@ -146,12 +155,8 @@ export interface StoredAttachment {
  * missing would make the archive inconsistent.
  */
 export async function storeAttachment(input: StoreAttachmentInput): Promise<StoredAttachment> {
-  const purchase = input.db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .where(eq(purchases.id, input.purchaseId))
-    .get();
-  if (purchase === undefined) throw new AttachmentInputError('That purchase no longer exists.');
+  const owner = resolveOwner(input);
+  assertOwnerExists(input.db, owner);
 
   if (input.bytes.length === 0) throw new AttachmentInputError('The file is empty.');
   if (input.bytes.length > MAX_ATTACHMENT_BYTES) {
@@ -181,7 +186,8 @@ export async function storeAttachment(input: StoreAttachmentInput): Promise<Stor
     const row = tx
       .insert(attachments)
       .values({
-        purchaseId: input.purchaseId,
+        purchaseId: owner.kind === 'purchase' ? owner.id : null,
+        receiptId: owner.kind === 'receipt' ? owner.id : null,
         fileKey,
         originalName,
         mime,
@@ -196,8 +202,8 @@ export async function storeAttachment(input: StoreAttachmentInput): Promise<Stor
     recordAudit(tx, {
       actor: input.actor,
       action: 'attachment.store',
-      entity: 'purchase',
-      entityId: input.purchaseId,
+      entity: owner.kind,
+      entityId: owner.id,
       summary: `Attached ${originalName} (${attachmentSizeLabel(input.bytes.length)}, ${mime})`,
       after: { fileKey, originalName, mime, sizeBytes: input.bytes.length, sha256 },
       now,
@@ -256,11 +262,12 @@ export async function deleteAttachment(
       .returning({ id: attachments.id })
       .all();
     if (updated.length === 0) return false;
+    const owner = ownerOfRow(row);
     recordAudit(tx, {
       actor: input.actor,
       action: 'attachment.delete',
-      entity: 'purchase',
-      entityId: row.purchaseId,
+      entity: owner.kind,
+      entityId: owner.id,
       summary: `Removed ${row.originalName} (${attachmentSizeLabel(row.sizeBytes)}, ${row.mime})`,
       before: {
         fileKey: row.fileKey,
@@ -324,6 +331,71 @@ export function listStoredAttachments(db: Db, purchaseId: number): StoredAttachm
     .where(and(eq(attachments.purchaseId, purchaseId), eq(attachments.state, 'stored')))
     .orderBy(asc(attachments.id))
     .all();
+}
+
+/**
+ * Stored documents of many income records at once, oldest first per record —
+ * the Income page lists up to two hundred rows and should not ask two hundred
+ * times.
+ */
+export function listStoredReceiptAttachments(
+  db: Db,
+  receiptIds: readonly number[],
+): Map<number, StoredAttachment[]> {
+  const byReceipt = new Map<number, StoredAttachment[]>();
+  if (receiptIds.length === 0) return byReceipt;
+  const rows = db
+    .select({
+      receiptId: attachments.receiptId,
+      id: attachments.id,
+      fileKey: attachments.fileKey,
+      originalName: attachments.originalName,
+      mime: attachments.mime,
+      sizeBytes: attachments.sizeBytes,
+      sha256: attachments.sha256,
+    })
+    .from(attachments)
+    .where(and(inArray(attachments.receiptId, [...receiptIds]), eq(attachments.state, 'stored')))
+    .orderBy(asc(attachments.id))
+    .all();
+  for (const { receiptId, ...attachment } of rows) {
+    if (receiptId === null) continue;
+    const list = byReceipt.get(receiptId) ?? [];
+    list.push(attachment);
+    byReceipt.set(receiptId, list);
+  }
+  return byReceipt;
+}
+
+function resolveOwner(input: { purchaseId?: number; receiptId?: number }): AttachmentOwner {
+  const hasPurchase = input.purchaseId !== undefined;
+  const hasReceipt = input.receiptId !== undefined;
+  if (hasPurchase === hasReceipt) {
+    throw new AttachmentInputError('A document belongs to exactly one purchase or income record.');
+  }
+  return hasPurchase
+    ? { kind: 'purchase', id: input.purchaseId as number }
+    : { kind: 'receipt', id: input.receiptId as number };
+}
+
+function assertOwnerExists(db: Db, owner: AttachmentOwner): void {
+  if (owner.kind === 'purchase') {
+    const row = db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .where(eq(purchases.id, owner.id))
+      .get();
+    if (row === undefined) throw new AttachmentInputError('That purchase no longer exists.');
+    return;
+  }
+  const row = db.select({ id: receipts.id }).from(receipts).where(eq(receipts.id, owner.id)).get();
+  if (row === undefined) throw new AttachmentInputError('That income record no longer exists.');
+}
+
+function ownerOfRow(row: { purchaseId: number | null; receiptId: number | null }): AttachmentOwner {
+  if (row.purchaseId !== null) return { kind: 'purchase', id: row.purchaseId };
+  // The CHECK constraint guarantees one of the two is set.
+  return { kind: 'receipt', id: row.receiptId as number };
 }
 
 /** Read one stored attachment's bytes from the documents directory. */

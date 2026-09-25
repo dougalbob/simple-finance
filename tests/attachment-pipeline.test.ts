@@ -12,6 +12,7 @@ import { findChildCategory } from '../src/lib/records/categories';
 import { createPerson } from '../src/lib/records/people';
 import { createPot } from '../src/lib/records/pots';
 import { createPurchase } from '../src/lib/records/purchases';
+import { createReceipt } from '../src/lib/records/receipts';
 import {
   AttachmentInputError,
   AttachmentNotFoundError,
@@ -19,6 +20,7 @@ import {
   deleteAttachment,
   isSafeFileKey,
   listStoredAttachments,
+  listStoredReceiptAttachments,
   readAttachmentBytes,
   sanitizeOriginalName,
   sniffAttachmentMime,
@@ -463,6 +465,154 @@ describe('removing an attachment', () => {
     }
   });
 });
+
+describe('documents on income records (v0.10.0, decision 138)', () => {
+  it('attaches a payslip to an income record through the same pipeline', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      const salary = incomeIn(fx);
+      const other = incomeIn(fx);
+
+      const first = await storeAttachment({
+        db: fx.db,
+        receiptId: salary,
+        originalName: 'September payslip.pdf',
+        bytes: PDF_BYTES,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      await storeAttachment({
+        db: fx.db,
+        receiptId: salary,
+        originalName: 'P60.png',
+        bytes: PNG_BYTES,
+        actor: 'sam@example.com',
+        documentsDir,
+      });
+      assert.equal(first.mime, 'application/pdf');
+      assert.ok(existsSync(path.join(documentsDir, first.fileKey)));
+
+      // Several documents per record, oldest first; other records untouched.
+      const byReceipt = listStoredReceiptAttachments(fx.db, [salary, other]);
+      assert.deepEqual(
+        byReceipt.get(salary)?.map((doc) => doc.originalName),
+        ['September payslip.pdf', 'P60.png'],
+      );
+      assert.equal(byReceipt.get(other), undefined);
+      assert.equal(listStoredReceiptAttachments(fx.db, []).size, 0);
+
+      // The row names its income record and no purchase; the audit says so too.
+      const row = fx.db.select().from(attachments).where(eq(attachments.id, first.id)).get();
+      assert.equal(row?.receiptId, salary);
+      assert.equal(row?.purchaseId, null);
+      const audit = fx.db
+        .select()
+        .from(auditEntries)
+        .where(eq(auditEntries.action, 'attachment.store'))
+        .all();
+      assert.deepEqual(
+        audit.map((entry) => [entry.entity, entry.entityId]),
+        [
+          ['receipt', String(salary)],
+          ['receipt', String(salary)],
+        ],
+      );
+
+      // Removal works the same way, and is audited against the income record.
+      const removed = await deleteAttachment({
+        db: fx.db,
+        id: first.id,
+        actor: 'alex@example.com',
+        documentsDir,
+      });
+      assert.equal(removed.deleted, true);
+      assert.equal(existsSync(path.join(documentsDir, first.fileKey)), false);
+      assert.deepEqual(
+        listStoredReceiptAttachments(fx.db, [salary])
+          .get(salary)
+          ?.map((doc) => doc.originalName),
+        ['P60.png'],
+      );
+      const deletion = fx.db
+        .select()
+        .from(auditEntries)
+        .where(eq(auditEntries.action, 'attachment.delete'))
+        .get();
+      assert.equal(deletion?.entity, 'receipt');
+      assert.equal(deletion?.entityId, String(salary));
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('needs exactly one owner that exists, and still sniffs the content', async () => {
+    const fx = await createHouseholdFixture('alex@example.com');
+    try {
+      const documentsDir = path.join(path.dirname(fx.handle.raw.name), 'documents');
+      const salary = incomeIn(fx);
+      const purchase = purchaseIn(fx.db, fx);
+      await assert.rejects(
+        storeAttachment({
+          db: fx.db,
+          receiptId: 9999,
+          originalName: 'payslip.pdf',
+          bytes: PDF_BYTES,
+          actor: 'alex@example.com',
+          documentsDir,
+        }),
+        /income record no longer exists/,
+      );
+      await assert.rejects(
+        storeAttachment({
+          db: fx.db,
+          receiptId: salary,
+          purchaseId: purchase,
+          originalName: 'payslip.pdf',
+          bytes: PDF_BYTES,
+          actor: 'alex@example.com',
+          documentsDir,
+        }),
+        AttachmentInputError,
+      );
+      await assert.rejects(
+        storeAttachment({
+          db: fx.db,
+          receiptId: salary,
+          originalName: 'payslip.pdf',
+          bytes: ZIP_BYTES,
+          actor: 'alex@example.com',
+          documentsDir,
+        }),
+        /Only genuine PNG, JPEG or PDF/,
+      );
+      // The database refuses a row with no owner or two, whatever the code does.
+      assert.throws(() =>
+        fx.handle.raw
+          .prepare(
+            `INSERT INTO attachments (purchase_id, receipt_id, file_key, original_name, mime, size_bytes, sha256, created_by, created_at)
+             VALUES (?, ?, '00000000-0000-4000-8000-000000000000.pdf', 'x.pdf', 'application/pdf', 1, 'x', 'a', 0)`,
+          )
+          .run(purchase, salary),
+      );
+      assert.equal(listStoredReceiptAttachments(fx.db, [salary]).size, 0);
+    } finally {
+      fx.close();
+    }
+  });
+});
+
+/** A one-off income record inside the fixture database, for document tests. */
+function incomeIn(fx: Awaited<ReturnType<typeof createHouseholdFixture>>): number {
+  return createReceipt(fx.db, {
+    potId: fx.pots.salary.id,
+    amountPence: 210000,
+    occurredDate: '2026-09-19',
+    source: 'Salary',
+    actor: 'alex@example.com',
+    now: new Date('2026-09-19T12:01:00Z'),
+  }).id;
+}
 
 /** A minimal purchase inside the fixture database, for attachment tests. */
 function purchaseIn(

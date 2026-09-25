@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AttachmentForm } from '@/components/attachment-form';
+import { FuelDetailsForm } from '@/components/fuel-details-form';
 import { PotOutlookLine } from '@/components/pot-outlook';
 import { QuickEntry } from '@/components/quick-entry';
 import { AddCheckpointForm, CreatePotForm } from '@/components/pot-forms';
@@ -32,6 +33,7 @@ import {
   TransferNotFoundError,
   type Transfer,
 } from '@/lib/records/transfers';
+import { fuelRowDetails, getFuelRowContext } from '@/lib/records/fuel';
 import { listVehicles } from '@/lib/records/vehicles';
 import { formatInstantLocal, formatRelativeAge, toLocalDateString } from '@/lib/time';
 import { ProjectionSection } from './projection-panel';
@@ -82,6 +84,7 @@ export default async function OverviewPage({
   );
 
   const recentPurchases = listPurchases(db, { limit: 12, includeVoided: true });
+  const fuelContext = getFuelRowContext(db);
   const recentTransfers = listTransfers(db, { limit: 5 });
   // A deep link from All Transactions (SPEC §15.3) must land on the record it
   // names, even after that transfer has fallen out of the recent five.
@@ -243,6 +246,10 @@ export default async function OverviewPage({
                         </details>
                       </div>
                     ) : null}
+                    {(() => {
+                      const fuel = fuelRowDetails(fuelContext, purchase, allocations);
+                      return fuel === null ? null : <FuelDetailsForm {...fuel} />;
+                    })()}
                     <AttachmentForm
                       purchaseId={purchase.id}
                       attachments={listStoredAttachments(db, purchase.id)}

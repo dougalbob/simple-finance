@@ -16,6 +16,7 @@ import {
   type PurchaseActionState,
 } from '@/lib/action-state';
 import { formatPence, parsePence, penceInput } from '@/lib/money';
+import { formatPencePerLitre, parseLitres } from '@/lib/records/fuel-economy';
 import {
   followedLineAmount,
   nearestSupplierName,
@@ -1224,10 +1225,20 @@ function FuelForm({ data }: { data: QuickEntryData }) {
   const [supplierName, setSupplierName] = useState('');
   const [occurredDate, setOccurredDate] = useState('');
   const [note, setNote] = useState('');
+  const [litres, setLitres] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [fullTank, setFullTank] = useState(true);
   const submitGuard = useRef(false);
   useEffect(() => {
     if (!pending) submitGuard.current = false;
   }, [pending]);
+  // The forecourt price, worked out as soon as both figures are typed.
+  const amountPence = parsePence(amount);
+  const litresParsed = parseLitres(litres);
+  const priceHint =
+    amountPence !== null && amountPence > 0 && litresParsed.ok && litresParsed.value !== null
+      ? `= ${formatPencePerLitre(amountPence, litresParsed.value)}`
+      : null;
   const canSave =
     parsePence(amount) !== null &&
     parsePence(amount)! > 0 &&
@@ -1259,6 +1270,47 @@ function FuelForm({ data }: { data: QuickEntryData }) {
             className={`${inputClass} text-2xl font-semibold tabular-nums`}
           />
         </Field>
+        {/* Decision 139: both optional — a household in a rush adds them later
+            from Purchases, and mpg appears once they are there. */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Litres (optional)" hint={priceHint ?? 'From the pump or receipt.'}>
+            <input
+              name="litres"
+              value={litres}
+              onChange={(event) => setLitres(event.target.value)}
+              inputMode="decimal"
+              placeholder="e.g. 40.12"
+              className={`${inputClass} mt-1 tabular-nums`}
+            />
+          </Field>
+          <Field label="Odometer (optional)" hint="Miles on the dashboard.">
+            <input
+              name="odometer"
+              value={odometer}
+              onChange={(event) => setOdometer(event.target.value)}
+              inputMode="numeric"
+              placeholder="e.g. 52310"
+              className={`${inputClass} mt-1 tabular-nums`}
+            />
+          </Field>
+        </div>
+        <input type="hidden" name="fullTankShown" value="1" />
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">
+          <input
+            type="checkbox"
+            name="fullTank"
+            value="1"
+            checked={fullTank}
+            onChange={(event) => setFullTank(event.target.checked)}
+            className="h-5 w-5 accent-slate-900"
+          />
+          <span>
+            Filled to full
+            <span className="block text-xs font-normal text-slate-500">
+              Untick for a part fill — mpg is measured between full tanks.
+            </span>
+          </span>
+        </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <ChipSelect
             label="Vehicle"
@@ -1321,7 +1373,7 @@ function FuelForm({ data }: { data: QuickEntryData }) {
         <button
           type="submit"
           disabled={pending || !canSave}
-          className="mt-4 rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 min-h-[48px] rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? 'Saving…' : 'Save fuel'}
         </button>

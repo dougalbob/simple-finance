@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { RecentEntryActions } from '@/components/record-forms';
 import { AttachmentForm } from '@/components/attachment-form';
+import { FuelDetailsForm, type FuelDetailsFormProps } from '@/components/fuel-details-form';
 import { PurchaseFilterForm } from '@/components/purchase-filter-form';
 import { listAuditForEntity, type AuditEntry } from '@/lib/audit';
 import { formatPence } from '@/lib/money';
@@ -13,6 +14,7 @@ import { listPots } from '@/lib/records/pots';
 import { listPurchases, type PurchaseFilters } from '@/lib/records/purchases';
 import { listSuppliersForEntry } from '@/lib/records/suppliers';
 import { listStoredAttachments, type StoredAttachment } from '@/lib/records/attachments';
+import { fuelRowDetails, getFuelRowContext } from '@/lib/records/fuel';
 import { listVehicles } from '@/lib/records/vehicles';
 import { formatInstantLocal, toLocalDateString } from '@/lib/time';
 
@@ -99,6 +101,7 @@ export default async function PurchasesPage({
   const potNames = new Map(pots.map((pot) => [pot.id, pot.label]));
   const supplierNames = new Map(suppliers.map((supplier) => [supplier.id, supplier.name]));
   const personNames = new Map(people.map((person) => [person.id, person.label]));
+  const fuelContext = getFuelRowContext(db);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
@@ -177,6 +180,7 @@ export default async function PurchasesPage({
                       targetId: line.targetId,
                     }))}
                     attachments={listStoredAttachments(db, purchase.id)}
+                    fuel={fuelRowDetails(fuelContext, purchase, allocations)}
                     history={listAuditForEntity(db, 'purchase', purchase.id)}
                     fromSchedule={purchase.scheduleInstanceId !== null}
                     isRefund={purchase.refundOfPurchaseId !== null}
@@ -236,6 +240,8 @@ interface PurchaseRowProps {
   note: string;
   version: number;
   attachments: StoredAttachment[];
+  /** Odometer, litres and mpg — fuel purchases only (v0.10.0). */
+  fuel: FuelDetailsFormProps | null;
   history: AuditEntry[];
   people: Array<{ id: number; label: string }>;
   vehicles: Array<{ id: number; label: string }>;
@@ -271,6 +277,7 @@ function PurchaseRow(props: PurchaseRowProps) {
           {props.supplierLabel}
         </span>
         {props.note !== '' ? <p className="mt-0.5 text-xs text-slate-500">{props.note}</p> : null}
+        {props.fuel !== null ? <FuelDetailsForm {...props.fuel} /> : null}
         <AttachmentForm purchaseId={props.purchaseId} attachments={props.attachments} />
         <details className="mt-1">
           <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800">

@@ -26,6 +26,17 @@ import {
 } from '@/lib/records/attachments';
 import { toLocalDateString } from '@/lib/time';
 import {
+  InvalidFuelDetailsError,
+  parseLitres,
+  parseOdometer,
+  type FuelDetails,
+} from '@/lib/records/fuel-economy';
+import {
+  editFuelDetails,
+  fuelFeedbackForPurchase,
+  NotAFuelPurchaseError,
+} from '@/lib/records/fuel';
+import {
   initialActionState,
   type ActionState,
   type PurchaseActionState,
@@ -118,6 +129,7 @@ import {
   editScheduleEntrySchema,
   editExternalMovementEntrySchema,
   externalMovementEntrySchema,
+  fuelDetailsEntrySchema,
   fuelEntrySchema,
   potIdSchema,
   potKindSchema,
@@ -274,10 +286,13 @@ export async function uploadAttachmentAction(
 ): Promise<ActionState> {
   const user = await currentUserFromRequest();
   if (!user) return NOT_SIGNED_IN;
-  const id = Number(formData.get('purchaseId'));
+  // A purchase's receipt, or (v0.10.0, decision 138) an income record's
+  // document — the form posts exactly one of the two ids.
+  const purchaseId = positiveNumber(formData.get('purchaseId'));
+  const receiptId = positiveNumber(formData.get('receiptId'));
   const file = formData.get('file');
-  if (!Number.isInteger(id) || !(file instanceof File))
-    return { status: 'error', message: 'Choose a purchase and a file.' };
+  if ((purchaseId === null) === (receiptId === null) || !(file instanceof File) || file.size === 0)
+    return { status: 'error', message: 'Choose a file to attach.' };
 
   const bytes = Buffer.from(await file.arrayBuffer());
   try {
@@ -286,20 +301,26 @@ export async function uploadAttachmentAction(
     // cannot drift apart.
     const stored = await storeAttachment({
       db: getDbHandle().db,
-      purchaseId: id,
+      ...(purchaseId !== null ? { purchaseId } : { receiptId: receiptId as number }),
       originalName: file.name,
       bytes,
       actor: user.email,
       documentsDir: loadAppConfig().documentsDir,
     });
-    revalidatePath('/purchases');
-    revalidatePath('/overview');
-    revalidatePath('/suppliers');
+    revalidateAttachmentPages();
     return { status: 'ok', message: `Attached ${stored.originalName}.` };
   } catch (err) {
     if (err instanceof AttachmentInputError) return { status: 'error', message: err.message };
     throw err;
   }
+}
+
+/** Every page that lists documents: purchases (receipts) and income (payslips). */
+function revalidateAttachmentPages(): void {
+  revalidatePath('/purchases');
+  revalidatePath('/overview');
+  revalidatePath('/suppliers');
+  revalidatePath('/income');
 }
 
 /**
@@ -328,17 +349,15 @@ export async function deleteAttachmentAction(
       actor: user.email,
       documentsDir: loadAppConfig().documentsDir,
     });
-    revalidatePath('/purchases');
-    revalidatePath('/overview');
-    revalidatePath('/suppliers');
-    const name = result.originalName ?? 'That receipt';
+    revalidateAttachmentPages();
+    const name = result.originalName ?? 'That document';
     if (!result.deleted) {
       return { status: 'ok', message: `“${name}” was already removed.` };
     }
     if (!result.fileRemoved) {
       return {
         status: 'ok',
-        message: `Removed ${name} from the purchase, but the file is still in the documents folder. It will show as an unreferenced file on Settings until it is cleared.`,
+        message: `Removed ${name}, but the file is still in the documents folder. It will show as an unreferenced file on Settings until it is cleared.`,
       };
     }
     return { status: 'ok', message: `Removed ${name}.` };
@@ -499,7 +518,10 @@ export async function addFuelAction(
 
   const amountRaw = formData.get('amount');
   const amount = parsePence(typeof amountRaw === 'string' ? amountRaw : '');
+  const extras = parseFuelExtras(formData);
+  if (!extras.ok) return purchaseError(extras.error);
   const parsed = fuelEntrySchema.safeParse({
+    ...extras.details,
     supplierName: textOrNull(formData.get('supplierName')),
     potId: numberOrNull(formData.get('potId')),
     vehicleId: numberOrNull(formData.get('vehicleId')),
@@ -534,11 +556,18 @@ export async function addFuelAction(
           targetId: parsed.data.vehicleId,
         },
       ],
+      fuelDetails: {
+        odometerMiles: parsed.data.odometerMiles,
+        fuelMillilitres: parsed.data.fuelMillilitres,
+        fullTank: parsed.data.fullTank,
+      },
       actor: user.email,
     });
     revalidatePages();
+    // Decision 141: the mpg answer, right after the save.
+    const feedback = fuelFeedbackForPurchase(db, result.purchase.id);
     return purchaseOk(
-      `Fuel saved: ${formatPence(result.purchase.totalPence)}.`,
+      `Fuel saved: ${formatPence(result.purchase.totalPence)}.${feedback === null ? '' : ` ${feedback}`}`,
       result.duplicateNotice === null
         ? null
         : duplicateNoticeState(db, result.duplicateNotice.purchaseId, result.duplicateNotice),
@@ -547,6 +576,84 @@ export async function addFuelAction(
     return purchaseError(
       domainMessage(err, 'The fuel entry could not be saved. Please try again.'),
     );
+  }
+}
+
+/**
+ * The optional fuel fields (decision 139), shared by the till and the later
+ * edit. Blank means "not recorded"; the checkbox is only trusted when the
+ * form says it rendered one (`fullTankShown`), so an older page that has no
+ * tick box cannot turn every fill into a part fill.
+ */
+function parseFuelExtras(
+  formData: FormData,
+): { ok: true; details: FuelDetails } | { ok: false; error: string } {
+  const text = (name: string) => {
+    const value = formData.get(name);
+    return typeof value === 'string' ? value : '';
+  };
+  const odometer = parseOdometer(text('odometer'));
+  if (!odometer.ok) return { ok: false, error: odometer.error };
+  const litres = parseLitres(text('litres'));
+  if (!litres.ok) return { ok: false, error: litres.error };
+  const fullTank =
+    formData.get('fullTankShown') === null ? true : formData.get('fullTank') !== null;
+  return {
+    ok: true,
+    details: { odometerMiles: odometer.value, fuelMillilitres: litres.value, fullTank },
+  };
+}
+
+/**
+ * Add or correct a fuel purchase's odometer, litres and full-tank flag after
+ * the fact (decision 139). Answers with the mpg sentence, like the till.
+ */
+export async function editFuelDetailsAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const extras = parseFuelExtras(formData);
+  if (!extras.ok) return { status: 'error', message: extras.error };
+  const parsed = fuelDetailsEntrySchema.safeParse({
+    purchaseId: numberOrNull(formData.get('purchaseId')),
+    expectedVersion: numberOrNull(formData.get('expectedVersion')),
+    ...extras.details,
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: firstIssue(parsed.error, 'Check the fuel details.') };
+  }
+  const db = getDbHandle().db;
+  try {
+    editFuelDetails(db, {
+      id: parsed.data.purchaseId,
+      expectedVersion: parsed.data.expectedVersion,
+      actor: user.email,
+      details: {
+        odometerMiles: parsed.data.odometerMiles,
+        fuelMillilitres: parsed.data.fuelMillilitres,
+        fullTank: parsed.data.fullTank,
+      },
+    });
+    revalidatePages();
+    const feedback = fuelFeedbackForPurchase(db, parsed.data.purchaseId);
+    return {
+      status: 'ok',
+      message: `Fuel details saved.${feedback === null ? '' : ` ${feedback}`}`,
+    };
+  } catch (err) {
+    if (
+      err instanceof InvalidFuelDetailsError ||
+      err instanceof NotAFuelPurchaseError ||
+      err instanceof PurchaseNotFoundError ||
+      err instanceof RecordVoidedError ||
+      err instanceof VersionConflictError
+    ) {
+      return { status: 'error', message: err.message };
+    }
+    console.error('[fuel] editFuelDetailsAction failed', err);
+    return { status: 'error', message: 'The fuel details could not be saved. Please try again.' };
   }
 }
 
