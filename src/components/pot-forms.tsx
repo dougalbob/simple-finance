@@ -19,10 +19,10 @@ function FormMessage({ status, message }: { status: string; message: string | nu
       aria-live="polite"
       className={
         status === 'error'
-          ? 'text-sm text-red-700'
+          ? 'text-sm text-danger'
           : status === 'ok'
-            ? 'text-sm text-emerald-700'
-            : 'text-sm text-slate-600'
+            ? 'text-sm text-positive'
+            : 'text-sm text-ink-soft'
       }
     >
       {message}
@@ -45,7 +45,7 @@ export function CreatePotForm() {
           required
           maxLength={60}
           placeholder="e.g. Main account"
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
+          className="rounded border border-border-strong bg-surface px-3 py-2 text-base"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -55,7 +55,7 @@ export function CreatePotForm() {
         <select
           id="pot-kind"
           name="kind"
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
+          className="rounded border border-border-strong bg-surface px-3 py-2 text-base"
         >
           <option value="bank">Bank account</option>
           <option value="cash">Cash</option>
@@ -64,7 +64,7 @@ export function CreatePotForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-slate-900 px-4 py-2 font-medium text-white disabled:opacity-60"
+        className="rounded bg-till px-4 py-2 font-medium text-till-ink disabled:opacity-60"
       >
         {pending ? 'Saving…' : 'Add pot'}
       </button>
@@ -77,7 +77,7 @@ export function AddCheckpointForm({ pots }: { pots: Array<{ id: number; label: s
   const [state, formAction, pending] = useActionState(addCheckpointAction, initialActionState);
   if (pots.length === 0) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-ink-soft">
         Create a pot first, then you can record what it currently holds.
       </p>
     );
@@ -91,7 +91,7 @@ export function AddCheckpointForm({ pots }: { pots: Array<{ id: number; label: s
         <select
           id="checkpoint-pot"
           name="potId"
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
+          className="rounded border border-border-strong bg-surface px-3 py-2 text-base"
         >
           {pots.map((pot) => (
             <option key={pot.id} value={pot.id}>
@@ -111,9 +111,9 @@ export function AddCheckpointForm({ pots }: { pots: Array<{ id: number; label: s
           inputMode="decimal"
           required
           placeholder="e.g. 412.35"
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
+          className="rounded border border-border-strong bg-surface px-3 py-2 text-base"
         />
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           The bank&apos;s current/ledger balance, or the counted amount for cash.
         </p>
       </div>
@@ -127,13 +127,13 @@ export function AddCheckpointForm({ pots }: { pots: Array<{ id: number; label: s
           type="text"
           maxLength={280}
           placeholder="e.g. counted the cash"
-          className="rounded border border-slate-300 bg-white px-3 py-2 text-base"
+          className="rounded border border-border-strong bg-surface px-3 py-2 text-base"
         />
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-slate-900 px-4 py-2 font-medium text-white disabled:opacity-60"
+        className="rounded bg-till px-4 py-2 font-medium text-till-ink disabled:opacity-60"
       >
         {pending ? 'Saving…' : 'Save checkpoint'}
       </button>

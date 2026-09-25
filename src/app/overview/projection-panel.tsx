@@ -16,10 +16,10 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
   const tier = result.tier;
   const tierStyles =
     tier === 'warning'
-      ? 'border-red-200 bg-red-50 text-red-800'
+      ? 'border-danger-200 bg-danger-50 text-danger-800'
       : tier === 'heads-up'
-        ? 'border-amber-200 bg-amber-50 text-amber-800'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-800';
+        ? 'border-warning-200 bg-warning-50 text-warning'
+        : 'border-positive-200 bg-positive-50 text-positive-800';
   const tierText =
     tier === 'warning'
       ? `This week’s low would reach ${formatPence(result.projectedLowPence ?? 0)} — beyond the overdrawn limit of ${formatPence(result.warningThresholdPence ?? 0)}. Plan something before pay day.`
@@ -29,11 +29,11 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
   return (
     <section
       aria-labelledby="projection-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent">
             Payday projection
           </p>
           <h2 id="projection-heading" className="text-xl font-semibold">
@@ -41,21 +41,21 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
             days)
           </h2>
         </div>
-        <span className="text-xs text-slate-500">A projection, not a bank forecast</span>
+        <span className="text-xs text-ink-muted">A projection, not a bank forecast</span>
       </div>
 
       <p className={`rounded-lg border px-3 py-2 text-sm font-medium ${tierStyles}`}>{tierText}</p>
 
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
         <div className="flex justify-between gap-2">
-          <dt className="text-slate-600">Available now</dt>
+          <dt className="text-ink-soft">Available now</dt>
           <dd className="font-semibold tabular-nums">{formatPence(result.availableNowPence)}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-slate-600">Projected day-to-day ({result.days}d)</dt>
+          <dt className="text-ink-soft">Projected day-to-day ({result.days}d)</dt>
           <dd className="tabular-nums">
             −{formatPence(result.dayToDayPence)}
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-ink-muted">
               {' '}
               (groceries {formatPence(result.groceriesPence)} + fuel {formatPence(result.fuelPence)}
               )
@@ -63,21 +63,21 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-slate-600">Upcoming commitments</dt>
+          <dt className="text-ink-soft">Upcoming commitments</dt>
           <dd className="tabular-nums">−{formatPence(result.totalCommitmentsPence)}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-slate-600">Expected receipts</dt>
+          <dt className="text-ink-soft">Expected receipts</dt>
           <dd className="tabular-nums">+{formatPence(result.totalReceiptsPence)}</dd>
         </div>
       </dl>
 
       {expectedSupportLines.length > 0 ? (
         <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             Expected support in this forecast ({expectedSupportLines.length})
           </summary>
-          <ul className="mt-2 divide-y divide-slate-100">
+          <ul className="mt-2 divide-y divide-border-hairline">
             {expectedSupportLines.map((line) => (
               <li
                 key={`${line.dueDate}-${line.scheduleId}-expected`}
@@ -85,17 +85,17 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
               >
                 <span>
                   <span className="font-medium">{line.name}</span>{' '}
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-ink-muted">
                     {line.dueDate} · {line.potLabel} · expected — never received
                   </span>
                 </span>
-                <span className="tabular-nums text-slate-500">
+                <span className="tabular-nums text-ink-muted">
                   ≈{formatPence(line.amountPence)}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-ink-muted">
             Borrowed money the household expects, flagged and never counted as income. It moves no
             pot estimate: the money lands only if it is actually borrowed and recorded, and until
             then it is a plan. A settled loan expects nothing.
@@ -105,10 +105,10 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
 
       {projection.dayToDayEvents.length > 0 ? (
         <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             Projected shops and fills ({projection.dayToDayEvents.length})
           </summary>
-          <ul className="mt-2 divide-y divide-slate-100">
+          <ul className="mt-2 divide-y divide-border-hairline">
             {projection.dayToDayEvents.map((event) => (
               <li
                 key={`${event.dueDate}-${event.name}`}
@@ -116,13 +116,13 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
               >
                 <span>
                   <span className="font-medium">{event.name}</span>{' '}
-                  <span className="text-xs text-slate-500">{event.dueDate}</span>
+                  <span className="text-xs text-ink-muted">{event.dueDate}</span>
                 </span>
                 <span className="tabular-nums">−{formatPence(event.amountPence)}</span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-ink-muted">
             Dates follow when the household last recorded a weekly shop or a fill — a fresh shop
             resets the week, a fresh fill resets the vehicle’s month. Amounts are the figures set in
             Settings.
@@ -132,12 +132,12 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
 
       {result.perDay.length > 0 ? (
         <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             What’s in this forecast — day-by-day ({result.perDay.length} days)
           </summary>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[420px] text-sm">
-              <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                 <tr>
                   <th className="px-3 py-1.5">Date</th>
                   <th className="px-3 py-1.5 text-right">Commitments</th>
@@ -150,7 +150,7 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
               </thead>
               <tbody>
                 {result.perDay.map((day) => (
-                  <tr key={day.date} className="border-t border-slate-100">
+                  <tr key={day.date} className="border-t border-border-hairline">
                     <td className="px-3 py-1.5">{day.date}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">
                       {day.commitmentsPence > 0 ? `−${formatPence(day.commitmentsPence)}` : '—'}
@@ -164,7 +164,7 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
                       {day.receiptsPence > 0 ? `+${formatPence(day.receiptsPence)}` : '—'}
                     </td>
                     <td
-                      className={`px-3 py-1.5 text-right font-medium tabular-nums ${day.runningPence < 0 ? 'text-red-700' : ''}`}
+                      className={`px-3 py-1.5 text-right font-medium tabular-nums ${day.runningPence < 0 ? 'text-danger' : ''}`}
                     >
                       {formatPence(day.runningPence)}
                     </td>
@@ -193,7 +193,7 @@ export function ProjectionSection({ projection }: { projection: ProjectionView }
             return (
               <p
                 key={watch.potId}
-                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-900"
               >
                 <span className="font-semibold">Plan a transfer?</span> {label} is projected to run
                 about{' '}

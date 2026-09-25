@@ -54,9 +54,9 @@ export default async function TransactionsPage({
     return (
       <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
         <h1 className="text-3xl font-semibold tracking-tight">All Transactions</h1>
-        <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+        <p className="mt-3 rounded-xl border border-dashed border-border-strong bg-surface p-6 text-sm text-ink-soft">
           No pots yet. Add an account or cash pot in{' '}
-          <Link href="/settings" className="text-sky-700 underline">
+          <Link href="/settings" className="text-accent underline">
             Settings
           </Link>{' '}
           first.
@@ -95,11 +95,11 @@ export default async function TransactionsPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
           All Transactions
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Activity in one pot</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-soft">
           Everything that touched <span className="font-medium">{pot.label}</span> between two
           dates, newest first. This page is read-only: each row opens the record in the page that
           can edit or void it. Green is money into this pot, red is money out.
@@ -109,18 +109,18 @@ export default async function TransactionsPage({
       <form
         method="GET"
         aria-label="Activity filters"
-        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_auto] lg:items-end">
           <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor="activity-pot" className="text-xs font-medium text-slate-600">
+            <label htmlFor="activity-pot" className="text-xs font-medium text-ink-soft">
               Target
             </label>
             <select
               id="activity-pot"
               name="potId"
               defaultValue={String(pot.id)}
-              className="w-full min-w-0 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+              className="w-full min-w-0 rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none"
             >
               {pots.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
@@ -130,7 +130,7 @@ export default async function TransactionsPage({
             </select>
           </div>
           <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor="activity-from" className="text-xs font-medium text-slate-600">
+            <label htmlFor="activity-from" className="text-xs font-medium text-ink-soft">
               Start date
             </label>
             <input
@@ -139,11 +139,11 @@ export default async function TransactionsPage({
               type="date"
               defaultValue={dateFrom}
               max={today}
-              className="w-full min-w-0 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+              className="w-full min-w-0 rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none"
             />
           </div>
           <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor="activity-to" className="text-xs font-medium text-slate-600">
+            <label htmlFor="activity-to" className="text-xs font-medium text-ink-soft">
               End date
             </label>
             <input
@@ -152,17 +152,17 @@ export default async function TransactionsPage({
               type="date"
               defaultValue={dateTo}
               max={today}
-              className="w-full min-w-0 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+              className="w-full min-w-0 rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none"
             />
           </div>
           <button
             type="submit"
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            className="rounded-lg bg-till px-4 py-2 text-sm font-semibold text-till-ink hover:bg-till-hover"
           >
             Show activity
           </button>
         </div>
-        <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
           <span className="font-medium">Quick picks:</span>
           {quickPicks.map((pick) => (
             <Link
@@ -170,15 +170,15 @@ export default async function TransactionsPage({
               href={`/transactions?potId=${pot.id}&from=${pick.from}&to=${pick.to}`}
               className={`rounded-full border px-2.5 py-1 ${
                 pick.from === dateFrom && pick.to === dateTo
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'
+                  ? 'border-till bg-till text-till-ink'
+                  : 'border-border-strong bg-surface text-ink-body hover:border-border-emphasis'
               }`}
             >
               {pick.label}
             </Link>
           ))}
           {checkpointDate === null ? (
-            <span className="text-slate-500">
+            <span className="text-ink-muted">
               (this pot has never been reported, so &ldquo;since last checkpoint&rdquo; falls back
               to 30 days)
             </span>
@@ -187,7 +187,7 @@ export default async function TransactionsPage({
       </form>
 
       {rangeIsBroken ? (
-        <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p className="mt-3 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-900">
           That start date was after the end date, so the last 30 days are shown instead.
         </p>
       ) : null}
@@ -197,7 +197,7 @@ export default async function TransactionsPage({
           <h2 id="activity-heading" className="text-xl font-semibold">
             {dateFrom} to {dateTo}
           </h2>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-ink-muted">
             {activity.totals.rowCount} {activity.totals.rowCount === 1 ? 'movement' : 'movements'}
             {activity.totals.expectedRowCount > 0
               ? ` · ${activity.totals.expectedRowCount} expected support ${
@@ -213,13 +213,13 @@ export default async function TransactionsPage({
         {activity.totals.rowCount === 0 &&
         activity.totals.expectedRowCount === 0 &&
         activity.entries.every((entry) => entry.kind !== 'checkpoint') ? (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-xl border border-dashed border-border-strong bg-surface p-6 text-sm text-ink-soft">
             Nothing touched {pot.label} in this window.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
             <table className="w-full min-w-[820px] text-sm">
-              <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                 <tr>
                   <th scope="col" className="px-3 py-2">
                     Date
@@ -246,40 +246,38 @@ export default async function TransactionsPage({
                   entry.kind === 'checkpoint' ? (
                     <tr
                       key={entry.checkpoint.key}
-                      className="border-y-2 border-slate-300 bg-slate-50 text-slate-600"
+                      className="border-y-2 border-border-strong bg-canvas text-ink-soft"
                     >
                       <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                         {entry.checkpoint.date}
                       </td>
                       <td className="px-3 py-2" colSpan={3}>
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-ink-body">
                           Checkpoint · reported {formatPence(entry.checkpoint.amountPence)}
                         </span>
                         {entry.checkpoint.note !== '' ? (
-                          <span className="ml-2 text-xs text-slate-500">
+                          <span className="ml-2 text-xs text-ink-muted">
                             {entry.checkpoint.note}
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-3 py-2 text-right text-xs text-slate-500">reported</td>
-                      <td className="px-3 py-2 text-xs text-slate-500">not a movement</td>
+                      <td className="px-3 py-2 text-right text-xs text-ink-muted">reported</td>
+                      <td className="px-3 py-2 text-xs text-ink-muted">not a movement</td>
                     </tr>
                   ) : (
                     <ActivityTableRow key={entry.row.key} row={entry.row} />
                   ),
                 )}
               </tbody>
-              <tfoot className="border-t-2 border-slate-300 bg-slate-50 text-sm">
+              <tfoot className="border-t-2 border-border-strong bg-canvas text-sm">
                 <tr>
-                  <td className="px-3 py-2 font-medium text-slate-700" colSpan={4}>
+                  <td className="px-3 py-2 font-medium text-ink-body" colSpan={4}>
                     Movements shown
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    <span className="text-emerald-700">
-                      +{formatPence(activity.totals.inPence)}
-                    </span>
-                    <span className="mx-1 text-slate-400">/</span>
-                    <span className="text-red-700">−{formatPence(activity.totals.outPence)}</span>
+                    <span className="text-positive">+{formatPence(activity.totals.inPence)}</span>
+                    <span className="mx-1 text-ink-faint">/</span>
+                    <span className="text-danger">−{formatPence(activity.totals.outPence)}</span>
                   </td>
                   <td className="px-3 py-2 text-right font-semibold tabular-nums">
                     net {net < 0 ? '−' : '+'}
@@ -287,7 +285,7 @@ export default async function TransactionsPage({
                   </td>
                 </tr>
                 {activity.totals.expectedRowCount > 0 ? (
-                  <tr className="border-t border-slate-200 text-slate-500">
+                  <tr className="border-t border-border text-ink-muted">
                     <td className="px-3 py-2 font-medium" colSpan={4}>
                       Expected support ({activity.totals.expectedRowCount}{' '}
                       {activity.totals.expectedRowCount === 1 ? 'expectation' : 'expectations'}, not
@@ -304,7 +302,7 @@ export default async function TransactionsPage({
           </div>
         )}
 
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-ink-muted">
           &ldquo;Movements shown&rdquo; is the sum of the recorded rows above — expected support
           rows are expectations, never movements, so they are listed but not counted, and they give
           way when the borrowing is recorded. It is not the change in this pot&rsquo;s estimate:
@@ -319,43 +317,43 @@ export default async function TransactionsPage({
 function ActivityTableRow({ row }: { row: ActivityRow }) {
   const incoming = row.direction === 'in';
   return (
-    <tr className="border-t border-slate-100 align-top">
-      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-700">{row.date}</td>
+    <tr className="border-t border-border-hairline align-top">
+      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-ink-body">{row.date}</td>
       <td className="whitespace-nowrap px-3 py-2.5">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold tracking-wide text-slate-700">
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold tracking-wide text-ink-body">
           {row.code}
         </span>
         {row.secondaryLink !== null ? (
-          <Link href={row.secondaryLink.href} className="ml-2 text-xs text-sky-700 hover:underline">
+          <Link href={row.secondaryLink.href} className="ml-2 text-xs text-accent hover:underline">
             {row.secondaryLink.label}
           </Link>
         ) : null}
         {row.badge !== null ? (
-          <span className="mt-1 block text-xs text-slate-500">{row.badge}</span>
+          <span className="mt-1 block text-xs text-ink-muted">{row.badge}</span>
         ) : null}
       </td>
       <td className="px-3 py-2.5">
-        <Link href={row.link.href} className="font-medium text-slate-800 hover:text-sky-700">
+        <Link href={row.link.href} className="font-medium text-ink-emphasis hover:text-accent">
           {row.source}
           <span className="sr-only"> — {row.link.label}</span>
         </Link>
       </td>
-      <td className="px-3 py-2.5 text-slate-600">
-        {row.category === '' ? <span className="text-slate-400">—</span> : row.category}
+      <td className="px-3 py-2.5 text-ink-soft">
+        {row.category === '' ? <span className="text-ink-faint">—</span> : row.category}
         {row.extraLines > 0 ? (
-          <span className="ml-1 text-xs text-slate-500">+{row.extraLines} more</span>
+          <span className="ml-1 text-xs text-ink-muted">+{row.extraLines} more</span>
         ) : null}
       </td>
       <td
         className={`whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums ${
-          incoming ? 'text-emerald-700' : 'text-red-700'
+          incoming ? 'text-positive' : 'text-danger'
         }`}
       >
         {incoming ? '+' : '−'}
         {formatPence(row.amountPence)}
       </td>
-      <td className="px-3 py-2.5 text-slate-600">
-        {row.note === '' ? <span className="text-slate-400">—</span> : row.note}
+      <td className="px-3 py-2.5 text-ink-soft">
+        {row.note === '' ? <span className="text-ink-faint">—</span> : row.note}
       </td>
     </tr>
   );

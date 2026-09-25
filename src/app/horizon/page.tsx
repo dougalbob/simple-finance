@@ -100,10 +100,10 @@ export default async function HorizonPage({
   const tier = result.tier;
   const tierStyles =
     tier === 'warning'
-      ? 'border-red-200 bg-red-50 text-red-800'
+      ? 'border-danger-200 bg-danger-50 text-danger-800'
       : tier === 'heads-up'
-        ? 'border-amber-200 bg-amber-50 text-amber-800'
-        : 'border-emerald-200 bg-emerald-50 text-emerald-800';
+        ? 'border-warning-200 bg-warning-50 text-warning'
+        : 'border-positive-200 bg-positive-50 text-positive-800';
 
   const lowLine =
     result.projectedLowPence === null
@@ -149,9 +149,9 @@ export default async function HorizonPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Horizon</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Horizon</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">How far the money would go</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           A projection of what would be left if the household only paid what is already expected —
           commitments, expected money in, and day-to-day spending — up to a date you choose.
         </p>
@@ -159,7 +159,7 @@ export default async function HorizonPage({
 
       <section
         aria-label="Choose the horizon"
-        className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <HorizonLookAheadForm
           minDate={minSelectable}
@@ -167,29 +167,29 @@ export default async function HorizonPage({
           throughDate={throughDate}
         >
           <fieldset>
-            <legend className="text-xs font-medium text-slate-600">
+            <legend className="text-xs font-medium text-ink-soft">
               Which pots count?{' '}
-              <span className="text-xs font-normal text-slate-400">— untick to exclude</span>
+              <span className="text-xs font-normal text-ink-faint">— untick to exclude</span>
             </legend>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
               {pots.map((pot) => {
                 const selected =
                   view.selection.find((entry) => entry.pot.id === pot.id)?.selected ?? true;
                 return (
-                  <label key={pot.id} className="flex items-center gap-1.5 text-sm text-slate-700">
+                  <label key={pot.id} className="flex items-center gap-1.5 text-sm text-ink-body">
                     <input
                       type="checkbox"
                       name="pots"
                       value={pot.id}
                       defaultChecked={selected}
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded border-border-strong"
                     />
                     {pot.label}
                   </label>
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-ink-muted">
               {allSelected
                 ? 'Every pot is counted. A debt’s expected support counts only when the pot it lands in is ticked.'
                 : 'Only ticked pots are counted. A debt’s expected support counts only when the pot it lands in is ticked.'}{' '}
@@ -197,14 +197,14 @@ export default async function HorizonPage({
             </p>
           </fieldset>
           <div className="flex flex-col gap-1 self-start">
-            <label htmlFor="horizon-daytoday" className="text-xs font-medium text-slate-600">
+            <label htmlFor="horizon-daytoday" className="text-xs font-medium text-ink-soft">
               Day-to-day
             </label>
             <select
               id="horizon-daytoday"
               name="daytoday"
               defaultValue={includeDayToDay ? '1' : '0'}
-              className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+              className="rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none"
             >
               <option value="1">Include groceries &amp; fuel</option>
               <option value="0">Bills only (leave out day-to-day)</option>
@@ -214,8 +214,8 @@ export default async function HorizonPage({
       </section>
 
       <section className="mb-6 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
             {view.dayToDayIncluded ? 'Free to spend up to' : 'Free to spend on bills up to'}
           </p>
           <p
@@ -226,26 +226,26 @@ export default async function HorizonPage({
           >
             {formatPence(landPenceOf(result))}
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink-soft">
             Where we&rsquo;d land on {view.throughDate} — after commitments and expected money in,
             {view.dayToDayIncluded ? ' and day-to-day spending.' : ' without day-to-day spending.'}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lowest point</p>
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Lowest point</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {result.projectedLowPence === null ? '—' : formatPence(result.projectedLowPence)}
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink-soft">
             {result.lowDate === null ? 'No window to project.' : `on ${result.lowDate}`}
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Scope</p>
-          <p className="mt-1 text-sm text-slate-700">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Scope</p>
+          <p className="mt-1 text-sm text-ink-body">
             {result.days} day{result.days === 1 ? '' : 's'} ahead · {selectionText}
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink-soft">
             Available now {formatPence(view.availableNowPence)} · commitments −
             {formatPence(view.totalCommitmentsPence)} · expected money in +
             {formatPence(view.totalReceiptsPence)}
@@ -261,7 +261,7 @@ export default async function HorizonPage({
       </p>
 
       {result.days <= 0 ? (
-        <section className="mb-4 rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+        <section className="mb-4 rounded-xl border border-dashed border-border-strong bg-surface p-6 text-sm text-ink-soft">
           Pick a date at least one day ahead to project the household&rsquo;s money to it.
         </section>
       ) : null}
@@ -269,15 +269,15 @@ export default async function HorizonPage({
       <div className="space-y-4">
         <details
           open={detailsOpen}
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             Commitments in the window ({view.commitmentLines.length})
           </summary>
           {view.commitmentLines.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No commitments due in this window.</p>
+            <p className="mt-2 text-sm text-ink-muted">No commitments due in this window.</p>
           ) : (
-            <ul className="mt-2 divide-y divide-slate-100">
+            <ul className="mt-2 divide-y divide-border-hairline">
               {commitmentGroups.map((group) =>
                 group.lines.map((line) => (
                   <li
@@ -286,7 +286,7 @@ export default async function HorizonPage({
                   >
                     <span>
                       <span className="font-medium">{line.name}</span>{' '}
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-ink-muted">
                         {line.dueDate} · {line.subtitle}
                       </span>
                     </span>
@@ -300,16 +300,16 @@ export default async function HorizonPage({
 
         <details
           open={detailsOpen}
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             Expected money in ({incomeLineCount}
             {expectedLineCount > 0 ? ` income + ${expectedLineCount} expected support` : ''})
           </summary>
           {view.receiptLines.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No expected money in this window.</p>
+            <p className="mt-2 text-sm text-ink-muted">No expected money in this window.</p>
           ) : (
-            <ul className="mt-2 divide-y divide-slate-100">
+            <ul className="mt-2 divide-y divide-border-hairline">
               {receiptGroups.map((group) =>
                 group.lines.map((line) => (
                   <li
@@ -319,13 +319,13 @@ export default async function HorizonPage({
                     <span>
                       <span className="font-medium">{line.name}</span>{' '}
                       <span
-                        className={`text-xs ${line.expected ? 'text-slate-400' : 'text-slate-500'}`}
+                        className={`text-xs ${line.expected ? 'text-ink-faint' : 'text-ink-muted'}`}
                       >
                         {line.dueDate} · {line.subtitle}
                       </span>
                     </span>
                     <span
-                      className={`tabular-nums ${line.expected ? 'text-slate-500' : 'text-emerald-700'}`}
+                      className={`tabular-nums ${line.expected ? 'text-ink-muted' : 'text-positive'}`}
                     >
                       {line.expected ? '≈' : '+'}
                       {formatPence(line.amountPence)}
@@ -340,19 +340,19 @@ export default async function HorizonPage({
         {view.dayToDayIncluded ? (
           <details
             open={detailsOpen && view.dayToDayEvents.length > 0}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            <summary className="cursor-pointer text-sm font-medium text-ink-body">
               Projected day-to-day spending ({view.dayToDayEvents.length})
             </summary>
             {view.dayToDayEvents.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-ink-muted">
                 No projection figures are configured — set weekly groceries and per-vehicle fuel in
                 Settings to include them here.
               </p>
             ) : (
               <>
-                <ul className="mt-2 divide-y divide-slate-100">
+                <ul className="mt-2 divide-y divide-border-hairline">
                   {view.dayToDayEvents.map((event) => (
                     <li
                       key={`${event.dueDate}-daytoday-${event.name}`}
@@ -360,13 +360,13 @@ export default async function HorizonPage({
                     >
                       <span>
                         <span className="font-medium">{event.name}</span>{' '}
-                        <span className="text-xs text-slate-500">{event.dueDate}</span>
+                        <span className="text-xs text-ink-muted">{event.dueDate}</span>
                       </span>
                       <span className="tabular-nums">−{formatPence(event.amountPence)}</span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-ink-muted">
                   Dates follow when the household last recorded a weekly shop or a fill — a fresh
                   shop resets the week, a fresh fill resets that vehicle’s month. Amounts are the
                   figures set in Settings; fuels are counted per vehicle.
@@ -379,14 +379,14 @@ export default async function HorizonPage({
         {result.perDay.length > 0 ? (
           <details
             open={detailsOpen}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            <summary className="cursor-pointer text-sm font-medium text-ink-body">
               Day by day ({result.perDay.length} days)
             </summary>
             <div className="mt-2 overflow-x-auto">
               <table className="w-full min-w-[420px] text-sm">
-                <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                   <tr>
                     <th className="px-3 py-1.5">Date</th>
                     <th className="px-3 py-1.5 text-right">Commitments</th>
@@ -399,7 +399,7 @@ export default async function HorizonPage({
                 </thead>
                 <tbody>
                   {result.perDay.map((day) => (
-                    <tr key={day.date} className="border-t border-slate-100">
+                    <tr key={day.date} className="border-t border-border-hairline">
                       <td className="px-3 py-1.5">{day.date}</td>
                       <td className="px-3 py-1.5 text-right tabular-nums">
                         {day.commitmentsPence > 0 ? `−${formatPence(day.commitmentsPence)}` : '—'}
@@ -413,7 +413,7 @@ export default async function HorizonPage({
                         {day.receiptsPence > 0 ? `+${formatPence(day.receiptsPence)}` : '—'}
                       </td>
                       <td
-                        className={`px-3 py-1.5 text-right font-medium tabular-nums ${day.runningPence < 0 ? 'text-red-700' : ''}`}
+                        className={`px-3 py-1.5 text-right font-medium tabular-nums ${day.runningPence < 0 ? 'text-danger' : ''}`}
                       >
                         {formatPence(day.runningPence)}
                       </td>
@@ -426,7 +426,7 @@ export default async function HorizonPage({
         ) : null}
       </div>
 
-      <p className="mt-6 text-xs text-slate-500">
+      <p className="mt-6 text-xs text-ink-muted">
         A projection of the records already in the app, not a bank forecast. Expected support is an
         expectation of borrowed money — it is owed, never income, and it lands only if it is
         actually borrowed and recorded. Day-to-day projects the next shops and fills from when the

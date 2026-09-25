@@ -9,14 +9,14 @@ import {
 import { initialActionState } from '@/lib/action-state';
 
 const FIELD_CLASS =
-  'w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none';
+  'w-full rounded border border-border-strong px-2 py-1 text-sm focus:border-border-emphasis focus:outline-none';
 
 function Status({ state }: { state: { status: string; message: string | null } }) {
   if (state.message === null) return null;
   return (
     <span
       role="status"
-      className={`text-xs ${state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}`}
+      className={`text-xs ${state.status === 'error' ? 'text-danger' : 'text-positive'}`}
     >
       {state.message}
     </span>
@@ -46,14 +46,14 @@ export function SupplierContactForm({ supplier }: { supplier: SupplierContactVal
     initialActionState,
   );
   return (
-    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <summary className="cursor-pointer text-sm font-medium text-slate-700">
+    <details className="mt-3 rounded-lg border border-border bg-canvas p-3">
+      <summary className="cursor-pointer text-sm font-medium text-ink-body">
         Edit contact card
       </summary>
       <form action={formAction} className="mt-3 grid gap-2 sm:grid-cols-2">
         <input type="hidden" name="id" value={supplier.id} />
         <input type="hidden" name="expectedVersion" value={supplier.version} />
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-ink-soft">
           Phone
           <input
             name="contactPhone"
@@ -62,7 +62,7 @@ export function SupplierContactForm({ supplier }: { supplier: SupplierContactVal
             className={FIELD_CLASS}
           />
         </label>
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-ink-soft">
           Email
           <input
             name="contactEmail"
@@ -71,15 +71,15 @@ export function SupplierContactForm({ supplier }: { supplier: SupplierContactVal
             className={FIELD_CLASS}
           />
         </label>
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-ink-soft">
           Website
           <input name="website" defaultValue={supplier.website ?? ''} className={FIELD_CLASS} />
         </label>
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-ink-soft">
           Postal address
           <input name="address" defaultValue={supplier.address ?? ''} className={FIELD_CLASS} />
         </label>
-        <label className="text-xs font-medium text-slate-600 sm:col-span-2">
+        <label className="text-xs font-medium text-ink-soft sm:col-span-2">
           Notes
           <textarea
             name="notes"
@@ -92,7 +92,7 @@ export function SupplierContactForm({ supplier }: { supplier: SupplierContactVal
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60"
           >
             {pending ? 'Saving…' : 'Save contact card'}
           </button>
@@ -121,7 +121,7 @@ export function SupplierReferenceForm({ supplierId }: { supplierId: number }) {
           name="label"
           placeholder="Label (e.g. Policy number)"
           required
-          className="w-40 rounded border border-slate-300 px-2 py-1 text-xs"
+          className="w-40 rounded border border-border-strong px-2 py-1 text-xs"
         />
         <label className="sr-only" htmlFor={`reference-value-${supplierId}`}>
           Reference value
@@ -131,12 +131,12 @@ export function SupplierReferenceForm({ supplierId }: { supplierId: number }) {
           name="value"
           placeholder="Value"
           required
-          className="w-36 rounded border border-slate-300 px-2 py-1 text-xs"
+          className="w-36 rounded border border-border-strong px-2 py-1 text-xs"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:opacity-60"
+          className="rounded bg-till-inset px-2 py-1 text-xs text-till-ink disabled:opacity-60"
         >
           Add reference
         </button>
@@ -174,7 +174,7 @@ export function SupplierInteractionForm({ supplierId }: { supplierId: number }) 
         <select
           id={`interaction-channel-${supplierId}`}
           name="channel"
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          className="rounded border border-border-strong px-2 py-1 text-xs"
         >
           {CHANNELS.map((channel) => (
             <option key={channel.value} value={channel.value}>
@@ -189,7 +189,7 @@ export function SupplierInteractionForm({ supplierId }: { supplierId: number }) 
           id={`interaction-follow-up-${supplierId}`}
           name="followUpDate"
           type="date"
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          className="rounded border border-border-strong px-2 py-1 text-xs"
         />
       </div>
       <label className="sr-only" htmlFor={`interaction-summary-${supplierId}`}>
@@ -200,7 +200,7 @@ export function SupplierInteractionForm({ supplierId }: { supplierId: number }) 
         name="summary"
         placeholder="What happened?"
         required
-        className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+        className="w-full rounded border border-border-strong px-2 py-1 text-xs"
       />
       <label className="sr-only" htmlFor={`interaction-outcome-${supplierId}`}>
         Outcome
@@ -209,13 +209,13 @@ export function SupplierInteractionForm({ supplierId }: { supplierId: number }) 
         id={`interaction-outcome-${supplierId}`}
         name="outcome"
         placeholder="Outcome (optional)"
-        className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+        className="w-full rounded border border-border-strong px-2 py-1 text-xs"
       />
       <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-indigo-700 px-2 py-1 text-xs text-white disabled:opacity-60"
+          className="rounded bg-note px-2 py-1 text-xs text-till-ink disabled:opacity-60"
         >
           {pending ? 'Logging…' : 'Log interaction'}
         </button>

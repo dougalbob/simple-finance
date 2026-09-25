@@ -146,15 +146,15 @@ export function BackupPanel({
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-border bg-surface p-5 shadow-sm">
           <h3 className="text-lg font-semibold">Download a backup</h3>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-ink-soft">
             An encrypted archive of the database <em>and</em> every attached receipt or invoice,
             with a checksum manifest. The passphrase is used in memory only — it is never written to
             disk or logged. Lose it and the archive is unreadable, by design.
           </p>
           <form onSubmit={handleDownload} className="mt-3 space-y-2">
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-ink-soft">
               Backup passphrase ({MIN_BACKUP_PASSWORD_LENGTH}+ characters)
               <input
                 type="password"
@@ -162,10 +162,10 @@ export function BackupPanel({
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-full rounded border border-border-strong px-2 py-1 text-sm"
               />
             </label>
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-ink-soft">
               Repeat passphrase
               <input
                 type="password"
@@ -173,35 +173,35 @@ export function BackupPanel({
                 autoComplete="new-password"
                 value={repeat}
                 onChange={(event) => setRepeat(event.target.value)}
-                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-full rounded border border-border-strong px-2 py-1 text-sm"
               />
             </label>
             <button
               type="submit"
               name="download-backup"
               disabled={busy}
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60"
             >
               {busy ? 'Encrypting…' : 'Download encrypted backup'}
             </button>
             {downloadState.message !== null ? (
               <p
                 role="status"
-                className={`text-xs ${downloadState.kind === 'error' ? 'text-red-700' : 'text-emerald-700'}`}
+                className={`text-xs ${downloadState.kind === 'error' ? 'text-danger' : 'text-positive'}`}
               >
                 {downloadState.message}
               </p>
             ) : null}
           </form>
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-ink-muted">
             Nothing is uploaded anywhere and no schedule is implied: save the file where you keep
             important documents, and repeat this by hand whenever you want a fresher copy.
           </p>
         </section>
 
-        <section className="rounded-xl border border-red-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold text-red-800">Restore a backup</h3>
-          <p className="mt-1 text-xs text-slate-600">
+        <section className="rounded-xl border border-danger-200 bg-surface p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-danger-800">Restore a backup</h3>
+          <p className="mt-1 text-xs text-ink-soft">
             This <strong>replaces everything</strong> in this installation — pots, purchases,
             schedules, settings and attachments — with the contents of the archive. The previous
             database and documents are moved aside (never deleted) under a{' '}
@@ -209,7 +209,7 @@ export function BackupPanel({
             immediately. Take a fresh backup first if the current data matters.
           </p>
           <form onSubmit={handleRestore} className="mt-3 space-y-2">
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-ink-soft">
               Archive file
               <input
                 type="file"
@@ -219,7 +219,7 @@ export function BackupPanel({
                 className="mt-1 block w-full text-xs"
               />
             </label>
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-ink-soft">
               Passphrase that archive was made with
               <input
                 type="password"
@@ -227,30 +227,30 @@ export function BackupPanel({
                 autoComplete="off"
                 value={restorePassword}
                 onChange={(event) => setRestorePassword(event.target.value)}
-                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-full rounded border border-border-strong px-2 py-1 text-sm"
               />
             </label>
-            <label className="block text-xs font-medium text-slate-600">
+            <label className="block text-xs font-medium text-ink-soft">
               Type {RESTORE_CONFIRMATION_WORD} to confirm
               <input
                 name="restore-confirm"
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
-                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                className="w-full rounded border border-border-strong px-2 py-1 text-sm"
               />
             </label>
             <button
               type="submit"
               name="restore-backup"
               disabled={restoring}
-              className="rounded bg-red-800 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded bg-danger-800 px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60"
             >
               {restoring ? 'Restoring…' : 'Replace this installation from the archive'}
             </button>
             {restoreState.message !== null ? (
               <p
                 role="status"
-                className={`text-xs ${restoreState.kind === 'error' ? 'text-red-700' : 'text-emerald-700'}`}
+                className={`text-xs ${restoreState.kind === 'error' ? 'text-danger' : 'text-positive'}`}
               >
                 {restoreState.message}
               </p>
@@ -258,7 +258,7 @@ export function BackupPanel({
           </form>
         </section>
       </div>
-      <p className="text-xs text-slate-500">{statusLine}</p>
+      <p className="text-xs text-ink-muted">{statusLine}</p>
     </div>
   );
 }

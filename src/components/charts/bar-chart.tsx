@@ -84,8 +84,8 @@ export function BarChart({
           patternTransform="rotate(45)"
           patternUnits="userSpaceOnUse"
         >
-          <rect width="5" height="5" fill={CHART_COLOURS.barMuted} />
-          <line x1="0" y1="0" x2="0" y2="5" stroke={colour} strokeWidth="1.6" />
+          <rect width="5" height="5" style={{ fill: CHART_COLOURS.barMuted }} />
+          <line x1="0" y1="0" x2="0" y2="5" style={{ stroke: colour }} strokeWidth="1.6" />
         </pattern>
       </defs>
       <SubZeroBand domain={domain} plot={plot} />
@@ -101,7 +101,7 @@ export function BarChart({
             y={y}
             width={barWidth}
             height={barHeight}
-            fill={bar.muted ? 'url(#chart-hatch)' : colour}
+            style={{ fill: bar.muted ? 'url(#chart-hatch)' : colour }}
             rx={1}
           />
         );

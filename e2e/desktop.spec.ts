@@ -57,9 +57,11 @@ test.describe('desktop review', () => {
     // Regression for two field reports on v0.1.1. The void form posts
     // `expectedVersion` while both void actions read `version`, so every void
     // failed with "Invalid input: expected number, received null"; and the
-    // submit button layered `text-red-700` over `submitClass`'s `text-white`,
-    // which Tailwind resolves to white-on-white because `.text-white` is emitted
-    // later in the stylesheet. Nothing covered either path.
+    // submit button layered a danger-coloured label over `submitClass`'s
+    // till-ink one, which Tailwind resolves to ink-on-ink because
+    // `.text-till-ink` is emitted later in the stylesheet than `.text-danger`
+    // (the classes were palette names until the token pass, decision 159).
+    // Nothing covered either path.
     //
     // Three sequential mutations against a dev server, so allow more than the
     // default budget. Its own purchase, so the seeded rows the other specs

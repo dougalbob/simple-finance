@@ -89,9 +89,9 @@ export default async function IncomePage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Income</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Income</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Money coming in</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           Salary that repeats, and one-off money — a sale paid in cash or by bank transfer, a
           refund, a gift. Income is not spending: it never appears in an insight and never carries a
           category.
@@ -102,10 +102,10 @@ export default async function IncomePage({
         aria-label="Income summary"
         className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Next payday</p>
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Next payday</p>
           {summary.nextPayday === null ? (
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-ink-soft">
               No scheduled income yet — add one below and the projection plans around it.
             </p>
           ) : (
@@ -113,40 +113,40 @@ export default async function IncomePage({
               <p className="mt-1 text-2xl font-semibold tabular-nums">
                 {formatPence(summary.nextPayday.amountPence)}
               </p>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-ink-soft">
                 {summary.nextPayday.scheduleName} · {summary.nextPayday.date} · into{' '}
                 {summary.nextPayday.potLabel}
               </p>
               {summary.nextPayday.shifted ? (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-warning-700">
                   The configured day falls on a weekend, so this is expected on the Friday before.
                 </p>
               ) : null}
             </>
           )}
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
             Received this month
           </p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
             {formatPence(summary.monthToDatePence)}
           </p>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink-soft">
             Income recorded since the 1st, all pots. A figure you recorded — not a bank feed.
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
             Where income shows up
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink-soft">
             Every income record raises its pot&apos;s estimate and appears in{' '}
-            <Link href="/transactions" className="text-sky-700 underline">
+            <Link href="/transactions" className="text-accent underline">
               All Transactions
             </Link>{' '}
             as <span className="font-semibold">BAC</span>. Scheduled income also feeds the{' '}
-            <Link href="/overview" className="text-sky-700 underline">
+            <Link href="/overview" className="text-accent underline">
               to-payday projection
             </Link>
             .
@@ -156,28 +156,28 @@ export default async function IncomePage({
 
       <section
         aria-labelledby="scheduled-income-heading"
-        className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <h2 id="scheduled-income-heading" className="text-lg font-semibold">
           Regular income (scheduled)
         </h2>
-        <p className="mb-3 mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mb-3 mt-1 max-w-3xl text-sm text-ink-soft">
           The money that repeats. Each schedule converts itself into an income record on its due
           date, so the month you are in stays honest without anyone typing. Small corrections are
           made here and apply from the next instance — a salary already paid is never rewritten.
         </p>
 
         {schedules.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing scheduled yet.</p>
+          <p className="text-sm text-ink-muted">Nothing scheduled yet.</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border-hairline">
             {schedules.map((schedule) => (
               <li key={schedule.scheduleId} className="py-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-ink">
                       {schedule.name}{' '}
-                      <span className="font-normal text-slate-500">
+                      <span className="font-normal text-ink-muted">
                         — {formatPence(schedule.amountPence)}{' '}
                         {schedule.frequency === 'monthly' ? 'a month' : 'a year'}, due on the{' '}
                         {ordinal(schedule.dueDayOfMonth)}
@@ -186,7 +186,7 @@ export default async function IncomePage({
                           : ''}
                       </span>
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-ink-muted">
                       Into {schedule.potLabel}
                       {schedule.cancelledAt !== null
                         ? ` · cancelled from ${schedule.cancelledEffectiveOn ?? '—'}`
@@ -198,7 +198,7 @@ export default async function IncomePage({
                         : ' · nothing received yet'}
                     </p>
                     {schedule.nextDueDateShifted ? (
-                      <p className="text-xs text-amber-700">
+                      <p className="text-xs text-warning-700">
                         The {ordinal(schedule.dueDayOfMonth)} falls on a weekend — expected on the
                         Friday before.
                       </p>
@@ -206,7 +206,7 @@ export default async function IncomePage({
                   </div>
                   {schedule.cancelledAt === null ? (
                     <details className="text-xs">
-                      <summary className="cursor-pointer font-medium text-slate-600">
+                      <summary className="cursor-pointer font-medium text-ink-soft">
                         Edit or cancel
                       </summary>
                       <div className="mt-2 flex flex-col gap-3">
@@ -242,8 +242,8 @@ export default async function IncomePage({
           </ul>
         )}
 
-        <details className="mt-4 border-t border-slate-100 pt-3">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+        <details className="mt-4 border-t border-border-hairline pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-ink-body">
             Add scheduled income
           </summary>
           <div className="mt-3">
@@ -258,12 +258,12 @@ export default async function IncomePage({
 
       <section
         aria-labelledby="one-off-income-heading"
-        className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mb-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <h2 id="one-off-income-heading" className="text-lg font-semibold">
           Record one-off income
         </h2>
-        <p className="mb-3 mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mb-3 mt-1 max-w-3xl text-sm text-ink-soft">
           Something sold, a refund, a gift, a one-off job — money that arrived once. Cash or bank
           transfer is simply which pot it landed in: cash into the cash pot, a transfer into the
           bank account it reached.
@@ -277,28 +277,28 @@ export default async function IncomePage({
 
       <section
         aria-labelledby="income-history-heading"
-        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <h2 id="income-history-heading" className="text-lg font-semibold">
           Income received
         </h2>
-        <p className="mb-3 mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mb-3 mt-1 max-w-3xl text-sm text-ink-soft">
           Scheduled and one-off income together, newest first. Voided income stays in the list,
           struck through with its reason — nothing here is ever deleted. Attach the payslip (a PDF
           or a photo, up to 10 MB) to any record, now or later.
         </p>
         {linked !== null ? (
-          <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          <p className="mb-2 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-900">
             Showing the record you linked to — it is older than the two hundred most recent.
           </p>
         ) : null}
         {rows.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-600">
+          <p className="rounded-xl border border-dashed border-border-strong p-6 text-sm text-ink-soft">
             No income recorded yet. Once a salary schedule converts, or you record a one-off, it
             appears here.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border-hairline">
             {rows.map((record) => (
               <IncomeRow
                 key={record.id}
@@ -330,19 +330,19 @@ function IncomeRow({
   return (
     <li id={`receipt-${record.id}`} className="py-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <span className={record.voidedAt !== null ? 'text-slate-400 line-through' : undefined}>
+        <span className={record.voidedAt !== null ? 'text-ink-faint line-through' : undefined}>
           {record.source}
           {record.scheduleName !== null ? (
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-soft">
               from schedule
             </span>
           ) : null}
-          <span className="ml-2 text-xs text-slate-500">
+          <span className="ml-2 text-xs text-ink-muted">
             {record.occurredDate} · {record.potLabel} · {record.enteredBy}
             {record.note !== null && record.note !== '' ? ` — ${record.note}` : ''}
           </span>
         </span>
-        <span className="tabular-nums font-semibold text-emerald-700">
+        <span className="tabular-nums font-semibold text-positive">
           +{formatPence(record.amountPence)}
         </span>
       </div>
@@ -353,7 +353,7 @@ function IncomeRow({
       />
       {record.voidedAt === null ? (
         <details className="mt-1">
-          <summary className="cursor-pointer text-xs font-medium text-slate-600">
+          <summary className="cursor-pointer text-xs font-medium text-ink-soft">
             Correct or void
           </summary>
           <div className="mt-2 flex flex-col gap-3">
@@ -367,7 +367,7 @@ function IncomeRow({
           </div>
         </details>
       ) : (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ink-faint">
           Voided{record.voidReason ? ` — ${record.voidReason}` : ''} · {summary}
         </p>
       )}

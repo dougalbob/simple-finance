@@ -1,3 +1,87 @@
+# Handoff: Colour tokens (Phase 1 of 2) — themes made cheap
+
+**Start from `main`.** Work on your own Arena session branch; no release until the household asks.
+
+## The ask (household, 2026-09-25)
+
+The colour scheme must be arranged so that **adding a new theme is a small, single-place change —
+not an app-wide edit in every page**. Split across two sessions:
+
+1. **This session (Phase 1):** tokenise the existing single scheme. **Zero visual change.** No new theme.
+2. **Next session (Phase 2):** first extra theme (probably dark) + Settings toggle, as the proof
+   that a theme is one token block and nothing else.
+
+**Provenance — record it this time:** the requirement is NOT in SPEC.md or AGENT_APP_BLUEPRINT.md
+(searched 2026-09-25; only PWA `theme_color` metadata and the "colour is never the only signal"
+rules exist). Phase 1 writes it down: **decision 159** — _colour lives in one token block; a theme
+only redefines tokens_ — plus a short Appearance paragraph in SPEC §15.
+
+## Current state (measured 2026-09-25)
+
+- `globals.css`: no design tokens — just `@import 'tailwindcss'` + the `.till-touch` rule (decision
+  136, do not disturb).
+- **1,107** palette utility classes across **35** `.tsx` files (top: `text-slate-500` ×226,
+  `text-slate-600` ×165, `border-slate-200` ×89).
+- Hex literals in three places: `layout.tsx` (`#0f172a`), `public/manifest.webmanifest`, and
+  `charts/chart-primitives.tsx` (**11 chart-palette hexes**).
+- Zero `dark:` variants. The till is dark **by design** (`bg-slate-900 text-white`) — becomes the
+  token pair `--color-till` / `--color-till-ink`.
+
+## Session A (Phase 1) — scope
+
+Definition of done: **pixel-identical rendering, all gates green, colours in one place, no palette
+literals left in components.**
+
+1. Tailwind v4 `@theme` token layer in `globals.css` (canvas, surface, surface-muted, border,
+   border-strong, ink, ink-soft, ink-muted, accent, till, till-ink, positive, warning, danger,
+   chart-1…n) — keep today's distinctions distinct (slate-500 ≠ slate-600).
+2. Mechanical 1:1 migration of the 35 files through a **fixed mapping table**, recorded in
+   decision 159. Acceptance = no rendering change, not naming purity.
+3. Chart hexes → `var(--color-chart-…)` (CSS vars work in SVG). All SPEC §16.7 colour rules
+   survive: colour never the only signal, legend + table twin.
+4. `themeColor` + manifest keep single literals with comments (CSS vars can't reach them);
+   document the limitation for Phase 2.
+5. Recommended: a unit-test "grep gate" that fails on raw palette classes/hexes outside a small
+   allowlist, so pages can't reintroduce app-wide colour.
+6. Docs: decision 159, SPEC Appearance paragraph, rewrite this handoff for Phase 2.
+
+**Out of scope (session B):** second theme, `[data-theme]`, Settings toggle, `dark:` variants,
+`prefers-color-scheme`. Phase 1 is done when the app looks exactly as before.
+
+**Gates:** format, tsc, npm test (461), next build, full Playwright (71) via SANDBOX entry 8;
+before/after screenshots at 320px / 412px / 1400px compared — look at the pictures, charts
+especially.
+
+## Session B (Phase 2) — the session after
+
+- One theme block redefining the same `--color-*` names — nothing else changes.
+- Settings toggle (key/value table, audited), applied via `<html data-theme>` before first paint
+  (inline script; SSR needs a cookie — decide and record).
+- e2e: switch theme, assert a computed colour changed, till + chart specs still green; PWA
+  themeColor story documented.
+
+## Watch out for (carried forward)
+
+- SANDBOX entries 8 (local browser), 9 (stale `next dev` SSR), 13 (GitHub connector drops).
+- `next build` flips `next-env.d.ts` — restore before committing. Commit the AGENTS.md
+  Next.js-rules block `next dev` re-adds.
+- Don't bump the version while Playwright is running (backup spec reads `APP_VERSION`).
+
+---
+
+> **Received in-session 2026-09-25** (session `arena/01a0da84-simple-finance`): the brief above is
+> reproduced verbatim from the household's message — the previous session could not push it. The
+> v0.15.0 handoff it was written against follows below, unchanged.
+>
+> **Re-measured in this session, before any edit** (same day, same tree @ `b364f18`): **1,315** palette
+> utility occurrences (the brief's 1,107 under-counts because it excludes `bg-white`/`text-white` and
+> variant-prefixed spellings such as `hover:bg-slate-50`) across **95 distinct class spellings** in the
+> same **35 `.tsx` files**; `chart-primitives.tsx` carries **10 distinct hexes + `#ffffff`** in
+> `CHART_COLOURS` plus two `rgba()` tints, and `step-area-chart.tsx` repeats the `#ffffff` halo. Also
+> present and missed by the brief: `bg-indigo-700` / `border-indigo-200` on the supplier card.
+
+---
+
 # Handoff: Charts — the money, drawn (v0.14.0)
 
 Date: 2026-09-25. Branch: `arena/01a0d991-simple-finance` (from `main` @ `c50cfa7`, the v0.13.1 merge).

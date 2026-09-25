@@ -54,8 +54,8 @@ export function PurchaseFilterForm({
   const panelId = useId();
   const targetOptions = targetKind === 'person' ? people : targetKind === 'vehicle' ? vehicles : [];
   const inputClass =
-    'w-full min-w-0 max-w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-  const labelClass = 'text-xs font-medium text-slate-600';
+    'w-full min-w-0 max-w-full rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+  const labelClass = 'text-xs font-medium text-ink-soft';
   const fieldClass = 'flex min-w-0 flex-col gap-1';
   const fullRowClass = `${fieldClass} col-span-2 sm:col-span-1`;
 
@@ -65,11 +65,11 @@ export function PurchaseFilterForm({
       aria-label="Purchase filters"
       data-filters-ready={ready ? 'true' : 'false'}
       inert={!ready}
-      className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
       <button
         type="button"
-        className="flex w-full items-center justify-center bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-100 sm:hidden"
+        className="flex w-full items-center justify-center bg-canvas px-4 py-2.5 text-sm font-medium text-ink-emphasis hover:bg-surface-muted sm:hidden"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
@@ -78,7 +78,7 @@ export function PurchaseFilterForm({
       </button>
       <div
         id={panelId}
-        className={open ? 'border-t border-slate-200 p-4 sm:border-t-0' : 'hidden p-4 sm:block'}
+        className={open ? 'border-t border-border p-4 sm:border-t-0' : 'hidden p-4 sm:block'}
       >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className={fieldClass}>
@@ -223,47 +223,44 @@ export function PurchaseFilterForm({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-          <label className="flex items-center gap-1.5 text-sm text-slate-700">
+          <label className="flex items-center gap-1.5 text-sm text-ink-body">
             <input
               type="checkbox"
               name="scheduleOnly"
               value="1"
               defaultChecked={active.scheduleOnly === '1'}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border-strong"
             />
             From schedule
           </label>
-          <label className="flex items-center gap-1.5 text-sm text-slate-700">
+          <label className="flex items-center gap-1.5 text-sm text-ink-body">
             <input
               type="checkbox"
               name="refundsOnly"
               value="1"
               defaultChecked={active.refundsOnly === '1'}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border-strong"
             />
             Refunds
           </label>
-          <label className="flex items-center gap-1.5 text-sm text-slate-700">
+          <label className="flex items-center gap-1.5 text-sm text-ink-body">
             <input
               type="checkbox"
               name="voidedOnly"
               value="1"
               defaultChecked={active.voidedOnly === '1'}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border-strong"
             />
             Voided
           </label>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="submit"
-              className="rounded bg-slate-900 px-4 py-1.5 text-sm font-medium text-white"
+              className="rounded bg-till px-4 py-1.5 text-sm font-medium text-till-ink"
             >
               Apply filters
             </button>
-            <a
-              href="/purchases"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
+            <a href="/purchases" className="text-sm font-medium text-ink-soft hover:text-ink">
               Clear
             </a>
           </div>

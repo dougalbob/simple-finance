@@ -65,7 +65,7 @@ export function HorizonLookAheadForm({
       {children}
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label htmlFor="horizon-through" className="text-xs font-medium text-slate-600">
+          <label htmlFor="horizon-through" className="text-xs font-medium text-ink-soft">
             Look ahead to
           </label>
           <input
@@ -76,16 +76,16 @@ export function HorizonLookAheadForm({
             max={maxDate}
             defaultValue={throughDate}
             onChange={onDateChange}
-            className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            className="rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none"
           />
         </div>
         <button
           type="submit"
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60"
         >
           Look ahead
         </button>
-        <p className="pb-1.5 text-xs text-slate-500">
+        <p className="pb-1.5 text-xs text-ink-muted">
           Changing the date applies the pots and day-to-day above; use “Look ahead” after changing
           only those.
         </p>

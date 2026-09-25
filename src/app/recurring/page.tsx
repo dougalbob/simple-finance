@@ -221,13 +221,13 @@ export default async function RecurringPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
           Recurring payments
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
           Schedules, renewals &amp; the month at a glance
         </h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           Schedules convert automatically at local midnight on their due date. This calendar is
           <span className="font-semibold"> read-only planning aid</span>: moving a date here (or
           editing a schedule) changes the <em>records</em> the app makes — it never moves your bank
@@ -239,7 +239,7 @@ export default async function RecurringPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <section
           aria-labelledby="calendar-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 id="calendar-heading" className="text-xl font-semibold">
@@ -248,36 +248,36 @@ export default async function RecurringPage({
             <div className="flex items-center gap-1">
               <Link
                 href={`/recurring?month=${monthParam(shiftMonth(ref, -1))}`}
-                className="rounded border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded border border-border-strong px-2.5 py-1 text-sm font-medium text-ink-body hover:bg-canvas"
               >
                 ← Prev
               </Link>
               <Link
                 href="/recurring"
-                className="rounded border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded border border-border-strong px-2.5 py-1 text-sm font-medium text-ink-body hover:bg-canvas"
               >
                 Today
               </Link>
               <Link
                 href={`/recurring?month=${monthParam(shiftMonth(ref, 1))}`}
-                className="rounded border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded border border-border-strong px-2.5 py-1 text-sm font-medium text-ink-body hover:bg-canvas"
               >
                 Next →
               </Link>
             </div>
           </div>
           <CalendarGrid days={days} />
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
             <span>
-              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-slate-400" />
+              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-marker-muted" />
               outgo (direct debit / standing order)
             </span>
             <span>
-              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-positive-500" />
               receipt (income)
             </span>
             <span>
-              <span className="mr-1 inline-block h-2 w-2 rounded-full border border-slate-400 bg-white" />
+              <span className="mr-1 inline-block h-2 w-2 rounded-full border border-marker-muted bg-surface" />
               not converted yet
             </span>
           </div>
@@ -286,23 +286,23 @@ export default async function RecurringPage({
         <div className="space-y-6">
           <section
             aria-labelledby="schedules-heading"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h2 id="schedules-heading" className="text-lg font-semibold">
                 Schedules
               </h2>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-ink-muted">
                 edits apply from the next instance — history is never rewritten
               </span>
             </div>
             {schedules.length === 0 ? (
-              <p className="mb-3 text-sm text-slate-500">
+              <p className="mb-3 text-sm text-ink-muted">
                 No schedules yet. Add one below — each converts into a normal record at local
                 midnight on its due date.
               </p>
             ) : (
-              <ul className="mb-3 divide-y divide-slate-100">
+              <ul className="mb-3 divide-y divide-border-hairline">
                 {schedules.map(({ schedule, nextDueDate }) => (
                   <li key={schedule.id} id={`schedule-${schedule.id}`} className="py-2.5">
                     <div className="flex items-baseline justify-between gap-2">
@@ -310,13 +310,13 @@ export default async function RecurringPage({
                         <span
                           className={
                             schedule.cancelledAt !== null
-                              ? 'font-medium text-slate-400 line-through'
-                              : 'font-medium text-slate-800'
+                              ? 'font-medium text-ink-faint line-through'
+                              : 'font-medium text-ink-emphasis'
                           }
                         >
                           {schedule.name}
                         </span>{' '}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-ink-muted">
                           {schedule.kind === 'receipt'
                             ? 'income'
                             : schedule.kind === 'dd'
@@ -336,7 +336,7 @@ export default async function RecurringPage({
                         {formatPence(schedule.amountPence)}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-ink-muted">
                       {schedule.cancelledAt !== null ? (
                         <>Cancelled from {schedule.cancelledEffectiveOn} — history kept</>
                       ) : (
@@ -350,7 +350,7 @@ export default async function RecurringPage({
                           {' · '}
                           <Link
                             href={supplierCardHref(schedule.supplierId)}
-                            className="text-sky-700 hover:underline"
+                            className="text-accent hover:underline"
                           >
                             Supplier card
                           </Link>
@@ -359,7 +359,7 @@ export default async function RecurringPage({
                     </p>
                     {schedule.cancelledAt === null ? (
                       <details className="mt-1.5">
-                        <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                        <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
                           Edit schedule
                         </summary>
                         <div className="mt-2 max-w-2xl">
@@ -421,7 +421,7 @@ export default async function RecurringPage({
               </ul>
             )}
             <details>
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              <summary className="cursor-pointer text-sm font-medium text-ink-body">
                 Add a schedule
               </summary>
               <div className="mt-3">
@@ -432,25 +432,25 @@ export default async function RecurringPage({
 
           <section
             aria-labelledby="renewals-heading"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <h2 id="renewals-heading" className="mb-2 text-lg font-semibold">
               Renewals
             </h2>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-ink-muted">
               Alerts with context — if the money also moves (an annual premium), that is a separate
               annual schedule; the two never double-count.
             </p>
             {renewals.length === 0 ? (
-              <p className="mb-3 text-sm text-slate-500">No renewals tracked yet.</p>
+              <p className="mb-3 text-sm text-ink-muted">No renewals tracked yet.</p>
             ) : (
-              <ul className="mb-3 divide-y divide-slate-100">
+              <ul className="mb-3 divide-y divide-border-hairline">
                 {renewals.map((renewal) => (
                   <li key={renewal.id} id={`renewal-${renewal.id}`} className="py-2.5">
                     <div className="flex items-baseline justify-between gap-2 text-sm">
                       <span>
-                        <span className="font-medium text-slate-800">{renewal.label}</span>{' '}
-                        <span className="text-xs text-slate-500">
+                        <span className="font-medium text-ink-emphasis">{renewal.label}</span>{' '}
+                        <span className="text-xs text-ink-muted">
                           due {renewal.nextRenewalDate}
                           {renewal.advancedFrom !== null
                             ? ` (advanced from ${renewal.advancedFrom})`
@@ -466,12 +466,12 @@ export default async function RecurringPage({
                             : ''}
                         </span>
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-ink-muted">
                         {renewal.repeatsAnnually ? 'annual' : 'one-off'}
                       </span>
                     </div>
                     <details className="mt-1.5">
-                      <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                      <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
                         Edit renewal
                       </summary>
                       <div className="mt-2 max-w-2xl">
@@ -497,7 +497,7 @@ export default async function RecurringPage({
               </ul>
             )}
             <details>
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              <summary className="cursor-pointer text-sm font-medium text-ink-body">
                 Add a renewal
               </summary>
               <div className="mt-3">
@@ -510,12 +510,12 @@ export default async function RecurringPage({
 
       <section
         aria-labelledby="projection-figures-heading"
-        className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mt-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <h2 id="projection-figures-heading" className="mb-2 text-lg font-semibold">
           Projection figures
         </h2>
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-xs text-ink-muted">
           The configured day-to-day numbers the payday projection uses — the Insights honesty loop
           compares them with recent actuals.
         </p>
@@ -530,7 +530,7 @@ export default async function RecurringPage({
 function CalendarGrid({ days }: { days: CalendarDay[] }) {
   return (
     <div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {WEEKDAYS.map((day) => (
           <div key={day} className="py-1">
             {day}
@@ -546,23 +546,23 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
             data-date={day.date}
             className={`min-h-20 rounded-lg border p-1.5 ${
               day.isToday
-                ? 'border-sky-400 bg-sky-50'
+                ? 'border-accent-400 bg-accent-50'
                 : day.inMonth
-                  ? 'border-slate-200 bg-white'
-                  : 'border-slate-100 bg-slate-50'
+                  ? 'border-border bg-surface'
+                  : 'border-border-hairline bg-canvas'
             }`}
           >
             <p
               className={`text-xs font-medium ${
-                day.inMonth ? 'text-slate-700' : 'text-slate-400'
-              } ${day.isToday ? 'text-sky-700' : ''}`}
+                day.inMonth ? 'text-ink-body' : 'text-ink-faint'
+              } ${day.isToday ? 'text-accent' : ''}`}
             >
               {Number(day.date.slice(8))}
               {day.isToday ? ' · today' : ''}
             </p>
             {day.instances.length > 0 ? (
               <details className="mt-1">
-                <summary className="cursor-pointer list-none text-xs font-medium text-slate-600 hover:text-slate-900">
+                <summary className="cursor-pointer list-none text-xs font-medium text-ink-soft hover:text-ink">
                   {day.instances.length} {day.instances.length === 1 ? 'item' : 'items'}
                 </summary>
                 <ul className="mt-1 space-y-1">
@@ -570,20 +570,20 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
                     <li key={instance.instanceId}>
                       <a
                         href={`#schedule-edit-${instance.scheduleId}`}
-                        className={`flex items-start gap-1 rounded px-1 py-0.5 text-xs hover:bg-slate-100 ${
-                          instance.kind === 'receipt' ? 'text-emerald-800' : 'text-slate-700'
+                        className={`flex items-start gap-1 rounded px-1 py-0.5 text-xs hover:bg-surface-muted ${
+                          instance.kind === 'receipt' ? 'text-positive-800' : 'text-ink-body'
                         }`}
                       >
                         <span
                           className={`mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
-                            instance.kind === 'receipt' ? 'bg-emerald-500' : 'bg-slate-400'
+                            instance.kind === 'receipt' ? 'bg-positive-500' : 'bg-marker-muted'
                           }`}
                         />
                         <span>
                           <span
                             className={
                               instance.state === 'converted'
-                                ? 'line-through decoration-slate-300'
+                                ? 'line-through decoration-ink-ghost'
                                 : ''
                             }
                           >
@@ -594,7 +594,7 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
                             {formatPence(instance.amountPence)}
                           </span>
                           {instance.state === 'upcoming' ? (
-                            <span className="ml-1 text-slate-400">pending</span>
+                            <span className="ml-1 text-ink-faint">pending</span>
                           ) : null}
                         </span>
                       </a>

@@ -14,10 +14,10 @@ import {
 import { initialActionState } from '@/lib/action-state';
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-const labelClass = 'text-xs font-medium text-slate-600';
+  'rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
-  'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 
 function FormMessage({ status, message }: { status: string; message: string | null }) {
   if (message === null) return null;
@@ -25,7 +25,7 @@ function FormMessage({ status, message }: { status: string; message: string | nu
     <p
       role="status"
       aria-live="polite"
-      className={status === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}
+      className={status === 'error' ? 'text-sm text-danger' : 'text-sm text-positive'}
     >
       {message}
     </p>
@@ -85,9 +85,9 @@ export function AddVehicleForm({ people }: AddVehicleFormProps) {
     <form
       action={formAction}
       aria-label="Add vehicle"
-      className="rounded-lg border border-sky-100 bg-white p-3"
+      className="rounded-lg border border-accent-100 bg-surface p-3"
     >
-      <p className="mb-2 text-sm font-semibold text-slate-700">Add vehicle</p>
+      <p className="mb-2 text-sm font-semibold text-ink-body">Add vehicle</p>
       <div className="flex flex-col gap-1">
         <label htmlFor="settings-add-vehicle-label" className={labelClass}>
           Name
@@ -370,19 +370,19 @@ export function CategoryTreeEditor({ tree }: { tree: CategoryNodeData[] }) {
 
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {tree.map((parent) => (
-          <li key={parent.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-            <p className="text-sm font-semibold text-slate-800">{parent.name}</p>
+          <li key={parent.id} className="rounded-lg border border-border bg-canvas p-2.5">
+            <p className="text-sm font-semibold text-ink-emphasis">{parent.name}</p>
             <ul className="mt-1.5 space-y-0.5 text-sm">
               {parent.children.map((child) => (
                 <li
                   key={child.id}
-                  className={child.retired ? 'text-slate-400 line-through' : 'text-slate-600'}
+                  className={child.retired ? 'text-ink-faint line-through' : 'text-ink-soft'}
                 >
                   {child.name}
                 </li>
               ))}
               {parent.children.length === 0 ? (
-                <li className="text-xs text-slate-400">No children yet</li>
+                <li className="text-xs text-ink-faint">No children yet</li>
               ) : null}
             </ul>
           </li>
@@ -477,7 +477,7 @@ export function DefaultPurchasePotForm({ pots, defaultPotId }: DefaultPurchasePo
             </option>
           ))}
         </select>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Every purchase can still be recorded against any pot — this only decides where the form
           starts. A cash pot can be the default; the form simply shows no balance for cash.
         </p>
@@ -530,7 +530,7 @@ export function PersonSignInForm({ personId, personLabel, email, choices }: Pers
           {pending ? 'Saving…' : 'Save sign-in'}
         </button>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-muted">
         When this sign-in opens the till, Paid by starts on {personLabel} and Fuel starts on the
         vehicle {personLabel} owns.
       </p>
@@ -569,15 +569,15 @@ export function CommitmentCategoriesForm({ groups, source }: CommitmentCategorie
   return (
     <form action={formAction} className="flex flex-col gap-3">
       {source === 'schedules' ? (
-        <p className="rounded bg-sky-50 px-3 py-2 text-xs text-sky-900">
+        <p className="rounded bg-accent-50 px-3 py-2 text-xs text-accent-900">
           Nothing saved yet, so these are pre-ticked from the categories your direct debits and
           standing orders already use. Save to make the list your own.
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((group) => (
-          <fieldset key={group.parentId} className="rounded-lg border border-slate-200 p-3">
-            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <fieldset key={group.parentId} className="rounded-lg border border-border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
               {group.parent}
             </legend>
             <ul className="space-y-1">
@@ -594,10 +594,10 @@ export function CommitmentCategoriesForm({ groups, source }: CommitmentCategorie
                     <span>
                       {child.name}
                       {child.usedBySchedule ? (
-                        <span className="ml-1 text-xs text-slate-500">· used by a schedule</span>
+                        <span className="ml-1 text-xs text-ink-muted">· used by a schedule</span>
                       ) : null}
                       {child.retired ? (
-                        <span className="ml-1 text-xs text-slate-400">· retired</span>
+                        <span className="ml-1 text-xs text-ink-faint">· retired</span>
                       ) : null}
                     </span>
                   </label>

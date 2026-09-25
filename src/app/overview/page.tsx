@@ -105,9 +105,9 @@ export default async function OverviewPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Overview</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Overview</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Everything in one place</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-soft">
           Estimates are your reported figures plus recorded activity — never a bank balance.
         </p>
       </header>
@@ -120,12 +120,12 @@ export default async function OverviewPage({
           ) : (
             <section
               aria-labelledby="projection-locked-heading"
-              className="rounded-xl border border-dashed border-slate-300 bg-white p-4"
+              className="rounded-xl border border-dashed border-border-strong bg-surface p-4"
             >
               <h2 id="projection-locked-heading" className="text-lg font-semibold">
                 Payday projection
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-ink-soft">
                 The projection appears once the household has a balance checkpoint and an expected
                 income schedule (for example a monthly salary). Record a checkpoint in Accounts
                 &amp; Pots, then add the income schedule in Recurring.
@@ -153,7 +153,7 @@ export default async function OverviewPage({
                     <span className="font-medium">{vehicle.label}</span>
                     <span className="tabular-nums">{formatPence(vehicle.rolling12Pence)}</span>
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-ink-muted">
                     this month {formatPence(vehicle.monthPence)} · previous{' '}
                     {formatPence(vehicle.previousMonthPence)} · since {vehicle.rolling12From}
                   </p>
@@ -166,22 +166,22 @@ export default async function OverviewPage({
         <div className="grid gap-6 lg:grid-cols-2">
           <section
             aria-labelledby="recent-purchases-heading"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h2 id="recent-purchases-heading" className="text-lg font-semibold">
                 Recent entries
               </h2>
-              <Link href="/purchases" className="text-sm font-medium text-sky-700 hover:underline">
+              <Link href="/purchases" className="text-sm font-medium text-accent hover:underline">
                 All purchases →
               </Link>
             </div>
             {recentPurchases.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-ink-muted">
                 Saved purchases will appear here with inline edit, void and refund actions.
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-border-hairline">
                 {recentPurchases.map(({ purchase, allocations }) => (
                   <li key={purchase.id} className="py-2.5">
                     <div className="flex items-baseline justify-between gap-2">
@@ -189,15 +189,15 @@ export default async function OverviewPage({
                         <span
                           className={
                             purchase.voidedAt !== null
-                              ? 'text-slate-400 line-through'
-                              : 'font-medium text-slate-800'
+                              ? 'text-ink-faint line-through'
+                              : 'font-medium text-ink-emphasis'
                           }
                         >
                           {purchase.supplierId !== null
                             ? (supplierNames.get(purchase.supplierId) ?? 'Unknown supplier')
                             : 'Unknown supplier'}
                         </span>{' '}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-ink-muted">
                           {formatInstantLocal(purchase.occurredAt)} ·{' '}
                           {purchase.scheduleInstanceId !== null
                             ? 'from schedule'
@@ -217,7 +217,7 @@ export default async function OverviewPage({
                     {purchase.voidedAt === null ? (
                       <div className="mt-1.5">
                         <details className="inline-block">
-                          <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                          <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
                             Edit / void / refund
                           </summary>
                           <div className="mt-2 max-w-md">
@@ -263,31 +263,31 @@ export default async function OverviewPage({
           <div className="space-y-6">
             <section
               aria-labelledby="transfers-heading"
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
             >
               <h2 id="transfers-heading" className="mb-2 text-lg font-semibold">
                 Transfers between pots
               </h2>
-              <p className="mb-3 text-xs text-slate-500">
+              <p className="mb-3 text-xs text-ink-muted">
                 Money moving between your own pots — transfers never enter Insights (SPEC §10).
               </p>
               {linkedTransfer !== null ? (
-                <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                <p className="mb-2 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-900">
                   Showing the transfer you linked to — it is older than the five most recent.
                 </p>
               ) : null}
               {transferRows.length === 0 ? (
-                <p className="mb-3 text-sm text-slate-500">No transfers recorded yet.</p>
+                <p className="mb-3 text-sm text-ink-muted">No transfers recorded yet.</p>
               ) : (
-                <ul className="mb-3 divide-y divide-slate-100">
+                <ul className="mb-3 divide-y divide-border-hairline">
                   {transferRows.map((transfer) => (
                     <li key={transfer.id} id={`transfer-${transfer.id}`} className="py-1.5">
                       <div className="flex items-baseline justify-between gap-2 text-sm">
                         <span
                           className={
                             transfer.voidedAt !== null
-                              ? 'text-slate-400 line-through'
-                              : 'text-slate-700'
+                              ? 'text-ink-faint line-through'
+                              : 'text-ink-body'
                           }
                         >
                           {potNames.get(transfer.fromPotId) ?? 'Pot'} →{' '}
@@ -303,7 +303,7 @@ export default async function OverviewPage({
                       {transfer.voidedAt === null ? (
                         <p className="mt-1">
                           <details className="inline-block">
-                            <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                            <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
                               Void
                             </summary>
                             <div className="mt-2 max-w-md">
@@ -324,7 +324,7 @@ export default async function OverviewPage({
                 </ul>
               )}
               <details>
-                <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                <summary className="cursor-pointer text-sm font-medium text-ink-body">
                   Record a transfer
                 </summary>
                 <div className="mt-3">
@@ -336,7 +336,7 @@ export default async function OverviewPage({
             <div className="grid gap-6 sm:grid-cols-2">
               <section
                 aria-labelledby="add-pot-heading"
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
               >
                 <h2 id="add-pot-heading" className="mb-3 text-base font-semibold">
                   Add a pot
@@ -345,7 +345,7 @@ export default async function OverviewPage({
               </section>
               <section
                 aria-labelledby="add-checkpoint-heading"
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
               >
                 <h2 id="add-checkpoint-heading" className="mb-3 text-base font-semibold">
                   Balance checkpoint
@@ -356,18 +356,18 @@ export default async function OverviewPage({
 
             <section
               aria-labelledby="recent-checkpoints-heading"
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
             >
               <h2 id="recent-checkpoints-heading" className="mb-2 text-base font-semibold">
                 Recent checkpoints
               </h2>
-              <p className="mb-2 text-xs text-slate-500">
+              <p className="mb-2 text-xs text-ink-muted">
                 Immutable corrections — they never delete what happened.
               </p>
               {recentCheckpoints(db).length === 0 ? (
-                <p className="text-sm text-slate-500">Nothing recorded yet.</p>
+                <p className="text-sm text-ink-muted">Nothing recorded yet.</p>
               ) : (
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-border-hairline">
                   {recentCheckpoints(db)
                     .slice(0, 6)
                     .map((checkpoint) => (
@@ -377,7 +377,7 @@ export default async function OverviewPage({
                       >
                         <span>
                           {checkpoint.potLabel}
-                          <span className="ml-2 text-xs text-slate-500">
+                          <span className="ml-2 text-xs text-ink-muted">
                             {formatRelativeAge(checkpoint.effectiveAt)}
                           </span>
                         </span>
@@ -404,7 +404,7 @@ function MoneyRow({
   return (
     <section
       aria-labelledby="money-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="money-heading" className="text-xl font-semibold">
@@ -412,22 +412,22 @@ function MoneyRow({
             ? 'Waiting for your first checkpoint'
             : `Household available now: ${formatPence(money.householdAvailablePence)}`}
         </h2>
-        <Link href="/pots" className="text-sm font-medium text-sky-700 hover:underline">
+        <Link href="/pots" className="text-sm font-medium text-accent hover:underline">
           Accounts &amp; Pots →
         </Link>
       </div>
       {money.householdAvailablePence === null ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-soft">
           Record a balance checkpoint for at least one pot and the household estimate appears here.
           Unreported pots never get an estimate — the app does not guess balances.
         </p>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {money.pots.map((view) => (
-            <li key={view.pot.id} className="rounded-lg bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-500">{view.pot.label}</p>
+            <li key={view.pot.id} className="rounded-lg bg-canvas px-3 py-2">
+              <p className="text-xs text-ink-muted">{view.pot.label}</p>
               {view.estimatePence === null ? (
-                <p className="text-sm text-slate-400">no checkpoint</p>
+                <p className="text-sm text-ink-faint">no checkpoint</p>
               ) : (
                 <p className="text-sm font-semibold tabular-nums">
                   {formatPence(view.estimatePence)}
@@ -442,11 +442,11 @@ function MoneyRow({
         </ul>
       )}
       {money.debts.owedByHouseholdPence > 0 || money.debts.owedToHouseholdPence > 0 ? (
-        <p className="mt-3 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-ink-soft">
           {money.debts.owedByHouseholdPence > 0 ? (
             <>
               Owe others{' '}
-              <span className="font-semibold tabular-nums text-slate-900">
+              <span className="font-semibold tabular-nums text-ink">
                 {formatPence(money.debts.owedByHouseholdPence)}
               </span>
               {' (borrowed, not income)'}
@@ -458,7 +458,7 @@ function MoneyRow({
           {money.debts.owedToHouseholdPence > 0 ? (
             <>
               Owed to us{' '}
-              <span className="font-semibold tabular-nums text-slate-900">
+              <span className="font-semibold tabular-nums text-ink">
                 {formatPence(money.debts.owedToHouseholdPence)}
               </span>
             </>
@@ -481,15 +481,15 @@ function SectionShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
             {kicker}
           </p>
           <h2 className="text-lg font-semibold">{title}</h2>
         </div>
-        <span className="text-xs text-slate-500">{caption}</span>
+        <span className="text-xs text-ink-muted">{caption}</span>
       </div>
       {children}
     </section>
@@ -533,10 +533,10 @@ function MonthBars({
     <div>
       <p className="mb-2 text-sm">
         <span className="font-semibold tabular-nums">{formatPence(current.totalPence)}</span>{' '}
-        <span className="text-xs text-slate-500">so far this month</span>
+        <span className="text-xs text-ink-muted">so far this month</span>
       </p>
       {current.byParent.length === 0 ? (
-        <p className="text-sm text-slate-500">Nothing recorded this month yet.</p>
+        <p className="text-sm text-ink-muted">Nothing recorded this month yet.</p>
       ) : (
         <ul className="space-y-1.5">
           {current.byParent.map((entry) => {
@@ -545,17 +545,17 @@ function MonthBars({
             return (
               <li key={entry.parent}>
                 <div className="flex items-baseline justify-between gap-2 text-xs">
-                  <span className="text-slate-600">{entry.parent}</span>
-                  <span className="tabular-nums text-slate-700">
+                  <span className="text-ink-soft">{entry.parent}</span>
+                  <span className="tabular-nums text-ink-body">
                     {formatPence(entry.amountPence)}
-                    <span className="ml-1 text-slate-400">
+                    <span className="ml-1 text-ink-faint">
                       ({formatPence(prevAmount)} last month)
                     </span>
                   </span>
                 </div>
-                <div className="mt-0.5 h-2 rounded bg-slate-100">
+                <div className="mt-0.5 h-2 rounded bg-surface-muted">
                   <div
-                    className="h-2 rounded bg-sky-600"
+                    className="h-2 rounded bg-accent-600"
                     style={{
                       width: `${Math.max(2, Math.round((entry.amountPence / max) * 100))}%`,
                     }}
@@ -583,17 +583,17 @@ function DueThisWeekSection({
   }>;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Due this week</h2>
-        <Link href="/recurring" className="text-xs font-medium text-sky-700 hover:underline">
+        <Link href="/recurring" className="text-xs font-medium text-accent hover:underline">
           Recurring →
         </Link>
       </div>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">Nothing scheduled in the next seven days.</p>
+        <p className="text-sm text-ink-muted">Nothing scheduled in the next seven days.</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-hairline">
           {items.map((item, index) => (
             <li
               key={`${item.scheduleKind}-${item.name}-${item.dueDate}-${index}`}
@@ -601,12 +601,12 @@ function DueThisWeekSection({
             >
               <span>
                 <span className="font-medium">{item.name}</span>{' '}
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-ink-muted">
                   {item.dueDate} · {item.potLabel}
                 </span>
               </span>
               <span
-                className={`tabular-nums ${item.scheduleKind === 'receipt' ? 'text-emerald-700' : ''}`}
+                className={`tabular-nums ${item.scheduleKind === 'receipt' ? 'text-positive' : ''}`}
               >
                 {item.scheduleKind === 'receipt' ? '+' : '−'}
                 {formatPence(item.amountPence)}
@@ -621,14 +621,14 @@ function DueThisWeekSection({
 
 function KeyDatesSection({ items }: { items: Array<{ message: string; date: string }> }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <h2 className="mb-2 text-lg font-semibold">Key dates</h2>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-muted">
           No renewals or contract ends inside their warning windows right now.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-hairline">
           {items.map((item, index) => (
             <li key={`${item.date}-${index}`} className="py-1.5 text-sm">
               {item.message}

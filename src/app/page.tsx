@@ -94,16 +94,16 @@ export default async function HomePage() {
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
             Shared household ledger
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Simple Finance</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-ink-soft">
             Signed in as {user.email}. Estimates are your reported figures plus recorded activity —
             never a bank balance.
           </p>
         </div>
-        <p className="rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
+        <p className="rounded-full bg-surface px-3 py-1 text-xs text-ink-muted shadow-sm ring-1 ring-border">
           v{APP_VERSION} · {APP_RELEASE_STAGE}
         </p>
       </header>
@@ -119,12 +119,12 @@ export default async function HomePage() {
         ) : (
           <section
             aria-labelledby="projection-locked-heading"
-            className="rounded-xl border border-dashed border-slate-300 bg-white p-4"
+            className="rounded-xl border border-dashed border-border-strong bg-surface p-4"
           >
             <h2 id="projection-locked-heading" className="text-lg font-semibold">
               Payday projection
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-ink-soft">
               The projection appears once the household has a balance checkpoint and an expected
               income schedule (for example a monthly salary). Record a checkpoint above, then add
               the income schedule in Recurring payments below.
@@ -148,20 +148,20 @@ export default async function HomePage() {
         <section aria-labelledby="pots-heading">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
                 Reported figures
               </p>
               <h2 id="pots-heading" className="text-xl font-semibold">
                 Pots &amp; checkpoints
               </h2>
             </div>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-ink-muted">
               Not a bank balance · last reported amount
             </span>
           </div>
           <CycleOutlookLine outlook={outlook} className="mb-3" />
           {pots.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-dashed border-border-strong bg-surface p-4 text-sm text-ink-soft">
               Add the household&apos;s pots below. A typical setup has two bank accounts and three
               cash pots.
             </p>
@@ -173,11 +173,11 @@ export default async function HomePage() {
                 return (
                   <li
                     key={pot.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                    className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium">{pot.label}</span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-soft">
                         {pot.kind === 'bank' ? 'Bank' : 'Cash'}
                       </span>
                     </div>
@@ -186,12 +186,12 @@ export default async function HomePage() {
                         <p className="mt-3 text-xl font-semibold tabular-nums">
                           {formatPence(checkpoint.amountPence)}
                         </p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                        <p className="mt-1 text-xs leading-5 text-ink-muted">
                           Last reported {formatRelativeAge(checkpoint.effectiveAt)} (
                           {formatInstantLocal(checkpoint.effectiveAt)})
                         </p>
                         {view !== undefined && view.estimatePence !== null ? (
-                          <p className="mt-2 text-xs text-slate-600">
+                          <p className="mt-2 text-xs text-ink-soft">
                             Available now (estimate):{' '}
                             <span className="font-semibold tabular-nums">
                               {formatPence(view.estimatePence)}
@@ -204,7 +204,7 @@ export default async function HomePage() {
                         />
                       </>
                     ) : (
-                      <p className="mt-3 text-sm text-slate-500">
+                      <p className="mt-3 text-sm text-ink-muted">
                         No checkpoint yet — this pot has no estimate, by design.
                       </p>
                     )}
@@ -221,7 +221,7 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section
             aria-labelledby="add-pot-heading"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <h2 id="add-pot-heading" className="mb-3 text-lg font-semibold">
               Add a pot
@@ -230,7 +230,7 @@ export default async function HomePage() {
           </section>
           <section
             aria-labelledby="add-checkpoint-heading"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
           >
             <h2 id="add-checkpoint-heading" className="mb-3 text-lg font-semibold">
               Record a balance checkpoint
@@ -242,26 +242,26 @@ export default async function HomePage() {
         <section aria-labelledby="recent-purchases-heading">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
                 Review
               </p>
               <h2 id="recent-purchases-heading" className="text-xl font-semibold">
                 Recent entries
               </h2>
             </div>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-ink-muted">
               Transfers and projections are separate records
             </span>
           </div>
           {recentPurchases.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-dashed border-border-strong bg-surface p-4 text-sm text-ink-soft">
               Saved purchases will appear here, including a retained void marker when you resolve a
               duplicate. Schedule conversions appear here too, tagged “From schedule …”.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
               <table className="w-full min-w-[680px] text-sm">
-                <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                   <tr>
                     <th className="px-3 py-2">When</th>
                     <th className="px-3 py-2">Supplier</th>
@@ -276,7 +276,7 @@ export default async function HomePage() {
                     <tr
                       id={`purchase-${purchase.id}`}
                       key={purchase.id}
-                      className={`border-t border-slate-100 ${purchase.voidedAt ? 'text-slate-400 line-through' : ''}`}
+                      className={`border-t border-border-hairline ${purchase.voidedAt ? 'text-ink-faint line-through' : ''}`}
                     >
                       <td className="whitespace-nowrap px-3 py-2">
                         {formatInstantLocal(purchase.occurredAt)}
@@ -316,17 +316,17 @@ export default async function HomePage() {
           <h2 id="recent-checkpoints-heading" className="mb-3 text-xl font-semibold">
             Recent checkpoints
           </h2>
-          <p className="mb-2 max-w-prose text-xs text-slate-500">
+          <p className="mb-2 max-w-prose text-xs text-ink-muted">
             Checkpoints are immutable corrections — they never delete what happened.
           </p>
           {money.pots.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-dashed border-border-strong bg-surface p-4 text-sm text-ink-soft">
               Nothing recorded yet.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
               <table className="w-full min-w-[600px] text-sm">
-                <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                   <tr>
                     <th className="px-3 py-2">When</th>
                     <th className="px-3 py-2">Pot</th>
@@ -337,7 +337,7 @@ export default async function HomePage() {
                 </thead>
                 <tbody>
                   {recentCheckpoints(db).map((checkpoint) => (
-                    <tr key={checkpoint.id} className="border-t border-slate-100">
+                    <tr key={checkpoint.id} className="border-t border-border-hairline">
                       <td className="whitespace-nowrap px-3 py-2">
                         {formatInstantLocal(checkpoint.effectiveAt)}
                       </td>
@@ -346,7 +346,7 @@ export default async function HomePage() {
                         {formatPence(checkpoint.amountPence)}
                       </td>
                       <td className="px-3 py-2">{checkpoint.enteredBy}</td>
-                      <td className="px-3 py-2 text-slate-500">{checkpoint.note ?? ''}</td>
+                      <td className="px-3 py-2 text-ink-muted">{checkpoint.note ?? ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -368,11 +368,11 @@ function MoneySection({ money }: { money: MoneySnapshot }) {
   return (
     <section
       aria-labelledby="money-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-positive">
             Available now (estimate)
           </p>
           <h2 id="money-heading" className="text-xl font-semibold">
@@ -381,22 +381,22 @@ function MoneySection({ money }: { money: MoneySnapshot }) {
               : `Household: ${formatPence(money.householdAvailablePence)}`}
           </h2>
         </div>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-ink-muted">
           Your reported figures plus recorded activity — not a bank balance
         </span>
       </div>
       {money.householdAvailablePence === null ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-soft">
           Record a balance checkpoint for at least one pot and the household estimate appears here.
           Unreported pots never get an estimate — the app does not guess balances.
         </p>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {money.pots.map((view) => (
-            <li key={view.pot.id} className="rounded-lg bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-500">{view.pot.label}</p>
+            <li key={view.pot.id} className="rounded-lg bg-canvas px-3 py-2">
+              <p className="text-xs text-ink-muted">{view.pot.label}</p>
               {view.estimatePence === null ? (
-                <p className="text-sm text-slate-400">no checkpoint</p>
+                <p className="text-sm text-ink-faint">no checkpoint</p>
               ) : (
                 <p className="text-sm font-semibold tabular-nums">
                   {formatPence(view.estimatePence)}
@@ -407,11 +407,11 @@ function MoneySection({ money }: { money: MoneySnapshot }) {
         </ul>
       )}
       {money.debts.owedByHouseholdPence > 0 || money.debts.owedToHouseholdPence > 0 ? (
-        <p className="mt-3 text-sm text-slate-600">
+        <p className="mt-3 text-sm text-ink-soft">
           {money.debts.owedByHouseholdPence > 0 ? (
             <>
               Owe others{' '}
-              <span className="font-semibold tabular-nums text-slate-900">
+              <span className="font-semibold tabular-nums text-ink">
                 {formatPence(money.debts.owedByHouseholdPence)}
               </span>
               {' (borrowed, not income)'}
@@ -423,12 +423,12 @@ function MoneySection({ money }: { money: MoneySnapshot }) {
           {money.debts.owedToHouseholdPence > 0 ? (
             <>
               Owed to us{' '}
-              <span className="font-semibold tabular-nums text-slate-900">
+              <span className="font-semibold tabular-nums text-ink">
                 {formatPence(money.debts.owedToHouseholdPence)}
               </span>
             </>
           ) : null}{' '}
-          <a href="/pots" className="font-medium text-sky-700 hover:underline">
+          <a href="/pots" className="font-medium text-accent hover:underline">
             Details →
           </a>
         </p>
@@ -455,15 +455,15 @@ function DueThisWeekSection({
   return (
     <section
       aria-labelledby="due-week-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <h2 id="due-week-heading" className="mb-2 text-lg font-semibold">
         Due this week
       </h2>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">Nothing scheduled in the next seven days.</p>
+        <p className="text-sm text-ink-muted">Nothing scheduled in the next seven days.</p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-hairline">
           {items.map((item, index) => (
             <li
               key={`${item.scheduleKind}-${item.name}-${item.dueDate}-${index}`}
@@ -471,13 +471,13 @@ function DueThisWeekSection({
             >
               <span>
                 <span className="font-medium">{item.name}</span>{' '}
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-ink-muted">
                   {item.dueDate} · {item.scheduleKind === 'receipt' ? 'in' : 'out'} ·{' '}
                   {item.potLabel}
                 </span>
               </span>
               <span
-                className={`tabular-nums ${item.scheduleKind === 'receipt' ? 'text-emerald-700' : ''}`}
+                className={`tabular-nums ${item.scheduleKind === 'receipt' ? 'text-positive' : ''}`}
               >
                 {item.scheduleKind === 'receipt' ? '+' : '−'}
                 {formatPence(item.amountPence)}
@@ -494,17 +494,17 @@ function KeyDatesSection({ items }: { items: Array<{ message: string; date: stri
   return (
     <section
       aria-labelledby="keydates-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <h2 id="keydates-heading" className="mb-2 text-lg font-semibold">
         Key dates
       </h2>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-muted">
           No renewals or contract ends inside their warning windows right now.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-hairline">
           {items.map((item, index) => (
             <li key={`${item.date}-${index}`} className="py-1.5 text-sm">
               {item.message}
@@ -526,18 +526,18 @@ function ChartsLinkCard() {
   return (
     <Link
       href="/charts"
-      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 hover:bg-sky-50/40"
+      className="block rounded-xl border border-border bg-surface p-4 shadow-sm hover:border-accent-300 hover:bg-accent-50/40"
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Charts</p>
-          <p className="text-base font-semibold text-slate-900">See the money drawn</p>
-          <p className="mt-0.5 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">Charts</p>
+          <p className="text-base font-semibold text-ink">See the money drawn</p>
+          <p className="mt-0.5 text-sm text-ink-soft">
             The next month&apos;s balance, the weekly shop, personal spending and the fixed bills —
             each with its numbers underneath.
           </p>
         </div>
-        <span aria-hidden="true" className="shrink-0 text-2xl text-sky-700">
+        <span aria-hidden="true" className="shrink-0 text-2xl text-accent">
           →
         </span>
       </div>
@@ -556,18 +556,18 @@ function RecurringSection({
   return (
     <section
       aria-labelledby="recurring-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="rounded-xl border border-border bg-surface p-4 shadow-sm"
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
             Recurring
           </p>
           <h2 id="recurring-heading" className="text-xl font-semibold">
             Schedules, renewals &amp; projection figures
           </h2>
         </div>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-ink-muted">
           Schedules convert automatically on their due date
         </span>
       </div>
@@ -575,22 +575,22 @@ function RecurringSection({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-700">
+            <h3 className="mb-2 text-sm font-semibold text-ink-body">
               Direct debits, standing orders, expected income
             </h3>
             {data.schedules.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-ink-muted">
                 No schedules yet. Add one below — each converts into a normal record at local
                 midnight on its due date.
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100 text-sm">
+              <ul className="divide-y divide-border-hairline text-sm">
                 {data.schedules.map((schedule) => (
                   <li key={schedule.id} className="py-2">
                     <div className="flex items-baseline justify-between gap-2">
                       <span>
                         <span className="font-medium">{schedule.name}</span>{' '}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-ink-muted">
                           {schedule.kind === 'receipt' ? 'income' : schedule.kind} ·{' '}
                           {schedule.frequency === 'annual'
                             ? `every year, month ${schedule.dueMonth ?? '?'} day ${schedule.dueDayOfMonth}`
@@ -603,7 +603,7 @@ function RecurringSection({
                         {formatPence(schedule.amountPence)}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-ink-muted">
                       {schedule.cancelledEffectiveOn !== null
                         ? `Cancelled from ${schedule.cancelledEffectiveOn} — history kept`
                         : `Next: ${schedule.nextDueDate ?? '—'}`}
@@ -619,7 +619,7 @@ function RecurringSection({
               </ul>
             )}
             <details className="mt-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              <summary className="cursor-pointer text-sm font-medium text-ink-body">
                 Add a schedule
               </summary>
               <div className="mt-3">
@@ -629,15 +629,15 @@ function RecurringSection({
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-700">Renewals</h3>
+            <h3 className="mb-2 text-sm font-semibold text-ink-body">Renewals</h3>
             {data.renewals.length === 0 ? (
-              <p className="text-sm text-slate-500">No renewals tracked yet.</p>
+              <p className="text-sm text-ink-muted">No renewals tracked yet.</p>
             ) : (
-              <ul className="divide-y divide-slate-100 text-sm">
+              <ul className="divide-y divide-border-hairline text-sm">
                 {data.renewals.map((renewal) => (
                   <li key={renewal.id} className="py-1.5">
                     <span className="font-medium">{renewal.label}</span>{' '}
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-ink-muted">
                       · due {renewal.nextRenewalDate}
                       {renewal.advancedFrom !== null
                         ? ` (advanced from ${renewal.advancedFrom})`
@@ -653,7 +653,7 @@ function RecurringSection({
               </ul>
             )}
             <details className="mt-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+              <summary className="cursor-pointer text-sm font-medium text-ink-body">
                 Add a renewal
               </summary>
               <div className="mt-3">
@@ -663,14 +663,14 @@ function RecurringSection({
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-slate-700">Projection figures</h3>
+            <h3 className="mb-2 text-sm font-semibold text-ink-body">Projection figures</h3>
             <ProjectionSettingsForm data={data.projectionSettings} />
           </div>
         </div>
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-slate-700">How it works</h3>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-ink-body">How it works</h3>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-ink-soft">
             <li>
               <strong>Schedules</strong> are templates. Each due date gets one instance; when the
               local midnight of the due date arrives, the instance converts into a normal record (a

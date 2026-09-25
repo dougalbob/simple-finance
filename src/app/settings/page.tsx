@@ -60,9 +60,9 @@ export default async function SettingsPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Settings</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Settings</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Household configuration</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           Every change is saved with who made it and when — the audit trail keeps the before/after
           values, so nothing here is ever silently overwritten.
         </p>
@@ -71,19 +71,19 @@ export default async function SettingsPage() {
       <div className="space-y-6">
         <section
           aria-labelledby="household-names-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="household-names-heading" className="mb-1 text-lg font-semibold">
             Household names
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Names stay short and unique (up to 60 characters). Renaming never touches history —
             records keep pointing at the same person or vehicle.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             {people.map((person) => (
-              <div key={person.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div key={person.id} className="rounded-lg bg-canvas p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   Person
                 </p>
                 <TargetRenameForm
@@ -101,8 +101,8 @@ export default async function SettingsPage() {
               </div>
             ))}
             {vehicles.map((vehicle) => (
-              <div key={vehicle.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div key={vehicle.id} className="rounded-lg bg-canvas p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   Vehicle
                 </p>
                 <TargetRenameForm
@@ -111,7 +111,7 @@ export default async function SettingsPage() {
                   version={vehicle.version}
                   currentLabel={vehicle.label}
                 />
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-ink-muted">
                   Owner:{' '}
                   {people.find((person) => person.id === vehicle.ownerPersonId)?.label ??
                     'none (shared)'}{' '}
@@ -122,7 +122,7 @@ export default async function SettingsPage() {
             <AddVehicleForm people={people.map(({ id, label }) => ({ id, label }))} />
           </div>
           {people.length === 0 && vehicles.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">
+            <p className="mt-3 text-sm text-ink-muted">
               Add the household people from the home page, or add a shared vehicle here.
             </p>
           ) : null}
@@ -130,12 +130,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="quick-entry-settings-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="quick-entry-settings-heading" className="mb-1 text-lg font-semibold">
             Quick entry
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             The till form (home page and Overview) shows the chosen pot&apos;s last reported balance
             and what is left before income lands. Both come from the records here — never a bank
             feed.
@@ -148,19 +148,19 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="pots-settings-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="pots-settings-heading" className="mb-1 text-lg font-semibold">
             Pots
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Overdraft limits and warning thresholds are the numbers the projection banner is built
             from. A threshold needs a limit, and must sit at or below it.
           </p>
           <div className="grid gap-4 lg:grid-cols-2">
             {pots.map((pot) => (
-              <div key={pot.id} className="rounded-lg bg-slate-50 p-3">
-                <p className="mb-2 text-sm font-semibold text-slate-700">{pot.label}</p>
+              <div key={pot.id} className="rounded-lg bg-canvas p-3">
+                <p className="mb-2 text-sm font-semibold text-ink-body">{pot.label}</p>
                 <PotEditForm
                   potId={pot.id}
                   version={pot.version}
@@ -176,12 +176,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="categories-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="categories-heading" className="mb-1 text-lg font-semibold">
             Category tree
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Two levels: parents group children, and entries always land on a child. Retiring a child
             blocks new assignments but keeps its history; parents stay while history points at them.
             The seeded categories can be renamed, extended and retired like any other.
@@ -204,12 +204,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="projection-figures-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="projection-figures-heading" className="mb-1 text-lg font-semibold">
             Projection figures
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             The size of the household's usual weekly shop and of a typical fill for each vehicle.
             The payday projection and the horizon project each next event from when you last
             recorded one — a fresh shop resets the week, a fresh fill resets that vehicle's month.
@@ -232,14 +232,14 @@ export default async function SettingsPage() {
         <section
           id="commitment-categories"
           aria-labelledby="commitment-categories-heading"
-          className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="scroll-mt-24 rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="commitment-categories-heading" className="mb-1 text-lg font-semibold">
             Fixed commitments (the direct-debit chart)
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Which child categories count as a fixed commitment on{' '}
-            <Link href="/charts#commitments" className="font-medium text-sky-700 hover:underline">
+            <Link href="/charts#commitments" className="font-medium text-accent hover:underline">
               Charts
             </Link>
             . “Direct debit” is not a field on a purchase, so this list is the definition — tick
@@ -255,12 +255,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="warning-leads-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="warning-leads-heading" className="mb-1 text-lg font-semibold">
             Warning leads
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             How many days ahead the app should warn about renewals and contract end dates on the
             overview and in key dates.
           </p>
@@ -272,12 +272,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="backup-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="backup-heading" className="mb-1 text-lg font-semibold">
             Backup &amp; restore
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Encrypted archives of the database and the attached receipts, and the one-way door that
             puts one back. Read the wording on each button before you press it — the restore
             replaces this installation's data.
@@ -287,12 +287,12 @@ export default async function SettingsPage() {
 
         <section
           aria-labelledby="payday-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="payday-heading" className="mb-1 text-lg font-semibold">
             Payday &amp; income
           </h2>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             The projection plans to the next expected income schedule. Income is configured as a
             receipt schedule, not as a setting here.
           </p>
@@ -303,7 +303,7 @@ export default async function SettingsPage() {
               Planning to <span className="font-semibold">the next expected support payment</span> —
               a debt&rsquo;s expected inflow won this cycle (it is owed money that is expected,
               never received income). Add an income schedule in{' '}
-              <Link href="/recurring" className="font-medium text-sky-700 hover:underline">
+              <Link href="/recurring" className="font-medium text-accent hover:underline">
                 Recurring →
               </Link>{' '}
               to plan to income instead.
@@ -314,15 +314,15 @@ export default async function SettingsPage() {
               Planning to <span className="font-semibold">{projection.paydayScheduleName}</span> —{' '}
               <Link
                 href={`/recurring#schedule-edit-${projection.paydayScheduleId}`}
-                className="font-medium text-sky-700 hover:underline"
+                className="font-medium text-accent hover:underline"
               >
                 edit the schedule in Recurring →
               </Link>
             </p>
           ) : (
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-ink-soft">
               No income schedule yet. Add one in{' '}
-              <Link href="/recurring" className="font-medium text-sky-700 hover:underline">
+              <Link href="/recurring" className="font-medium text-accent hover:underline">
                 Recurring
               </Link>{' '}
               (kind: receipt) and the projection will plan to it.

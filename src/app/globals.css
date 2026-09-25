@@ -1,6 +1,171 @@
 @import 'tailwindcss';
 
 /*
+ * Prose is not a source of class names. Tailwind's scanner reads every
+ * un-ignored file in the project — markdown and code comments included — so
+ * the decision log's mapping table and the handoffs, which quote the palette
+ * classes this app no longer uses, would each generate a utility that nothing
+ * can render (and would quietly re-introduce the very colours decision 159
+ * removed).
+ */
+@source not '../../docs';
+@source not '../../e2e';
+@source not '../../README.md';
+@source not '../../AGENT_APP_BLUEPRINT.md';
+@source not '../../AGENTS.md';
+
+/*
+ * ============================================================================
+ * Colour tokens — the whole colour scheme, in one place (decision 159).
+ *
+ * Nothing outside this block decides a colour. A page uses `bg-surface`,
+ * `text-ink-muted`, `border-border`, `text-danger`; the chart kit reads
+ * `var(--color-chart-1)`. A theme (Phase 2) is therefore one more block that
+ * redefines these same names under a selector such as `:root[data-theme='dark']`
+ * — no page changes, because no page knows what any colour is.
+ *
+ * Values are the Tailwind v4 palette literals this app has always rendered
+ * (copied from `node_modules/tailwindcss/theme.css`), so tokenising changed no
+ * pixel. They are deliberately literals rather than `var(--color-slate-500)`
+ * references: this block is the palette now, and a Tailwind upgrade must not
+ * quietly re-tint the household's app.
+ *
+ * Naming: semantic names for the neutral spine a theme has to flip (canvas,
+ * surface, border, ink, till) and ramp numbers for the chromatic families
+ * (accent, positive, warning, danger, negative, note, chart), where the shade
+ * carries the meaning. Today's distinctions stay distinct — `ink-muted`
+ * (slate-500) and `ink-soft` (slate-600) are different tokens with different
+ * values, as they were different classes.
+ *
+ * `static` because the chart kit references its tokens from TSX as
+ * `var(--color-chart-…)` inside inline styles, which Tailwind's scanner does
+ * not see as a utility — without `static` those variables would be tree-shaken
+ * out of the compiled CSS and every chart would render unstyled.
+ * ========================================================================== */
+@theme static {
+  /* --- Surfaces ---------------------------------------------------------- */
+  /* canvas: the page behind everything. surface: a card, a table, an input. */
+  --color-canvas: oklch(98.4% 0.003 247.858); /* was slate-50 */
+  --color-surface: #fff; /* was white */
+  --color-surface-muted: oklch(
+    96.8% 0.007 247.896
+  ); /* was slate-100: thead, chips, inset rows, hover fills */
+  --color-surface-sunk: oklch(92.9% 0.013 255.508); /* was slate-200: a stronger hover fill */
+  --color-marker-muted: oklch(
+    70.4% 0.04 256.788
+  ); /* was slate-400: a legend dot, filled or hollow */
+
+  /* --- Lines ------------------------------------------------------------- */
+  --color-border-hairline: oklch(96.8% 0.007 247.896); /* was slate-100: row rules and dividers */
+  --color-border: oklch(92.9% 0.013 255.508); /* was slate-200: cards and tables */
+  --color-border-strong: oklch(86.9% 0.022 252.894); /* was slate-300: inputs and firmer rules */
+  --color-border-emphasis: oklch(
+    55.4% 0.046 257.417
+  ); /* was slate-500: a focused or hovered edge */
+
+  /* --- Ink (text on a light surface) ------------------------------------- */
+  --color-ink: oklch(20.8% 0.042 265.755); /* was slate-900: headings, key figures */
+  --color-ink-emphasis: oklch(
+    27.9% 0.041 260.031
+  ); /* was slate-800: emphasised labels and values */
+  --color-ink-body: oklch(
+    37.2% 0.044 257.287
+  ); /* was slate-700: labels, copy that must read clearly */
+  --color-ink-soft: oklch(44.6% 0.043 257.281); /* was slate-600: body copy, secondary paragraphs */
+  --color-ink-muted: oklch(55.4% 0.046 257.417); /* was slate-500: captions, hints, table headers */
+  --color-ink-faint: oklch(
+    70.4% 0.04 256.788
+  ); /* was slate-400: separators, placeholders, footnotes */
+  --color-ink-ghost: oklch(
+    86.9% 0.022 252.894
+  ); /* was slate-300: helper text on the till; one separator on white */
+
+  /* --- The till (dark by design, on every theme) ------------------------- */
+  /* One darkest surface and the ink on it: the Quick Entry till, the primary
+   * buttons, the active dark pills and the mobile drawer's scrim all share the
+   * pair today. Split it here (not in the pages) if a theme ever needs the
+   * till dark while the buttons lighten. */
+  --color-till: oklch(20.8% 0.042 265.755); /* was slate-900 */
+  --color-till-ink: #fff; /* was white — also the ink on any saturated fill */
+  --color-till-inset: oklch(
+    27.9% 0.041 260.031
+  ); /* was slate-800: the till's tab strip, small dark buttons */
+  --color-till-hover: oklch(37.2% 0.044 257.287); /* was slate-700 */
+  --color-till-muted: oklch(44.6% 0.043 257.281); /* was slate-600: an unselected dot on the till */
+
+  /* --- Accent: links, focus, "here is where you are" (was sky) ----------- */
+  --color-accent-50: oklch(97.7% 0.013 236.62);
+  --color-accent-100: oklch(95.1% 0.026 236.824);
+  --color-accent-200: oklch(90.1% 0.058 230.902);
+  --color-accent-300: oklch(82.8% 0.111 230.318);
+  --color-accent-400: oklch(74.6% 0.16 232.661);
+  --color-accent-500: oklch(68.5% 0.169 237.323);
+  --color-accent-600: oklch(58.8% 0.158 241.966);
+  --color-accent: oklch(50% 0.134 242.749); /* was sky-700: the accent itself */
+  --color-accent-800: oklch(44.3% 0.11 240.79);
+  --color-accent-900: oklch(39.1% 0.09 240.876);
+
+  /* --- Positive: money in, a healthy pot (was emerald) ------------------- */
+  --color-positive-50: oklch(97.9% 0.021 166.113);
+  --color-positive-100: oklch(95% 0.052 163.051);
+  --color-positive-200: oklch(90.5% 0.093 164.15);
+  --color-positive-500: oklch(69.6% 0.17 162.48);
+  --color-positive: oklch(50.8% 0.118 165.612); /* was emerald-700 */
+  --color-positive-800: oklch(43.2% 0.095 166.913);
+  --color-positive-900: oklch(37.8% 0.077 168.94);
+
+  /* --- Warning: tier-1 warnings, "worth a look" (was amber) -------------- */
+  --color-warning-50: oklch(98.7% 0.022 95.277);
+  --color-warning-100: oklch(96.2% 0.059 95.617);
+  --color-warning-200: oklch(92.4% 0.12 95.746);
+  --color-warning-300: oklch(87.9% 0.169 91.605);
+  --color-warning-600: oklch(66.6% 0.179 58.318);
+  --color-warning-700: oklch(55.5% 0.163 48.998);
+  --color-warning: oklch(47.3% 0.137 46.201); /* was amber-800: badge text on warning-50 */
+  --color-warning-900: oklch(41.4% 0.112 45.904);
+  --color-warning-950: oklch(27.9% 0.077 45.635);
+
+  /* --- Danger: tier-2 warnings, overdrawn, destructive (was red) --------- */
+  --color-danger-50: oklch(97.1% 0.013 17.38);
+  --color-danger-200: oklch(88.5% 0.062 18.334);
+  --color-danger-300: oklch(80.8% 0.114 19.571);
+  --color-danger: oklch(50.5% 0.213 27.518); /* was red-700 */
+  --color-danger-800: oklch(44.4% 0.177 26.899);
+
+  /* --- Negative: the till's below-zero figure (was rose) ----------------- */
+  --color-negative-50: oklch(96.9% 0.015 12.422);
+  --color-negative-200: oklch(89.2% 0.058 10.001);
+  --color-negative: oklch(51.4% 0.222 16.935); /* was rose-700 */
+  --color-negative-900: oklch(41% 0.159 10.272);
+
+  /* --- Note: supplier interactions (was indigo) -------------------------- */
+  --color-note-200: oklch(87% 0.065 274.039);
+  --color-note: oklch(45.7% 0.24 277.023); /* was indigo-700 */
+
+  /* --- Charts (SPEC §16.7) ------------------------------------------------
+   * Referenced from `src/components/charts/` as `var(--color-chart-…)` in
+   * inline styles — CSS variables work in SVG when they arrive through a
+   * declaration, which an inline style is. Every series is also named in a
+   * legend and in the table twin, because colour is never the only signal. */
+  --color-chart-1: #0369a1; /* balance line; stacked series 1 */
+  --color-chart-2: #b45309; /* configured-figure reference; stacked series 2 */
+  --color-chart-3: #475569; /* stacked series 3 */
+  --color-chart-4: #7c3aed; /* stacked series 4 */
+  --color-chart-5: #0f766e; /* trailing average; stacked series 5 */
+  --color-chart-bar: #0284c7;
+  --color-chart-bar-muted: #bae6fd; /* the hatched in-progress week */
+  --color-chart-danger: #b91c1c; /* the lowest point, and an overdraft line */
+  --color-chart-grid: #e2e8f0;
+  --color-chart-axis: #94a3b8; /* the firmer rule on zero */
+  --color-chart-text: #475569;
+  --color-chart-halo: #fff; /* the label halo that keeps text readable over a bar */
+  /* Two tints, mixed from their own colour so a theme that moves the colour
+   * moves the tint with it. */
+  --color-chart-line-fill: color-mix(in srgb, var(--color-chart-1) 14%, transparent);
+  --color-chart-danger-tint: color-mix(in srgb, var(--color-chart-danger) 8%, transparent);
+}
+
+/*
  * SPEC §15.1 (v0.10.0, decision 136): every control inside the Quick Entry
  * till is at least a 44px thumb target — including the shared Move forms,
  * which are drawn at desktop density elsewhere. One rule here rather than a

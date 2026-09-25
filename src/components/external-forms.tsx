@@ -42,7 +42,7 @@ function FormMessage({ status, message }: { status: string; message: string | nu
     <p
       role="status"
       aria-live="polite"
-      className={status === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}
+      className={status === 'error' ? 'text-sm text-danger' : 'text-sm text-positive'}
     >
       {message}
     </p>
@@ -50,12 +50,12 @@ function FormMessage({ status, message }: { status: string; message: string | nu
 }
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-const labelClass = 'text-xs font-medium text-slate-600';
+  'rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
-  'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 const dangerSubmitClass =
-  'rounded border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:border-red-700 hover:bg-red-700 hover:text-white disabled:opacity-60';
+  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-till-ink disabled:opacity-60';
 
 /**
  * Start tracking an informal debt (SPEC §10.2): who the money is owed to or
@@ -200,7 +200,7 @@ export function DebtEditForm({
           Expected support payment
         </label>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-slate-500">£</span>
+          <span className="text-sm text-ink-muted">£</span>
           <input
             id={`${idPrefix}-inflow`}
             name="expectedInflowAmount"
@@ -212,7 +212,7 @@ export function DebtEditForm({
             }
             className={`${inputClass} w-24`}
           />
-          <span className="text-sm text-slate-500">on day</span>
+          <span className="text-sm text-ink-muted">on day</span>
           <input
             id={`${idPrefix}-inflow-day`}
             name="expectedInflowDay"
@@ -225,7 +225,7 @@ export function DebtEditForm({
             onChange={(event) => setDayOfMonth(event.target.value)}
             className={`${inputClass} w-16`}
           />
-          <span className="text-sm text-slate-500">until</span>
+          <span className="text-sm text-ink-muted">until</span>
           <input
             id={`${idPrefix}-inflow-until`}
             name="expectedInflowUntil"
@@ -237,7 +237,7 @@ export function DebtEditForm({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor={`${idPrefix}-inflow-count`} className="text-xs text-slate-600">
+          <label htmlFor={`${idPrefix}-inflow-count`} className="text-xs text-ink-soft">
             or continuing for
           </label>
           <input
@@ -249,21 +249,21 @@ export function DebtEditForm({
             onChange={(event) => setPaymentCount(event.target.value)}
             className={`${inputClass} w-16`}
           />
-          <span className="text-xs text-slate-600">payments</span>
+          <span className="text-xs text-ink-soft">payments</span>
           <button
             type="button"
             onClick={fillEndDate}
-            className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:border-slate-500"
+            className="rounded border border-border-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink-body hover:border-border-emphasis"
           >
             Fill the end date
           </button>
           {helperNote !== null ? (
-            <span role="status" aria-live="polite" className="text-xs text-slate-600">
+            <span role="status" aria-live="polite" className="text-xs text-ink-soft">
               {helperNote}
             </span>
           ) : null}
         </div>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-muted">
           Leave the amount and day blank to stop expecting it. The until date is optional and
           inclusive — leave it blank and the expectation runs until you stop it; next January, move
           the day from 10 to 13 and every month after that follows the new day. Expected, never
@@ -300,11 +300,11 @@ export function LoanMovementForm({
   );
   const [debtId, setDebtId] = useState(debts[0] !== undefined ? String(debts[0].id) : '');
   if (pots.length === 0) {
-    return <p className="text-sm text-slate-600">Create a pot first, then record borrowing.</p>;
+    return <p className="text-sm text-ink-soft">Create a pot first, then record borrowing.</p>;
   }
   if (debts.length === 0) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-ink-soft">
         Add who it is owed to or by first — borrowing and repayments always link to a tracked debt.
       </p>
     );
@@ -435,7 +435,7 @@ export function OtherMovementForm({
     initialActionState,
   );
   if (pots.length === 0) {
-    return <p className="text-sm text-slate-600">Create a pot first.</p>;
+    return <p className="text-sm text-ink-soft">Create a pot first.</p>;
   }
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -548,7 +548,7 @@ export function SwapForm({
   const [state, formAction, pending] = useActionState(addSwapAction, initialActionState);
   if (pots.length < 2) {
     return (
-      <p className="text-sm text-slate-600">Create at least two pots before recording a swap.</p>
+      <p className="text-sm text-ink-soft">Create at least two pots before recording a swap.</p>
     );
   }
   return (
@@ -763,7 +763,7 @@ export function ExternalMovementEditForm({
             className={inputClass}
           />
           {counterpartyLocked ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               Borrowing carries the debt&rsquo;s name — rename the debt instead.
             </p>
           ) : null}
@@ -825,7 +825,7 @@ export function VoidSwapPairForm({
       <input type="hidden" name="outLegId" value={outLeg.id} />
       <input type="hidden" name="inLegVersion" value={inLeg.version} />
       <input type="hidden" name="outLegVersion" value={outLeg.version} />
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-ink-soft">
         Void &ldquo;{summary}&rdquo;? Both legs are voided together in one step — the history stays.
       </p>
       <div className="flex flex-col gap-1">
@@ -850,7 +850,7 @@ export function VoidSwapPairForm({
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+          className="rounded border border-border-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink-body"
         >
           Keep the swap
         </button>
@@ -883,7 +883,7 @@ export function ArchivePotForm({
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="potId" value={potId} />
       <input type="hidden" name="expectedVersion" value={version} />
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-ink-soft">
         Archive “{label}”? Only a pot with no records can be archived — its history, if any, stays
         visible instead.
       </p>
@@ -894,7 +894,7 @@ export function ArchivePotForm({
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700"
+          className="rounded border border-border-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink-body"
         >
           Keep it
         </button>

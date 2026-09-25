@@ -93,12 +93,14 @@ export function StepAreaChart({
     >
       <SubZeroBand domain={domain} plot={plot} />
       <Gridlines domain={domain} plot={plot} />
-      {areaPath === '' ? null : <path d={areaPath} fill={CHART_COLOURS.lineFill} stroke="none" />}
+      {areaPath === '' ? null : (
+        <path d={areaPath} stroke="none" style={{ fill: CHART_COLOURS.lineFill }} />
+      )}
       {linePath === '' ? null : (
         <path
           d={linePath}
           fill="none"
-          stroke={CHART_COLOURS.line}
+          style={{ stroke: CHART_COLOURS.line }}
           strokeWidth={1.75}
           strokeLinejoin="round"
         />
@@ -123,7 +125,7 @@ export function StepAreaChart({
               x2={bandX(index, count, plot) + step / 2}
               y1={plot.top + plot.height}
               y2={plot.top + plot.height - 7}
-              stroke={CHART_COLOURS.average}
+              style={{ stroke: CHART_COLOURS.average }}
               strokeWidth={1.5}
             />
           ) : null,
@@ -131,18 +133,17 @@ export function StepAreaChart({
       </g>
       {low !== null && low !== undefined ? (
         <g aria-hidden="true">
-          <circle cx={lowX} cy={lowY} r={3} fill={CHART_COLOURS.danger} />
+          <circle cx={lowX} cy={lowY} r={3} style={{ fill: CHART_COLOURS.danger }} />
           <text
             x={lowX}
             y={lowTextY}
             textAnchor={lowAnchor}
             fontSize={AXIS_FONT + 1}
             fontWeight={600}
-            fill={CHART_COLOURS.danger}
-            // A white halo: the label sits over the balance line and its
-            // tint, and the lowest point is the one number on this chart
-            // that must never be hard to read.
-            stroke="#ffffff"
+            // A halo in the surface colour: the label sits over the balance
+            // line and its tint, and the lowest point is the one number on
+            // this chart that must never be hard to read.
+            style={{ fill: CHART_COLOURS.danger, stroke: CHART_COLOURS.halo }}
             strokeWidth={3}
             paintOrder="stroke"
           >

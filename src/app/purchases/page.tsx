@@ -139,9 +139,9 @@ export default async function PurchasesPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Purchases</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Purchases</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Every recorded purchase</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-soft">
           Filter, review and correct entries. Voids and refunds are kept in the history — a purchase
           record is never deleted. A receipt can be removed; that removal is in the history, and an
           older backup is the only way to get the file back.
@@ -162,18 +162,18 @@ export default async function PurchasesPage({
           <h2 id="results-heading" className="text-xl font-semibold">
             {purchases.length} {purchases.length === 1 ? 'entry' : 'entries'}
           </h2>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-ink-muted">
             Newest first · line items shown receipt-style
           </span>
         </div>
         {purchases.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-xl border border-dashed border-border-strong bg-surface p-6 text-sm text-ink-soft">
             Nothing matches these filters. Clear the filters to see the full history.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
             <table className="w-full min-w-[860px] text-sm">
-              <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+              <thead className="bg-surface-muted text-left text-xs uppercase tracking-wide text-ink-muted">
                 <tr>
                   <th className="px-3 py-2">When</th>
                   <th className="px-3 py-2">Supplier</th>
@@ -293,37 +293,39 @@ function PurchaseRow(props: PurchaseRowProps) {
           : 'Active';
   const statusClass =
     props.voidedAt !== null
-      ? 'bg-slate-100 text-slate-500'
+      ? 'bg-surface-muted text-ink-muted'
       : props.isRefund
-        ? 'bg-red-50 text-red-700'
+        ? 'bg-danger-50 text-danger'
         : props.fromSchedule
-          ? 'bg-sky-50 text-sky-700'
-          : 'bg-emerald-50 text-emerald-700';
+          ? 'bg-accent-50 text-accent'
+          : 'bg-positive-50 text-positive';
   return (
     <tr
       id={`purchase-${props.purchaseId}`}
-      className={`border-t border-slate-100 align-top ${props.voidedAt !== null ? 'text-slate-400' : ''}`}
+      className={`border-t border-border-hairline align-top ${props.voidedAt !== null ? 'text-ink-faint' : ''}`}
     >
       <td className="whitespace-nowrap px-3 py-2.5">{formatInstantLocal(props.occurredAt)}</td>
       <td className="px-3 py-2.5">
-        <span className={props.voidedAt !== null ? 'line-through' : 'font-medium text-slate-800'}>
+        <span
+          className={props.voidedAt !== null ? 'line-through' : 'font-medium text-ink-emphasis'}
+        >
           {props.supplierLabel}
         </span>
-        {props.note !== '' ? <p className="mt-0.5 text-xs text-slate-500">{props.note}</p> : null}
+        {props.note !== '' ? <p className="mt-0.5 text-xs text-ink-muted">{props.note}</p> : null}
         {props.fuel !== null ? <FuelDetailsForm {...props.fuel} /> : null}
         <AttachmentForm purchaseId={props.purchaseId} attachments={props.attachments} />
         <details className="mt-1">
-          <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800">
+          <summary className="cursor-pointer text-xs font-medium text-ink-muted hover:text-ink-emphasis">
             History
           </summary>
           {props.history.length === 0 ? (
-            <p className="mt-1 text-xs text-slate-500">No history recorded.</p>
+            <p className="mt-1 text-xs text-ink-muted">No history recorded.</p>
           ) : (
             <ul className="mt-1 space-y-1" aria-label={`History for purchase ${props.purchaseId}`}>
               {props.history.map((entry) => (
-                <li key={entry.id} className="text-xs text-slate-600">
-                  <span className="font-medium text-slate-700">{entry.summary}</span>
-                  <span className="block text-slate-500">
+                <li key={entry.id} className="text-xs text-ink-soft">
+                  <span className="font-medium text-ink-body">{entry.summary}</span>
+                  <span className="block text-ink-muted">
                     {entry.actor} · {formatInstantLocal(entry.createdAt)}
                   </span>
                 </li>
@@ -337,14 +339,14 @@ function PurchaseRow(props: PurchaseRowProps) {
           {props.lines.map((line, index) => (
             <li key={index} className="text-xs">
               <span className={props.voidedAt !== null ? 'line-through' : ''}>{line.label}</span>
-              <span className="ml-1 text-slate-400">({line.targetLabel})</span>
+              <span className="ml-1 text-ink-faint">({line.targetLabel})</span>
               <span className="ml-2 tabular-nums">{formatPence(line.amountPence)}</span>
             </li>
           ))}
         </ul>
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{props.potLabel}</td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{props.paidByLabel}</td>
+      <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{props.potLabel}</td>
+      <td className="whitespace-nowrap px-3 py-2.5 text-ink-soft">{props.paidByLabel}</td>
       <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums">
         {formatPence(props.totalPence)}
       </td>
@@ -356,7 +358,7 @@ function PurchaseRow(props: PurchaseRowProps) {
       <td className="px-3 py-2.5">
         {props.voidedAt === null ? (
           <details className="inline-block">
-            <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+            <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
               Edit
             </summary>
             <div className="mt-2 max-w-md">
@@ -380,7 +382,7 @@ function PurchaseRow(props: PurchaseRowProps) {
             </div>
           </details>
         ) : (
-          <span className="text-xs text-slate-400">history kept</span>
+          <span className="text-xs text-ink-faint">history kept</span>
         )}
       </td>
     </tr>

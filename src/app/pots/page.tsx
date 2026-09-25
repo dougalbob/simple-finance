@@ -81,18 +81,18 @@ export default async function PotsPage({
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
           Accounts &amp; pots
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Where the money sits</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           Reported figures, not a bank sync. A pot with no checkpoint has no estimate, by design —
           the app never guesses balances.
         </p>
       </header>
 
       {pots.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
+        <p className="rounded-xl border border-dashed border-border-strong bg-surface p-6 text-sm text-ink-soft">
           No pots yet. Add the household&apos;s pots below — a typical setup has two bank accounts
           and a cash pot each.
         </p>
@@ -107,39 +107,39 @@ export default async function PotsPage({
               <section
                 key={pot.id}
                 aria-labelledby={`pot-${pot.id}-heading`}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <h2 id={`pot-${pot.id}-heading`} className="text-lg font-semibold">
                       {pot.label}
                     </h2>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-ink-muted">
                       {pot.kind === 'bank' ? 'Bank account' : 'Cash pot'}
                     </p>
                   </div>
                   {estimate !== null ? (
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold tabular-nums text-emerald-800">
+                    <span className="rounded-full bg-positive-50 px-3 py-1 text-sm font-semibold tabular-nums text-positive-800">
                       ≈ {formatPence(estimate)}
                     </span>
                   ) : (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-500">
+                    <span className="rounded-full bg-surface-muted px-3 py-1 text-sm text-ink-muted">
                       no estimate
                     </span>
                   )}
                 </div>
 
                 {latest !== null ? (
-                  <p className="mt-2 text-sm text-slate-600">
+                  <p className="mt-2 text-sm text-ink-soft">
                     Last reported{' '}
-                    <span className="font-semibold tabular-nums text-slate-900">
+                    <span className="font-semibold tabular-nums text-ink">
                       {formatPence(latest.amountPence)}
                     </span>{' '}
                     {formatRelativeAge(latest.effectiveAt)} (
                     {formatInstantLocal(latest.effectiveAt)})
                   </p>
                 ) : (
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="mt-2 text-sm text-ink-muted">
                     No checkpoint yet — record what this pot holds below.
                   </p>
                 )}
@@ -147,23 +147,23 @@ export default async function PotsPage({
                 {swapsInvolving(pot.id) > 0 ? (
                   <a
                     href="#swaps"
-                    className="mt-2 inline-block text-xs font-medium text-sky-700 underline-offset-2 hover:underline"
+                    className="mt-2 inline-block text-xs font-medium text-accent underline-offset-2 hover:underline"
                   >
                     Recent swaps involving {pot.label} ↓
                   </a>
                 ) : null}
 
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <dt className="text-xs text-slate-500">Overdraft limit</dt>
+                  <div className="rounded-lg bg-canvas px-3 py-2">
+                    <dt className="text-xs text-ink-muted">Overdraft limit</dt>
                     <dd className="font-medium tabular-nums">
                       {pot.overdraftLimitPence === null
                         ? '—'
                         : formatPence(pot.overdraftLimitPence)}
                     </dd>
                   </div>
-                  <div className="rounded-lg bg-slate-50 px-3 py-2">
-                    <dt className="text-xs text-slate-500">Warning threshold</dt>
+                  <div className="rounded-lg bg-canvas px-3 py-2">
+                    <dt className="text-xs text-ink-muted">Warning threshold</dt>
                     <dd className="font-medium tabular-nums">
                       {pot.warningThresholdPence === null
                         ? '—'
@@ -173,7 +173,7 @@ export default async function PotsPage({
                 </dl>
 
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                  <summary className="cursor-pointer text-sm font-medium text-ink-body">
                     Edit pot
                   </summary>
                   <div className="mt-2">
@@ -186,19 +186,19 @@ export default async function PotsPage({
                       warningThresholdPence={pot.warningThresholdPence}
                     />
                   </div>
-                  <div className="mt-3 border-t border-slate-100 pt-3">
+                  <div className="mt-3 border-t border-border-hairline pt-3">
                     <ArchivePotForm potId={pot.id} version={pot.version} label={pot.label} />
                   </div>
                 </details>
 
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                  <summary className="cursor-pointer text-sm font-medium text-ink-body">
                     Checkpoint history ({history.length})
                   </summary>
                   {history.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-500">Nothing recorded yet.</p>
+                    <p className="mt-2 text-sm text-ink-muted">Nothing recorded yet.</p>
                   ) : (
-                    <ul className="mt-2 divide-y divide-slate-100">
+                    <ul className="mt-2 divide-y divide-border-hairline">
                       {history.map((checkpoint) => (
                         <li
                           key={checkpoint.id}
@@ -206,7 +206,7 @@ export default async function PotsPage({
                         >
                           <span>
                             {formatInstantLocal(checkpoint.effectiveAt)}
-                            <span className="ml-2 text-xs text-slate-500">
+                            <span className="ml-2 text-xs text-ink-muted">
                               {checkpoint.enteredBy}
                               {checkpoint.note !== null && checkpoint.note !== ''
                                 ? ` — ${checkpoint.note}`
@@ -230,7 +230,7 @@ export default async function PotsPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section
           aria-labelledby="add-pot-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="add-pot-heading" className="mb-3 text-lg font-semibold">
             Add a pot
@@ -239,13 +239,13 @@ export default async function PotsPage({
         </section>
         <section
           aria-labelledby="add-checkpoint-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="add-checkpoint-heading" className="mb-3 text-lg font-semibold">
             Record a balance checkpoint
           </h2>
           <AddCheckpointForm pots={pots.map((pot) => ({ id: pot.id, label: pot.label }))} />
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-ink-muted">
             A checkpoint is an immutable correction — it never deletes what happened before.
           </p>
         </section>
@@ -254,35 +254,35 @@ export default async function PotsPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section
           aria-labelledby="debts-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="debts-heading" className="text-lg font-semibold">
             Owed &amp; owing
           </h2>
-          <p className="mb-3 mt-1 text-sm text-slate-600">
+          <p className="mb-3 mt-1 text-sm text-ink-soft">
             Informal debts — money borrowed or lent outside the household. Balances derive from the
             movements below, so they can never drift.
           </p>
           {debts.length === 0 ? (
-            <p className="mb-3 text-sm text-slate-500">No debts tracked.</p>
+            <p className="mb-3 text-sm text-ink-muted">No debts tracked.</p>
           ) : (
-            <ul className="mb-4 divide-y divide-slate-100">
+            <ul className="mb-4 divide-y divide-border-hairline">
               {debts.map(({ debt, balancePence, movementCount }) => (
                 <li key={debt.id} id={`debt-${debt.id}`} className="py-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                     <span className="font-medium">
                       {debt.counterparty}{' '}
-                      <span className="font-normal text-slate-500">
+                      <span className="font-normal text-ink-muted">
                         ({debt.direction === 'we_owe' ? 'we owe' : 'owed to us'})
                       </span>
                     </span>
                     <span
-                      className={`tabular-nums ${balancePence === 0 ? 'text-slate-500' : 'font-semibold text-slate-900'}`}
+                      className={`tabular-nums ${balancePence === 0 ? 'text-ink-muted' : 'font-semibold text-ink'}`}
                     >
                       {debtBalanceLabel(debt, balancePence)}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-ink-muted">
                     {movementCount === 0
                       ? 'no movements yet'
                       : `${movementCount} movement${movementCount === 1 ? '' : 's'}`}
@@ -291,12 +291,12 @@ export default async function PotsPage({
                   {debt.expectedInflowAmountPence !== null &&
                   debt.expectedInflowDayOfMonth !== null ? (
                     movementCount > 0 && balancePence <= 0 ? (
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-ink-muted">
                         Settled — nothing is outstanding, so the expected support is ignored even
                         though it is still set. Clear it when the arrangement is over.
                       </p>
                     ) : (
-                      <p className="mt-1 text-xs text-sky-800">
+                      <p className="mt-1 text-xs text-accent-800">
                         Expecting {formatPence(debt.expectedInflowAmountPence)} on day{' '}
                         {debt.expectedInflowDayOfMonth} of each month (a weekend day lands on the
                         Friday before)
@@ -309,7 +309,7 @@ export default async function PotsPage({
                     )
                   ) : null}
                   <details className="mt-1">
-                    <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                    <summary className="cursor-pointer text-xs font-medium text-ink-soft">
                       Edit
                     </summary>
                     <div className="mt-2">
@@ -336,12 +336,12 @@ export default async function PotsPage({
 
         <section
           aria-labelledby="borrow-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="borrow-heading" className="text-lg font-semibold">
             Borrow &amp; repay
           </h2>
-          <p className="mb-3 mt-1 text-sm text-slate-600">
+          <p className="mb-3 mt-1 text-sm text-ink-soft">
             Borrowing raises the pot estimate and what you owe together — never income. Repayments
             reduce what you owe — never spending.
           </p>
@@ -360,12 +360,12 @@ export default async function PotsPage({
         <section
           id="swaps"
           aria-labelledby="swap-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="swap-heading" className="text-lg font-semibold">
             Swap with someone outside
           </h2>
-          <p className="mb-3 mt-1 text-sm text-slate-600">
+          <p className="mb-3 mt-1 text-sm text-ink-soft">
             Cash in one hand, a bank transfer in the other — recorded as one net-zero pair. A
             same-day pair can read a little low until a checkpoint absorbs it — the safe direction
             (SPEC §7.1).
@@ -378,7 +378,7 @@ export default async function PotsPage({
 
           <h3 className="mb-2 mt-4 text-sm font-semibold">Recent swaps</h3>
           {exchanges.length === 0 ? (
-            <p className="text-sm text-slate-500">Nothing recorded yet.</p>
+            <p className="text-sm text-ink-muted">Nothing recorded yet.</p>
           ) : (
             <ul className="space-y-2">
               {exchanges.map((exchange) => {
@@ -401,12 +401,12 @@ export default async function PotsPage({
                 return (
                   <li
                     key={exchange.exchangeKey}
-                    className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                    className="rounded-lg border border-border bg-canvas p-3"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-900">
+                      <p className="text-sm font-medium text-ink">
                         {formatPence(inAmount || outAmount)} with {counterparty}
-                        <span className="ml-2 text-xs font-normal text-slate-500">
+                        <span className="ml-2 text-xs font-normal text-ink-muted">
                           {date}
                           {note !== null && note !== '' ? ` — ${note}` : ''}
                         </span>
@@ -414,10 +414,10 @@ export default async function PotsPage({
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                           bothVoided
-                            ? 'bg-slate-100 text-slate-500'
+                            ? 'bg-surface-muted text-ink-muted'
                             : net === 0
-                              ? 'bg-emerald-50 text-emerald-800'
-                              : 'bg-amber-50 text-amber-800'
+                              ? 'bg-positive-50 text-positive-800'
+                              : 'bg-warning-50 text-warning'
                         }`}
                       >
                         {bothVoided
@@ -430,23 +430,23 @@ export default async function PotsPage({
                       </span>
                     </div>
                     <div className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-                      <p className={inLive ? undefined : 'text-slate-400 line-through'}>
+                      <p className={inLive ? undefined : 'text-ink-faint line-through'}>
                         In{' '}
-                        <span className="tabular-nums font-medium text-emerald-700">
+                        <span className="tabular-nums font-medium text-positive">
                           +{formatPence(inAmount)}
                         </span>{' '}
                         → {inPot ?? '—'}
                       </p>
-                      <p className={outLive ? undefined : 'text-slate-400 line-through'}>
+                      <p className={outLive ? undefined : 'text-ink-faint line-through'}>
                         Out{' '}
-                        <span className="tabular-nums font-medium text-red-700">
+                        <span className="tabular-nums font-medium text-danger">
                           −{formatPence(outAmount)}
                         </span>{' '}
                         ← {outPot ?? '—'}
                       </p>
                     </div>
                     {bothVoided ? (
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-ink-faint">
                         Voided{inLeg?.voidReason ? ` — ${inLeg.voidReason}` : ''}
                       </p>
                     ) : (
@@ -461,13 +461,13 @@ export default async function PotsPage({
                           />
                         ) : null}
                         <details className="text-xs">
-                          <summary className="cursor-pointer font-medium text-slate-600">
+                          <summary className="cursor-pointer font-medium text-ink-soft">
                             Correct or void one leg
                           </summary>
                           <div className="mt-2 flex flex-col gap-2">
                             {inLeg && inLive ? (
-                              <details className="rounded border border-slate-200 bg-white p-2">
-                                <summary className="cursor-pointer font-medium text-slate-700">
+                              <details className="rounded border border-border bg-surface p-2">
+                                <summary className="cursor-pointer font-medium text-ink-body">
                                   In-leg — to {inPot}
                                 </summary>
                                 <div className="mt-2">
@@ -478,7 +478,7 @@ export default async function PotsPage({
                                     today={today}
                                   />
                                 </div>
-                                <div className="mt-2 border-t border-slate-100 pt-2">
+                                <div className="mt-2 border-t border-border-hairline pt-2">
                                   <VoidForm
                                     kind="external"
                                     recordId={inLeg.id}
@@ -489,8 +489,8 @@ export default async function PotsPage({
                               </details>
                             ) : null}
                             {outLeg && outLive ? (
-                              <details className="rounded border border-slate-200 bg-white p-2">
-                                <summary className="cursor-pointer font-medium text-slate-700">
+                              <details className="rounded border border-border bg-surface p-2">
+                                <summary className="cursor-pointer font-medium text-ink-body">
                                   Out-leg — from {outPot}
                                 </summary>
                                 <div className="mt-2">
@@ -501,7 +501,7 @@ export default async function PotsPage({
                                     today={today}
                                   />
                                 </div>
-                                <div className="mt-2 border-t border-slate-100 pt-2">
+                                <div className="mt-2 border-t border-border-hairline pt-2">
                                   <VoidForm
                                     kind="external"
                                     recordId={outLeg.id}
@@ -524,12 +524,12 @@ export default async function PotsPage({
 
         <section
           aria-labelledby="other-money-heading"
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
         >
           <h2 id="other-money-heading" className="text-lg font-semibold">
             Other money in &amp; out
           </h2>
-          <p className="mb-3 mt-1 text-sm text-slate-600">
+          <p className="mb-3 mt-1 text-sm text-ink-soft">
             Anything else across the household boundary — always with a note saying what it was.
           </p>
           <OtherMovementForm
@@ -542,33 +542,33 @@ export default async function PotsPage({
 
       <section
         aria-labelledby="external-history-heading"
-        className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="mt-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
       >
         <h2 id="external-history-heading" className="text-lg font-semibold">
           Recent money across the boundary
         </h2>
-        <p className="mb-3 mt-1 text-sm text-slate-600">
+        <p className="mb-3 mt-1 text-sm text-ink-soft">
           Borrowing, repayments, swaps and other money — newest first. Voiding keeps the history.
         </p>
         {linkedExternal !== null ? (
-          <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          <p className="mb-2 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-900">
             Showing the record you linked to — it is older than the twenty most recent.
           </p>
         ) : null}
         {externalRows.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing recorded yet.</p>
+          <p className="text-sm text-ink-muted">Nothing recorded yet.</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border-hairline">
             {externalRows.map((movement) => (
               <li key={movement.id} id={`external-${movement.id}`} className="py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                   <span
                     className={
-                      movement.voidedAt !== null ? 'text-slate-400 line-through' : undefined
+                      movement.voidedAt !== null ? 'text-ink-faint line-through' : undefined
                     }
                   >
                     {describeExternalMovement(movement)} · {potNames.get(movement.potId) ?? '—'}
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-ink-muted">
                       {movement.occurredDate} · {movement.enteredBy}
                       {movement.note !== null && movement.note !== '' ? ` — ${movement.note}` : ''}
                     </span>
@@ -580,7 +580,7 @@ export default async function PotsPage({
                 </div>
                 {movement.voidedAt === null ? (
                   <details className="mt-1">
-                    <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                    <summary className="cursor-pointer text-xs font-medium text-ink-soft">
                       Void
                     </summary>
                     <div className="mt-2">
@@ -593,7 +593,7 @@ export default async function PotsPage({
                     </div>
                   </details>
                 ) : (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-ink-faint">
                     Voided{movement.voidReason ? ` — ${movement.voidReason}` : ''}
                   </p>
                 )}

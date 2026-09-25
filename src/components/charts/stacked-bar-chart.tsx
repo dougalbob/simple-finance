@@ -96,7 +96,7 @@ export function StackedBarChart({
                   y={y}
                   width={barWidth}
                   height={segmentHeight}
-                  fill={fillOf.get(segment.key) ?? CHART_COLOURS.bar}
+                  style={{ fill: fillOf.get(segment.key) ?? CHART_COLOURS.bar }}
                 />
               );
               const title = segment.hint === undefined ? null : <title>{segment.hint}</title>;
