@@ -1170,6 +1170,81 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     fail against the pre-fix component (they caught `supplierName` and then `amount` focused by
     themselves), which is the only proof worth having that they guard anything.
 
+152. **The forecast chart draws the household total, not a line per pot (SPEC §16.7 A, v0.14.0).** The
+    question this chart answers is "does the money last the month" — and the money that has to last is the
+    household's, across every pot, because the household moves money between its own pots freely. Five
+    lines at 320px would be unreadable, and the per-pot question already has a better answer: the pot watch
+    on `/overview` and the pot picker on `/horizon`. So the chart takes `getHorizonProjectionView(db,
+    addMonthsClamped(today, 1), [], true)` — no pot filter, day-to-day included — and draws one step area.
+    The y-domain **always includes zero**, with symmetric padding: the honest question is the distance to
+    zero, so zero must be on the chart even when the balance is nowhere near it (a chart that floats a flat
+    line in the middle of nowhere hides exactly that). Below zero is a tinted region, the overdraft limit a
+    dashed line **only when the domain reaches it** — a legend entry for a line that is off the chart is a
+    small lie, so when the limit is out of range the caption says "the £800.00 of overdraft room is off the
+    bottom of this chart" instead. The headline never clips: "Projected to go £1,831.27 below zero on Fri 9
+    Oct. That is past the £800.00 overdraft limit from Mon 28 Sept."
+
+153. **Charts get their own page, and the home page gets a card, not a chart (SPEC §16.7, v0.14.0).**
+    `/insights` keeps its tables: the household reads them, they are exact, and burying them under drawings
+    would be a loss. `/overview` keeps its projection panel. The charts therefore live at **`/charts`**
+    (the household named it), linked from the navigation between Insights and Settings, and from a card on
+    the home page **below** the till — the till is what the phone is for, and nothing may push it down.
+    Every chart ships in one frame, `ChartFigure`, which enforces the standing rules so no chart can
+    quietly skip one: a verdict sentence above the drawing, a "reported / projected" badge, a caption
+    saying what the numbers are, and a **table twin** under `<details>` carrying the same figures exactly.
+    The table twin is not a consolation prize for screen readers — it is the copyable, linkable,
+    JavaScript-free version of the chart, and the specs assert the two agree.
+
+154. **Personal spending takes its scope from the live category tree (SPEC §16.7 C, v0.14.0).** The scope
+    is the two parents *Personal* and *Entertainment & Eating Out*, and every child under them **as the
+    tree stands today** — not a hard-coded list of children. The tree is user-editable (§12): a
+    hard-coded list would silently drop a child the household added and, worse, would have needed
+    Subscriptions & Streaming special-cased out of "personal", when the honest treatment is the one the
+    household already uses — that line is marked *For: household*, so it lands in the Household series on
+    its own. Attribution is the allocation target ("For: person"), never "Paid by", which is the rule
+    Insights panel 2 already holds (decision 65). A household-marked line is **never split** between
+    people; it is its own bar, and the caption says so.
+
+155. **The chart kit is hand-rolled SVG behind a wrapper, and drill-down is a link (SPEC §16.7, v0.14.0,
+    household decision 2026-09-25).** Asked to choose between a charting library and hand-rolled SVG, the
+    household chose hand-rolled — for a page with four charts, a dependency is a bundle, a hydration step
+    and a maintenance surface for something the app can already do: `/overview`'s month bars have been
+    hand-rolled inline since v0.4.0. The kit lives behind one boundary, `src/components/charts/`
+    (`ChartFigure`, `StepAreaChart`, `BarChart`, `StackedBarChart`, `scale.ts`), so the decision stays
+    reversible: swapping in a library later means rewriting those files and nothing else. Two consequences
+    are deliberate. Every chart is a **server component** — no client JavaScript at all, so the drawing is
+    in the first paint on a phone. And **drill-down is a real `<a>`**, not an `onClick`: a bar wraps a link
+    to `/purchases?from=…&to=…&categoryId=…`, which can be opened in a new tab, bookmarked or sent to the
+    other person, none of which a router push can do. The bar anchors are `tabIndex={-1}` and
+    `aria-hidden` (the SVG is one `role="img"`); the same links are repeated as ordinary links in the table
+    twin, which is the keyboard and screen-reader path.
+
+156. **"Fixed commitment" is an explicit list of child categories, not a guess (SPEC §16.7 D, v0.14.0).**
+    Nothing on a purchase says "this is a direct debit", and the two plausible guesses are both wrong for
+    this household: by parent would put Fuel in with Insurance and Road Tax under Vehicle Running, and
+    "converted from a schedule" alone would miss the bills they pay by hand. So the definition is a new
+    setting, `commitment_category_ids` — a set of **child** category ids, ticked in a checkbox list grouped
+    by parent in Settings, saved through the existing key/value `settings` table with the standard audit
+    entry (no schema change, no migration). Three states, all distinct: **unset** falls back to the
+    children the household's own dd/so schedules already use, so the chart says something true before
+    anyone visits Settings; **an explicit empty set** means "track nothing" and is stored as such; a
+    **saved list** is the household's own. Ids are validated against live child categories on save. The
+    strict view — only purchases the app converted from a schedule — is a **toggle on the chart**
+    (`purchases.scheduleInstanceId`), not a second setting, because it is a question you ask of the same
+    list, not a different list.
+
+157. **`/purchases` accepts a repeated `categoryId`, and `targetKind=household` (SPEC §16.7, §15.4,
+    v0.14.0).** The charts drill down into scopes the review page could not previously express: "Groceries
+    and every child under it", "both discretionary parents, for Sam", "the four tracked commitment
+    categories". Rather than invent a chart-only list page, the filter grew: `categoryId` may be repeated,
+    a parent id expands to its children, more than one id becomes `filters.categoryIds` (one still becomes
+    `filters.categoryId`, so every existing link behaves exactly as before), and `targetKind=household` is
+    now accepted alongside `person` and `vehicle`. The filter form offers "<Parent> / all children" for
+    each parent; when a link carries several ids the form shows the first, so pressing **Apply** narrows to
+    that one — the caption says so rather than pretending otherwise. The old wrinkle is unchanged and now
+    documented on the charts page: these filters match the **purchase**, so a matched purchase returns with
+    all of its lines, receipt-style, and a split shop appears whole.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -1189,6 +1264,21 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 | OQ13 | 29 February renewal dates under annual advance | Land on 28 February in non-leap years; visible and editable. |
 
 ## Release history
+
+- **v0.14.0 — Charts: the money, drawn (session `arena/01a0d991-simple-finance`, from `main` @ `c50cfa7`,
+  the v0.13.1 merge)**: a new `/charts` page with four server-rendered SVG charts — the month ahead
+  (household total, zero always on the axis, sub-zero tinted, overdraft line and lowest point labelled),
+  the weekly shop (Mon–Sun buckets, 12 weeks on a phone / 26 on a laptop, configured figure and trailing
+  8-week average as reference lines, an empty week drawn as a zero week), personal spending (stacked
+  months, "For: person" attribution, Household never split, chips in the URL) and the fixed commitments
+  (monthly bars over a household-ticked list of child categories, plus a "schedule-converted only"
+  toggle). Hand-rolled chart kit under `src/components/charts/` with no client JavaScript, a verdict
+  sentence as each SVG's `aria-label`, a table twin under `<details>` for every chart, and drill-down as
+  real `/purchases` links — which grew a repeatable `categoryId`, parent expansion and
+  `targetKind=household` to carry them (decisions **152–157**). One new setting,
+  `commitment_category_ids`, in the existing key/value table. No schema change, no migration. `npm test`
+  **459 tests / 111 suites green**, format, typecheck and production build clean, local Playwright **70
+  tests green** (7 new charts specs at 320px, 360px @130% and 1400px).
 
 - **v0.13.0 — Horizon opens at the next payday window, and date changes apply immediately (session
   `arena/01a0d8b1-simple-finance` + release completion on `arena/01a0d912-simple-finance`, from `main` @
@@ -1365,6 +1455,24 @@ tests/supplier-focus.test.ts  — v0.12.1: 15 cases over that resolver (stale id
 src/lib/records/horizon-default.ts — v0.13.0 pure Horizon default date (day before the next scheduled income,
                                 clamped; five-week fallback; explicit ?through= wins) — decision 150
 tests/horizon-default.test.ts — v0.13.0: 12 cases (the clamp table + scheduled-income-only against the DB)
+src/lib/records/chart-series.ts — v0.14.0 pure chart resolvers (integer pence, no DB, no framework):
+                                forecastSeries, weeklyBuckets/groceriesSeries, monthlyBuckets/
+                                personalSpendSeries, commitmentSeries, purchasesHref — SPEC §16.7
+src/lib/records/charts-view.ts — v0.14.0 DB assembly for the four charts + the commitment-category picker
+                                and `effectiveCommitmentCategoryIds` (ticked set, else schedule-derived)
+src/components/charts/        — v0.14.0 hand-rolled SVG kit (decision 155): chart-figure (frame, badge,
+                                legend, table twin), chart-primitives (gridlines, sub-zero band, reference
+                                lines, band labels), scale (domain/ticks/geometry), step-area, bar,
+                                stacked-bar, index barrel
+src/app/charts/page.tsx       — v0.14.0 the Charts page: four sections, phone (320) and laptop (720)
+                                variants, person chips and the schedule-only toggle as links (?who=,
+                                ?scheduleOnly=1)
+tests/chart-series.test.ts    — v0.14.0: 26 cases over the pure resolvers and the chart geometry
+tests/charts-view.test.ts     — v0.14.0: 17 cases reconciling every chart figure against an independent
+                                sum over listPurchases (voids, refunds and transfers asserted out)
+e2e/charts.spec.ts            — v0.14.0: 7 browser specs (320px / 360px @130% / 1400px, table twin agrees
+                                with the drawing, drill-down lands on the purchases, chips and the
+                                Settings-driven commitment list)
 src/components/horizon-look-ahead-form.tsx — v0.13.0 client island: the GET form, date change submits
 src/app/api/restore/route.ts  — live in-place restore endpoint (confirmed, bounded, same-origin, authenticated)
 src/app/api/attachments/[fileKey]/route.ts — authenticated private serving (nosniff, no-store)
@@ -1384,7 +1492,8 @@ src/components/recurring.tsx  — Phase 3 client forms: Add/Cancel schedule, Add
 src/components/record-forms.tsx — Phase 4a: line editor, PurchaseEditForm, RefundForm, generic VoidForm,
                                 TransferForm, RecentEntryActions (edit/refund/void switcher)
 src/components/schedule-forms.tsx — Phase 4a: ScheduleEditForm (composite target picker), RenewalEditForm
-src/components/settings-forms.tsx — Phase 4a: TargetRenameForm, PotEditForm, CategoryTreeEditor, WarningLeadsForm
+src/components/settings-forms.tsx — Phase 4a: TargetRenameForm, PotEditForm, CategoryTreeEditor, WarningLeadsForm;
+                                v0.14.0 CommitmentCategoriesForm (the tracked fixed-commitment children)
 src/components/site-nav.tsx     — app chrome: menu pages + version badge (desktop AND mobile)
 src/components/purchase-filter-form.tsx — Purchases GET filters; phone collapse + in-card layout (decision 92)
 scripts/migrate.cjs           — production migration runner (entrypoint path)
@@ -1466,7 +1575,16 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
 - **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
   checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item
   (decision 24).
-  never claim a browser run from markup rendering).
-- **Missed in-app renewal alerts** if the app isn't opened inside a warning window: mitigated by the 4–5-day
-  checkpoint cadence vs 21-day default lead; an email alert channel is a recorded v2 roadmap item
-  (decision 24).
+- **A chart is easier to misread than a table** (v0.14.0, SPEC §16.7): a drawing invites a glance, and a
+  glance can take a projection for a fact or a part-finished week for a slump. Mitigated by construction —
+  every chart states its verdict in words above the drawing, carries a reported/projected badge, hatches
+  the in-progress period, and ships a table twin with the exact figures. The charts are also reconciled
+  against `listPurchases` in `tests/charts-view.test.ts`, so they cannot drift from the history or from
+  the Insights tables. The residual risk is editorial, not arithmetic: if a caption ever stops matching
+  what the drawing does, the drawing wins the glance.
+- **The tracked-commitment list can go stale** (v0.14.0, decision 156): `commitment_category_ids` is the
+  household's own definition of "a fixed commitment", so a category added later (a new insurance child,
+  say) is not tracked until someone ticks it, and the chart will quietly under-report. Mitigated by the
+  Settings list flagging the children the household's schedules already use, and by the chart naming every
+  tracked category underneath itself. A future session could surface "untracked categories your schedules
+  now use" as a nudge.

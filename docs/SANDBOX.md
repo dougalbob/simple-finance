@@ -207,9 +207,44 @@ had not applied at all. The Node test suite never noticed because it does not im
 - Trusting "Edit succeeded" is not verification. Neither is a green `npm test` for a **component** change —
   the unit suites are server-side; component behaviour is only covered by `tsc` and the Playwright suite.
 
+## 12. Next 16 refuses a second `next dev` in the same directory (2026-09-25)
+
+**Symptom:** with the Playwright e2e server already running on 3100, a second `next dev -p 3200` (pointed at
+a different `DATA_DIR`, to look at a *low-balance* database in the browser) printed `✓ Ready`, then died:
+
+```
+⨯ Another next dev server is already running.
+- Local: http://localhost:3100
+- PID:   6900
+- Dir:   /home/user/simple-finance
+```
+
+Next 16 guards on the **project directory**, not the port, and the second process exits 1 after claiming to
+be ready — so a preview started that way looks alive for a few seconds and then refuses connections.
+
+**What works here:** stop the first server (`kill <PID>`; the message prints it), or run the second one from
+a copy of the repository. Pointing two servers at two data directories is fine — the guard is only about the
+project directory.
+
+Related and useful for chart work: a throwaway database is the quickest way to see a state the seed does not
+produce. `cp -r .e2e-data /tmp/low-data`, open it with the repo's own domain functions
+(`node --import tsx` + `openDatabase` + `addCheckpoint`/`createSchedule`), then start one dev server against
+`DATA_DIR=/tmp/low-data`. That is how the below-zero forecast (sub-zero tint, overdraft line, "£1,831.27
+below zero" headline) was checked in a real browser before release without touching the seeded specs.
+
 ---
 
 ## History
+
+- **2026-09-25 (v0.14.0, session `arena/01a0d991-simple-finance`):** entry 12 added. Entry 8 re-proved a
+  fifth time in a fresh sandbox — `@sparticuz/chromium` installed in 3s, `inflate()` wrote `/tmp/al2023`,
+  and the full suite (now **70 tests** across every project, including the new `charts` project) went green
+  in ~3.8 minutes with `LD_LIBRARY_PATH=/tmp/al2023/lib`. The same browser was used headless to take
+  screenshots of `/charts` at 1400px and 320px and to read them back — cheap, and it caught two things no
+  assertion would have: two reference-line labels printing on top of each other, and a legend entry for an
+  overdraft line that was off the chart. `npm ci --ignore-scripts`, `npm test` (459/111), `tsc --noEmit`,
+  `format:check` and `next build` all green locally; `next build` flipped `next-env.d.ts` again (reverted
+  with `git checkout --`).
 
 - **2026-09-24 (v0.9.0, session `arena/01a0d55f-simple-finance`):** entries 8 and 9 added. The v0.9.0 `browser`
   job came back red on four specs, and this time the annotations alone were not enough to be sure of the

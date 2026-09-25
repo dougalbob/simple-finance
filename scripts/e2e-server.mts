@@ -155,6 +155,157 @@ function seed(): void {
     now,
   });
 
+  // ----------------------------------------------------------------
+  // Fictional history, so the Charts page (SPEC §16.7) has something to
+  // draw in the browser run: about six months of weekly shops, a year of
+  // discretionary spending for each person, and a few household bills.
+  // Every amount is invented; every date is at least ten days old, so the
+  // specs that assert on "this week" and on the recent-entry list are not
+  // disturbed. Supplier names are deliberately unlike the seeded ones the
+  // till specs type ("corner", "insurer").
+  // ----------------------------------------------------------------
+  const greenfield = createSupplier(db, { name: 'Greenfield Market', actor: ACTOR, now });
+  const hillside = createSupplier(db, { name: 'Hillside Outfitters', actor: ACTOR, now });
+  const wattstream = createSupplier(db, { name: 'Wattstream Energy', actor: ACTOR, now });
+
+  const topUp = findChildCategory(db, 'Groceries', 'Top-up Shops');
+  const clothing = findChildCategory(db, 'Personal', 'Clothing & Shoes');
+  const hobbies = findChildCategory(db, 'Personal', 'Hobbies');
+  const toiletries = findChildCategory(db, 'Personal', 'Health & Toiletries');
+  const dining = findChildCategory(db, 'Entertainment & Eating Out', 'Dining Out & Takeaways');
+  const energy = findChildCategory(db, 'Utilities', 'Energy');
+  const water = findChildCategory(db, 'Utilities', 'Water');
+  const roadTax = findChildCategory(db, 'Vehicle Running', 'Road Tax');
+  if (
+    topUp === null ||
+    clothing === null ||
+    hobbies === null ||
+    toiletries === null ||
+    dining === null ||
+    energy === null ||
+    water === null ||
+    roadTax === null
+  ) {
+    throw new Error('E2E seed: the SPEC §12 category tree is missing an expected child');
+  }
+
+  const historyPurchase = (
+    dayOffset: number,
+    totalPence: number,
+    categoryId: number,
+    target: { kind: 'household' | 'person'; id?: number },
+    supplierId: number | null,
+    note: string,
+  ): void => {
+    const date = localDate(today, dayOffset);
+    createPurchase(db, {
+      potId: main.id,
+      totalPence,
+      occurredAt: new Date(`${date}T12:00:00Z`),
+      occurredDate: date,
+      paidByPersonId: alex.id,
+      supplierId,
+      note,
+      actor: ACTOR,
+      lines: [
+        {
+          amountPence: totalPence,
+          categoryId,
+          targetKind: target.kind,
+          ...(target.id === undefined ? {} : { targetId: target.id }),
+        },
+      ],
+      now,
+    });
+  };
+
+  // 25 completed weekly shops, one a week, drifting upwards against the
+  // configured £85 so the honesty verdict has something to say.
+  const shopAmounts = [
+    7840, 8120, 7995, 8460, 8210, 9030, 8675, 8890, 7720, 9240, 8815, 9120, 8360, 9480, 8990, 9310,
+    8740, 9650, 9180, 8420, 9720, 9060, 9895, 9340, 10120,
+  ];
+  shopAmounts.forEach((amountPence, index) => {
+    const weeksAgo = shopAmounts.length - index;
+    historyPurchase(
+      -7 * weeksAgo - 2,
+      amountPence,
+      groceries.id,
+      { kind: 'household' },
+      greenfield.id,
+      'Weekly shop',
+    );
+    if (index % 3 === 0) {
+      historyPurchase(
+        -7 * weeksAgo + 1,
+        1240 + index * 15,
+        topUp.id,
+        { kind: 'household' },
+        greenfield.id,
+        'Top-up',
+      );
+    }
+  });
+
+  // A year of discretionary spending: Alex, Sam, and a few joint takeaways
+  // that stay with the household and are never split between the two.
+  for (let monthsAgo = 11; monthsAgo >= 0; monthsAgo -= 1) {
+    const day = -(monthsAgo * 30 + 11);
+    historyPurchase(
+      day,
+      2400 + monthsAgo * 110,
+      clothing.id,
+      { kind: 'person', id: alex.id },
+      hillside.id,
+      'Clothes',
+    );
+    historyPurchase(
+      day - 3,
+      1850 + ((monthsAgo * 7) % 900),
+      hobbies.id,
+      { kind: 'person', id: alex.id },
+      null,
+      'Hobby',
+    );
+    historyPurchase(
+      day - 1,
+      3100 - monthsAgo * 85,
+      clothing.id,
+      { kind: 'person', id: sam.id },
+      hillside.id,
+      'Clothes',
+    );
+    historyPurchase(
+      day - 5,
+      1450 + ((monthsAgo * 13) % 700),
+      toiletries.id,
+      { kind: 'person', id: sam.id },
+      null,
+      'Toiletries',
+    );
+    historyPurchase(
+      day - 7,
+      2650 + ((monthsAgo * 31) % 1200),
+      dining.id,
+      { kind: 'household' },
+      null,
+      'Takeaway together',
+    );
+    // Household bills in tracked categories, easing down over the year.
+    historyPurchase(
+      day - 9,
+      9800 - monthsAgo * 120,
+      energy.id,
+      { kind: 'household' },
+      wattstream.id,
+      'Energy bill',
+    );
+    historyPurchase(day - 10, 3600, water.id, { kind: 'household' }, null, 'Water bill');
+    if (monthsAgo % 12 === 3) {
+      historyPurchase(day - 12, 18000, roadTax.id, { kind: 'household' }, null, 'Road tax');
+    }
+  }
+
   // One-off income (plan decision 110): the old bicycle sold for cash, paid
   // into the cash pot — so the Income page, All Transactions and the estimate
   // all have a manual, non-schedule income row to show. Fictional, like

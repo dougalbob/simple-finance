@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { HouseholdSetup } from '@/components/household-setup';
 import { AddCheckpointForm, CreatePotForm } from '@/components/pot-forms';
@@ -131,6 +132,8 @@ export default async function HomePage() {
           </section>
         )}
         <QuickEntry data={entryData} />
+
+        <ChartsLinkCard />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <DueThisWeekSection items={dueThisWeek} potNames={potNames} />
@@ -509,6 +512,35 @@ function KeyDatesSection({ items }: { items: Array<{ message: string; date: stri
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * One tap from the till to the drawn version of the same money (SPEC §16.7,
+ * decision 153). Below the till, never above it: v0.13.1's lesson is that
+ * the home page belongs to the till, so the charts get their own page and
+ * this card is the door to it.
+ */
+function ChartsLinkCard() {
+  return (
+    <Link
+      href="/charts"
+      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 hover:bg-sky-50/40"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Charts</p>
+          <p className="text-base font-semibold text-slate-900">See the money drawn</p>
+          <p className="mt-0.5 text-sm text-slate-600">
+            The next month&apos;s balance, the weekly shop, personal spending and the fixed bills —
+            each with its numbers underneath.
+          </p>
+        </div>
+        <span aria-hidden="true" className="shrink-0 text-2xl text-sky-700">
+          →
+        </span>
+      </div>
+    </Link>
   );
 }
 

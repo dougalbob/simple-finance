@@ -5,6 +5,7 @@ import { ProjectionSettingsForm } from '@/components/recurring';
 import {
   AddVehicleForm,
   CategoryTreeEditor,
+  CommitmentCategoriesForm,
   DefaultPurchasePotForm,
   PersonSignInForm,
   PotEditForm,
@@ -17,6 +18,7 @@ import { loadAppConfig } from '@/lib/config';
 import { inspectDocuments } from '@/lib/backup/backup';
 import { getDbHandle } from '@/lib/db/client';
 import { categoryTree } from '@/lib/records/categories';
+import { getCommitmentCategoryPicker } from '@/lib/records/charts-view';
 import { listPeople } from '@/lib/records/people';
 import { listPots } from '@/lib/records/pots';
 import { getProjectionView } from '@/lib/records/money-view';
@@ -51,6 +53,7 @@ export default async function SettingsPage() {
   const tree = categoryTree(db);
   const fuelByVehicle = getMonthlyFuelByVehicle(db);
   const defaultPurchasePotId = getDefaultPurchasePotId(db);
+  const commitmentPicker = getCommitmentCategoryPicker(db);
   const projection = getProjectionView(db, now);
   const documentsStatus = await inspectDocuments(getDbHandle());
 
@@ -224,6 +227,30 @@ export default async function SettingsPage() {
               }}
             />
           </div>
+        </section>
+
+        <section
+          id="commitment-categories"
+          aria-labelledby="commitment-categories-heading"
+          className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 id="commitment-categories-heading" className="mb-1 text-lg font-semibold">
+            Fixed commitments (the direct-debit chart)
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Which child categories count as a fixed commitment on{' '}
+            <Link href="/charts#commitments" className="font-medium text-sky-700 hover:underline">
+              Charts
+            </Link>
+            . “Direct debit” is not a field on a purchase, so this list is the definition — tick
+            Insurance and Road Tax but leave Fuel alone, for instance. The chart has its own
+            “schedule-converted only” toggle for the strict bills-only view, which needs nothing
+            here. Saved with the usual audit entry.
+          </p>
+          <CommitmentCategoriesForm
+            groups={commitmentPicker.groups}
+            source={commitmentPicker.source}
+          />
         </section>
 
         <section

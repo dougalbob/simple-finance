@@ -174,6 +174,7 @@ import {
   setDefaultPurchasePotId,
   setMonthlyFuelPence,
   setRenewalWarningLeadDays,
+  setCommitmentCategoryIds,
   setWeeklyGroceriesPence,
 } from '@/lib/records/settings';
 
@@ -1062,6 +1063,7 @@ const PAGE_PATHS = [
   '/suppliers',
   '/pots',
   '/insights',
+  '/charts',
   '/income',
   '/settings',
 ];
@@ -2319,5 +2321,45 @@ export async function saveWarningLeadsAction(
       return { status: 'error', message: err.message };
     }
     return { status: 'error', message: 'The leads could not be saved. Please try again.' };
+  }
+}
+
+/**
+ * Which child categories count as fixed commitments (SPEC §16.7 D, v0.14.0,
+ * decision 156). The checkbox list posts one `categoryId` per tick; an empty
+ * post is a real answer ("track nothing") and is stored as such, which is
+ * what distinguishes it from the never-configured state that falls back to
+ * the categories the household's schedules already use.
+ */
+export async function saveCommitmentCategoriesAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const ids: number[] = [];
+  for (const value of formData.getAll('categoryId')) {
+    const id = Number(typeof value === 'string' ? value.trim() : '');
+    if (!Number.isInteger(id) || id <= 0) {
+      return { status: 'error', message: 'That category list could not be read. Try again.' };
+    }
+    ids.push(id);
+  }
+  try {
+    const db = getDbHandle().db;
+    setCommitmentCategoryIds(db, ids, user.email);
+    revalidatePages();
+    return {
+      status: 'ok',
+      message:
+        ids.length === 0
+          ? 'Saved — no categories are tracked as fixed commitments.'
+          : `Saved — ${ids.length} ${ids.length === 1 ? 'category' : 'categories'} tracked as fixed commitments.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidSettingValueError) {
+      return { status: 'error', message: err.message };
+    }
+    return { status: 'error', message: 'The categories could not be saved. Please try again.' };
   }
 }

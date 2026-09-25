@@ -1,7 +1,7 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
-import { pots, settings } from '../db/schema';
+import { categories, pots, settings } from '../db/schema';
 import { isValidPenceAmount, MAX_ABS_PENCE } from '../money';
 
 /**
@@ -26,6 +26,7 @@ const KEY_FUEL_PREFIX = 'monthly_fuel_pence:';
 const KEY_RENEWAL_LEAD = 'renewal_warning_lead_days';
 const KEY_CONTRACT_END_LEAD = 'contract_end_warning_lead_days';
 const KEY_DEFAULT_PURCHASE_POT = 'default_purchase_pot_id';
+const KEY_COMMITMENT_CATEGORIES = 'commitment_category_ids';
 
 export const DEFAULT_RENEWAL_WARNING_LEAD_DAYS = 21;
 export const DEFAULT_CONTRACT_END_WARNING_LEAD_DAYS = 21;
@@ -172,6 +173,64 @@ export function setDefaultPurchasePotId(
     'quick entry',
     now,
   );
+}
+
+/**
+ * The child categories the household counts as fixed commitments — the
+ * direct-debit chart's definition (SPEC §16.7 D, v0.14.0, decision 156).
+ *
+ * "Direct debit" is not a field on a purchase, and the household spotted
+ * why a parent-level rule cannot work: Vehicle Running holds Insurance and
+ * Road Tax (both commitments) next to Fuel (not one). So the definition is
+ * an explicit set of **child** ids, ticked in Settings.
+ *
+ * `null` means never configured — the caller then falls back to the children
+ * already used by dd/so schedules, which makes the chart useful on first
+ * open. An empty array is a real answer ("track nothing") and is kept.
+ * Stored in the existing key/value table with the standard audit entry: no
+ * schema change, no migration.
+ */
+export function getCommitmentCategoryIds(db: Db): number[] | null {
+  const row = settingRow(db, KEY_COMMITMENT_CATEGORIES);
+  if (row === null) return null;
+  if (row.value.trim() === '') return [];
+  return normaliseCategoryIds(
+    row.value
+      .split(',')
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0),
+  );
+}
+
+export function setCommitmentCategoryIds(
+  db: Db,
+  categoryIds: readonly number[],
+  actor: string,
+  now?: Date,
+): void {
+  const ids = normaliseCategoryIds(categoryIds);
+  for (const id of ids) {
+    if (!Number.isInteger(id) || id <= 0 || !isChildCategory(db, id)) {
+      throw new InvalidSettingValueError(
+        'Fixed commitments are tracked by child category — one of those categories does not exist.',
+      );
+    }
+  }
+  upsertSetting(db, KEY_COMMITMENT_CATEGORIES, ids.join(','), actor, 'charts', now);
+}
+
+function normaliseCategoryIds(ids: readonly number[]): number[] {
+  return [...new Set(ids)].sort((a, b) => a - b);
+}
+
+/** A category that exists and sits at the child (leaf) level. */
+function isChildCategory(db: Db | DbTx, categoryId: number): boolean {
+  const row = db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.id, categoryId), isNotNull(categories.parentId)))
+    .get();
+  return row !== undefined;
 }
 
 /** A pot that still exists and has not been archived. */

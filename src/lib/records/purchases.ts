@@ -556,6 +556,12 @@ export interface PurchaseFilters {
   potId?: number;
   supplierId?: number;
   categoryId?: number;
+  /**
+   * Several leaf categories at once (v0.14.0): a chart bar covers a whole
+   * parent — or, for the personal chart, two parents — so its drill-down
+   * link carries every child id rather than pretending it is one.
+   */
+  categoryIds?: readonly number[];
   targetKind?: TargetKind;
   targetId?: number;
   paidByPersonId?: number;
@@ -590,12 +596,17 @@ export function listPurchases(db: Db | DbTx, filters: PurchaseFilters = {}): Pur
   let purchaseIds: number[] | null = null;
   if (
     filters.categoryId !== undefined ||
+    filters.categoryIds !== undefined ||
     filters.targetKind !== undefined ||
     filters.targetId !== undefined
   ) {
     const lineConditions = [];
     if (filters.categoryId !== undefined) {
       lineConditions.push(eq(allocations.categoryId, filters.categoryId));
+    }
+    if (filters.categoryIds !== undefined) {
+      if (filters.categoryIds.length === 0) return [];
+      lineConditions.push(inArray(allocations.categoryId, [...filters.categoryIds]));
     }
     if (filters.targetKind !== undefined) {
       lineConditions.push(eq(allocations.targetKind, filters.targetKind));

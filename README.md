@@ -139,6 +139,12 @@ configured development identity; a production build ignores the bypass entirely.
   row to the page that can still edit or void it. Nothing on that page writes anything.
 - **Insights:** `/insights` — month comparison, per-person attribution, vehicle running costs, and the
   honesty loop that compares configured figures with recent complete periods.
+- **Charts:** `/charts` — the same figures drawn: the month ahead (household total, with zero always on the
+  axis and the overdraft limit marked), the weekly shop against the configured figure and the trailing
+  8-week average, personal spending per person per month with the household's shared spending kept
+  separate, and the fixed commitments over the child categories ticked in Settings. Hand-rolled SVG, no
+  client JavaScript, a table of the exact numbers under every chart, and a link from every bar to the
+  purchases behind it.
 
 ## Backup, restore and recovery
 
@@ -171,8 +177,8 @@ The Settings page holds the whole capability; nothing is automatic and nothing l
 Next.js 16 (App Router, React 19) · TypeScript strict · Tailwind CSS · SQLite via better-sqlite3 + Drizzle
 ORM with checked-in SQL migrations · `jose` for Cloudflare Access JWT verification · Zod at the server
 boundary · Node's built-in test runner through `tsx` · Playwright for the browser acceptance suite.
-Domain engines (`estimates`, `projection`, `keydates`, `insights`, `dates`) are framework-free pure
-modules with DST and boundary tests.
+Domain engines (`estimates`, `projection`, `keydates`, `insights`, `chart-series`, `dates`) are
+framework-free pure modules with DST and boundary tests.
 
 ## Gates
 

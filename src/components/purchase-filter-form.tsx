@@ -181,6 +181,7 @@ export function PurchaseFilterForm({
               <option value="">Any target</option>
               <option value="person">Person</option>
               <option value="vehicle">Vehicle</option>
+              <option value="household">Household</option>
             </select>
           </div>
           <div className={fullRowClass}>
@@ -192,10 +193,14 @@ export function PurchaseFilterForm({
               name="targetId"
               value={targetId}
               onChange={(event) => setTargetId(event.target.value)}
-              disabled={targetKind === ''}
+              disabled={targetKind === '' || targetKind === 'household'}
               className={inputClass}
             >
-              <option value="">Any {targetKind === 'vehicle' ? 'vehicle' : 'person'}</option>
+              <option value="">
+                {targetKind === 'household'
+                  ? 'Household lines have no target'
+                  : `Any ${targetKind === 'vehicle' ? 'vehicle' : 'person'}`}
+              </option>
               {targetOptions.map((target) => (
                 <option key={target.id} value={target.id}>
                   {target.label}

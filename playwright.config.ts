@@ -114,6 +114,15 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project (v0.14.0): the charts are read-only, but the spec ticks a
+      // commitment category in Settings — household configuration — so it
+      // runs after the specs that add history to chart and before the backup
+      // project's restore rewinds the installation.
+      name: 'charts',
+      testMatch: /charts\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },
