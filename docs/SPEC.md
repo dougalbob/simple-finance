@@ -680,7 +680,16 @@ Home = four big actions:
      field is focused as a side-effect of **the till becoming ready** or of **a type tab becoming
      visible** — Fuel and Balance open with nothing focused too. The card's first paint still shows the
      type tabs, the pot, the payday shortfall warning and the free-to-spend figure; the keyboard stays
-     down and the page does not scroll itself.
+     down.
+   - **The phone opens at the till (decision 158, superseding 151's "the page does not scroll itself"
+     clause; 151's focus rule stands unchanged).** The card sits ~1300px down the page behind the
+     household total and the projection, so a phone opened at `/` landed on "Shared household ledger" and
+     the household had to scroll to record a purchase — the one thing the phone is for. Now a mount-time
+     **scroll, never a focus** (`scrollIntoView`, no `focus()` anywhere in the move) parks the card's top
+     just below the sticky header (`scroll-mt-16` clears the 56px bar) so the type tabs are the first
+     thing on screen, keyboard down. It is the phone layout only (`< lg`); a laptop still opens at the
+     top. The mobile drawer's **Quick Entry (Till)** link carries `/#quick-entry`, so tapping it lands on
+     the till even when the page is already open.
    - **Focus order once the household is typing:** supplier → amount → Next → category. Focus moves only
      as the answer to something they did: tapping a suggestion moves to Amount, Enter in Supplier moves to
      Amount, Next moves to the category, "+ Note" focuses the note it just opened, and "Add another"

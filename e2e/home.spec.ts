@@ -424,24 +424,35 @@ test.describe('mobile quick entry', () => {
     await expect(list).toHaveCount(0);
   });
 
-  test('the home page opens with nothing focused, and does not scroll itself', async ({ page }) => {
+  test('the home page opens at the till with nothing focused', async ({ page }) => {
     await page.goto('/');
     await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
 
-    // Decision 151: nothing takes focus when the till opens. On the household's
-    // real phone the old autofocus raised the on-screen keyboard, the browser
-    // scrolled the focused field above it, and the Purchase / Fuel / Balance /
-    // Move tab strip went off the top of the screen with it (measured here
-    // before the fix: the page jumped 1342px and the tab strip sat at y=-35).
+    // Decision 151 still holds for focus: the page moves, but nothing takes
+    // focus, so the keyboard stays down. (The old autofocus scrolled *with*
+    // the keyboard up and buried the tab strip — measured before that fix at
+    // scrollY 1342 with the tabs at y=-35.)
     await expectNoFieldFocused(page);
 
-    // The page has not moved by itself: the household opens the app at the top,
-    // where the household total and the projection are, and scrolls to the till
-    // when they want it. Playwright has no reliable on-screen-keyboard signal,
-    // so the scroll position and the tab strip's own box are the proxies.
+    // Decision 158: on a phone the home page opens AT the till. The card's
+    // top parks just under the 56px sticky header (the section carries
+    // scroll-mt-16 = 64px), so the type tabs are on screen on arrival and a
+    // purchase starts in one tap.
+    const top = await entry.evaluate((element) => element.getBoundingClientRect().top);
+    expect(
+      top,
+      `the till's top sits at ${top}px on open — expected just below the sticky header`,
+    ).toBeGreaterThanOrEqual(56);
+    expect(
+      top,
+      `the till's top sits at ${top}px on open — expected 64px (scroll-mt-16)`,
+    ).toBeLessThanOrEqual(96);
     const scrolled = await page.evaluate(() => window.scrollY);
-    expect(scrolled, `the page scrolled itself ${scrolled}px on open`).toBe(0);
+    expect(
+      scrolled,
+      `expected the page to have scrolled itself to the till, scrollY was ${scrolled}`,
+    ).toBeGreaterThan(0);
 
     // Everything the card shows in its first paint is there without a tap:
     // the type tabs, the pot, and what is left before income lands.
@@ -449,11 +460,9 @@ test.describe('mobile quick entry', () => {
     await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Main account');
     await expect(entry.getByText('Free to spend before income')).toBeVisible();
 
-    // Scrolled to the till the way the household scrolls to it: the type tabs
-    // are inside the viewport, so a different mode is one tap away.
-    await entry.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    // The tab strip sits inside the viewport — a different mode is one tap
+    // away, which is the whole point of opening here.
     const tabs = entry.getByRole('tablist', { name: 'Quick entry type' });
-    await expect(tabs).toBeVisible();
     const box = await tabs.boundingBox();
     const viewport = page.viewportSize();
     expect(box).not.toBeNull();
@@ -465,7 +474,28 @@ test.describe('mobile quick entry', () => {
       `tab strip bottom at y=${box.y + box.height} on a ${viewport.height}px screen`,
     ).toBeLessThanOrEqual(viewport.height);
 
-    // That scroll was ours, not the browser's answer to a focus call.
+    // That arrival was a scroll, not the browser's answer to a focus call.
+    await expectNoFieldFocused(page);
+  });
+
+  test("the drawer's Quick Entry (Till) link lands on the till", async ({ page }) => {
+    await page.goto('/purchases');
+    const menuBtn = page.getByRole('button', { name: 'Open navigation menu' });
+    await menuBtn.click();
+    const nav = page.getByRole('navigation', { name: 'Pages' });
+    await nav.getByRole('link', { name: 'Quick Entry (Till)' }).click();
+
+    // The link carries the anchor, so the hop ends at the till even though
+    // the drawer closes over the navigation (decision 158).
+    await waitForTill(page);
+    await expect(page).toHaveURL(/\/#quick-entry$/);
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const top = await entry.evaluate((element) => element.getBoundingClientRect().top);
+    expect(
+      top,
+      `the till's top sits at ${top}px after the drawer tap — expected just below the sticky header`,
+    ).toBeGreaterThanOrEqual(56);
+    expect(top, `the till's top sits at ${top}px after the drawer tap`).toBeLessThanOrEqual(96);
     await expectNoFieldFocused(page);
   });
 
