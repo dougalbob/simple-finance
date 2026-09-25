@@ -880,6 +880,35 @@ makes even that ambiguous.
 came due today appears. "Read-only" means no user-facing writes: no form on this page can create,
 edit or void anything.
 
+### 15.4 Appearance — colour lives in one place, so a theme is cheap (Phase 1, 2026-09-25)
+
+The household's standing requirement (recorded as decision **159**): the colour scheme must be
+arranged so that **adding a new theme is a small, single-place change — not an app-wide edit in
+every page**. Phase 1 (this release) delivers the precondition only: it tokenises the existing
+single scheme with **zero visual change**. No theme, no toggle, no `dark:` variants, no
+`prefers-color-scheme` — those are Phase 2.
+
+- **One block.** Every colour is a custom property in a single Tailwind v4 `@theme` block in
+  `src/app/globals.css` (semantic names for the neutral spine — `canvas`, `surface`, `border`,
+  `ink`, `till` — and ramp numbers for the chromatic families `accent`, `positive`, `warning`,
+  `danger`, `negative`, `note`, `chart-…`). A page or the chart kit never names a palette colour;
+  `tests/colour-tokens.test.ts` fails the build if a raw palette class or a colour literal sneaks
+  back into `src` (the one allowed literal is the PWA `themeColor`, §14).
+- **A theme redefines tokens, nothing else.** Because no component knows what any colour *is*, a
+  Phase-2 theme is one block that re-declares the same `--color-*` names under a selector (e.g.
+  `<html data-theme="dark">`). Nothing else changes. Today's distinctions stay distinct
+  (`ink-muted` ≠ `ink-soft`), so a theme cannot accidentally collapse two greys.
+- **The till is dark by design.** `--color-till` / `--color-till-ink` is the one darkest surface and
+  its ink, shared today by the till, the primary buttons and the active dark pills; a theme may split
+  it later, in the token block, not in the pages.
+- **Charts read tokens** as `var(--color-chart-…)` through inline styles (SPEC §16.7), so every rule
+  there — colour never the only signal, legend plus table twin, hatched in-progress period — is
+  untouched by the token pass and survives any theme.
+- **Known limitation carried to Phase 2:** the PWA `theme_color` / manifest colour (§14) is consumed
+  before any stylesheet is parsed, so it cannot be a CSS variable. Phase 1 pins the three literals to
+  the `--color-till` colour and checks they agree; Phase 2 must decide the chrome colour per theme
+  (e.g. the `media` form of `themeColor`) or accept the light-theme chrome.
+
 ## 16. Insights (initial scope — small and useful)
 
 1. **Month vs previous month** — total spending and by parent category (calendar months), with child

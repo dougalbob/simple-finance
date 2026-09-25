@@ -1,84 +1,76 @@
-# Handoff: Colour tokens (Phase 1 of 2) — themes made cheap
+# Handoff: Colour tokens — Phase 2 of 2 (add the first theme)
 
-**Start from `main`.** Work on your own Arena session branch; no release until the household asks.
+Date: 2026-09-25. Branch: `arena/01a0da84-simple-finance` (from `main` @ `b364f18`, the v0.15.0 merge).
 
-## The ask (household, 2026-09-25)
+**Phase 1 is done.** The whole colour scheme now lives in one Tailwind v4 `@theme static` block in
+`src/app/globals.css` (decision **159**, SPEC **§15.4**). The 35 `.tsx` files and the chart kit use
+token names only; no palette class or colour literal remains in `src` outside the PWA `themeColor`
+(`layout.tsx`). Rendering is **pixel-identical**: 39 screenshots (13 pages × 320/412/1400) of `main`'s
+`src` vs the tokenised `src`, on the same seeded data, differ by **0 pixels** (only the elapsed-time
+caption was normalised — see "Watch out for"). Gates at Phase-1 close: `npm test` **466** green
+(461 + the new `tests/colour-tokens.test.ts` grep-gate), `tsc`, `format:check`, `next build` and the
+full Playwright suite **71** green (SANDBOX entry 8).
 
-The colour scheme must be arranged so that **adding a new theme is a small, single-place change —
-not an app-wide edit in every page**. Split across two sessions:
+## The household's requirement (recorded as decision 159 — it was never in the spec before)
 
-1. **This session (Phase 1):** tokenise the existing single scheme. **Zero visual change.** No new theme.
-2. **Next session (Phase 2):** first extra theme (probably dark) + Settings toggle, as the proof
-   that a theme is one token block and nothing else.
+> The colour scheme must be arranged so that **adding a new theme is a small, single-place change —
+> not an app-wide edit in every page**.
 
-**Provenance — record it this time:** the requirement is NOT in SPEC.md or AGENT_APP_BLUEPRINT.md
-(searched 2026-09-25; only PWA `theme_color` metadata and the "colour is never the only signal"
-rules exist). Phase 1 writes it down: **decision 159** — _colour lives in one token block; a theme
-only redefines tokens_ — plus a short Appearance paragraph in SPEC §15.
+Phase 1 wrote it down (SPEC §15.4 + decision 159) and built the precondition. **Phase 2 (this session)
+is the proof**: ship one theme — a block that re-declares the same `--color-*` names under a selector,
+e.g. `<html data-theme="dark">` — and a Settings toggle. Nothing else may change.
 
-## Current state (measured 2026-09-25)
+## What a theme touches (and only this)
 
-- `globals.css`: no design tokens — just `@import 'tailwindcss'` + the `.till-touch` rule (decision
-  136, do not disturb).
-- **1,107** palette utility classes across **35** `.tsx` files (top: `text-slate-500` ×226,
-  `text-slate-600` ×165, `border-slate-200` ×89).
-- Hex literals in three places: `layout.tsx` (`#0f172a`), `public/manifest.webmanifest`, and
-  `charts/chart-primitives.tsx` (**11 chart-palette hexes**).
-- Zero `dark:` variants. The till is dark **by design** (`bg-slate-900 text-white`) — becomes the
-  token pair `--color-till` / `--color-till-ink`.
+- **One block.** Re-declare whichever of the existing `--color-*` tokens change, under the theme
+  selector. Semantic names (`canvas`, `surface`, `ink`, `border`, `till`, `accent`, `positive`,
+  `warning`, `danger`, `negative`, `note`, `chart-…`) are all in `globals.css` — read decision 159's
+  table for what each maps to. Do **not** add new palette classes to pages; the grep-gate will fail.
+- **The till stays legible.** `--color-till`/`--color-till-ink` is the by-design-dark surface and its
+  ink, shared today by the till, the primary buttons and the active dark pills. A dark theme will want
+  to split or invert it — do that **in the token block**, not in the pages. `ink-ghost` (slate-300) is
+  used both on the till (quick-entry ×3) and once on a white card (supplier-card.tsx:349); if the two
+  need to diverge, split into a `till-ink-soft` token (four sites).
+- **Contrast rules stand.** "Colour is never the only signal" (§16.7) and the void-button legibility
+  e2e (`e2e/desktop.spec.ts`, asserts the danger label inverts correctly) must stay green.
 
-## Session A (Phase 1) — scope
+## Open Phase-2 decisions (record whichever you choose)
 
-Definition of done: **pixel-identical rendering, all gates green, colours in one place, no palette
-literals left in components.**
-
-1. Tailwind v4 `@theme` token layer in `globals.css` (canvas, surface, surface-muted, border,
-   border-strong, ink, ink-soft, ink-muted, accent, till, till-ink, positive, warning, danger,
-   chart-1…n) — keep today's distinctions distinct (slate-500 ≠ slate-600).
-2. Mechanical 1:1 migration of the 35 files through a **fixed mapping table**, recorded in
-   decision 159. Acceptance = no rendering change, not naming purity.
-3. Chart hexes → `var(--color-chart-…)` (CSS vars work in SVG). All SPEC §16.7 colour rules
-   survive: colour never the only signal, legend + table twin.
-4. `themeColor` + manifest keep single literals with comments (CSS vars can't reach them);
-   document the limitation for Phase 2.
-5. Recommended: a unit-test "grep gate" that fails on raw palette classes/hexes outside a small
-   allowlist, so pages can't reintroduce app-wide colour.
-6. Docs: decision 159, SPEC Appearance paragraph, rewrite this handoff for Phase 2.
-
-**Out of scope (session B):** second theme, `[data-theme]`, Settings toggle, `dark:` variants,
-`prefers-color-scheme`. Phase 1 is done when the app looks exactly as before.
-
-**Gates:** format, tsc, npm test (461), next build, full Playwright (71) via SANDBOX entry 8;
-before/after screenshots at 320px / 412px / 1400px compared — look at the pictures, charts
-especially.
-
-## Session B (Phase 2) — the session after
-
-- One theme block redefining the same `--color-*` names — nothing else changes.
-- Settings toggle (key/value table, audited), applied via `<html data-theme>` before first paint
-  (inline script; SSR needs a cookie — decide and record).
-- e2e: switch theme, assert a computed colour changed, till + chart specs still green; PWA
-  themeColor story documented.
+1. **Apply before first paint.** To avoid a flash of the wrong theme, set `<html data-theme>` before
+   paint. SSR has no DOM, so you need the choice in a cookie that the layout reads server-side (an
+   inline `<head>` script that reads the cookie works for the pre-hydration paint). Decide and record
+   cookie-vs-inline-script.
+2. **Settings toggle.** Add a key/value setting (audited, like the others in `settings.ts`) e.g.
+   `theme`. Wire a toggle in `settings-forms.tsx` + a server action in `actions.ts`.
+3. **PWA chrome.** `themeColor`/manifest are read before any stylesheet, so they cannot be a variable.
+   Either add the `media` form of `themeColor` for dark, or accept the light chrome; document the
+   choice (SPEC §15.4 already flags it).
 
 ## Watch out for (carried forward)
 
-- SANDBOX entries 8 (local browser), 9 (stale `next dev` SSR), 13 (GitHub connector drops).
-- `next build` flips `next-env.d.ts` — restore before committing. Commit the AGENTS.md
-  Next.js-rules block `next dev` re-adds.
-- Don't bump the version while Playwright is running (backup spec reads `APP_VERSION`).
+- **Screenshot determinism (learned this session).** The seed's captions tick with wall-clock time
+  ("just now" → "3 minutes ago") and are the *only* thing that differs between two runs of an
+  unchanged tree. To pixel-compare, re-seed and normalise those captions (`just now` / `N units ago`)
+  before the shot; then a diff means a real change. With that, main-vs-tokens was 0 px.
+- **`@theme static` is load-bearing.** The chart kit references `var(--color-chart-…)` from TSX inline
+  styles, which Tailwind's scanner does not see; `static` keeps those variables from being
+  tree-shaken. Don't "tidy" it away.
+- **`@source not` excludes prose from Tailwind's scan.** The scanner reads markdown and comments; the
+  mapping tables in decision 159 would otherwise generate palette utilities. Keep the directive.
+- **Tailwind resolves competing colour utilities by stylesheet order**, not class-attribute order
+  (the void button). `.text-till-ink` is emitted after `.text-danger` — verified again post-tokenise;
+  the e2e guards it.
+- SANDBOX entries 8 (local browser), 9 (stale `next dev` SSR), 13 (GitHub connector drops),
+  14 (Turbopack rejects a symlinked `node_modules`).
+- `next build` flips `next-env.d.ts` — restore before committing. Don't bump the version while
+  Playwright is running (backup spec reads `APP_VERSION`).
 
 ---
 
-> **Received in-session 2026-09-25** (session `arena/01a0da84-simple-finance`): the brief above is
-> reproduced verbatim from the household's message — the previous session could not push it. The
-> v0.15.0 handoff it was written against follows below, unchanged.
->
-> **Re-measured in this session, before any edit** (same day, same tree @ `b364f18`): **1,315** palette
-> utility occurrences (the brief's 1,107 under-counts because it excludes `bg-white`/`text-white` and
-> variant-prefixed spellings such as `hover:bg-slate-50`) across **95 distinct class spellings** in the
-> same **35 `.tsx` files**; `chart-primitives.tsx` carries **10 distinct hexes + `#ffffff`** in
-> `CHART_COLOURS` plus two `rgba()` tints, and `step-area-chart.tsx` repeats the `#ffffff` halo. Also
-> present and missed by the brief: `bg-indigo-700` / `border-indigo-200` on the supplier card.
+> Provenance: the Phase-1 brief from the household (2026-09-25) could not be pushed by the previous
+> session; it was reproduced in `arena/01a0da84-simple-finance`, executed as Phase 1, and its
+> requirement recorded as **decision 159** / SPEC **§15.4**. The v0.15.0 handoff that Phase 1 was
+> written against follows below, unchanged.
 
 ---
 

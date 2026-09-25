@@ -1263,8 +1263,94 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     does not remount on a same-route tap). A laptop still opens at the top. *Browser acceptance:* the old
     "opens and does not scroll itself" spec is replaced by two — the home page opens with the till's top
     between 56px and 96px of the viewport, `scrollY > 0` and still no focused field; and from
-    `/purchases`, the drawer's Quick Entry (Till) tap ends at the same place with the same silence from
-    the keyboard.
+`/purchases`, the drawer's Quick Entry (Till) tap ends at the same place with the same silence from
+the keyboard.
+
+159. **Colour lives in one token block; a theme only redefines tokens (SPEC §15.4, household
+    requirement 2026-09-25 — Phase 1 of 2: tokenise the existing scheme, zero visual change).** The
+    household's ask was that *adding a new theme be a small, single-place change, not an app-wide
+    edit in every page*. The requirement had no provenance — a search of SPEC.md and
+    AGENT_APP_BLUEPRINT.md on 2026-09-25 found only the PWA `theme_color` metadata (§14) and the
+    "colour is never the only signal" rules (§16.7) — so it is recorded here and in SPEC §15.4.
+    Phase 1 therefore restructures only; Phase 2 (next session) adds the first theme + Settings
+    toggle as the proof.
+
+    **What changed.** A single Tailwind v4 `@theme static` block in `src/app/globals.css` now owns
+    every colour: semantic names for the neutral spine a theme must flip (`canvas`, `surface`,
+    `surface-muted`, `surface-sunk`, `marker-muted`, `border`, `border-strong`, `border-hairline`,
+    `border-emphasis`, `ink`…`ink-ghost`, and the by-design-dark `till`, `till-ink`, `till-inset`,
+    `till-hover`, `till-muted`) and ramp numbers for the chromatic families (`accent` was sky,
+    `positive` emerald, `warning` amber, `danger` red, `negative` rose, `note` indigo, `chart-1…5` +
+    chart furniture). Values are the Tailwind palette literals this app already rendered, copied so
+    no pixel moves. `static` because the chart kit references its tokens from TSX as
+    `var(--color-chart-…)` in inline styles, which Tailwind's scanner does not see — without
+    `static` those variables would be tree-shaken and every chart would render unstyled. Today's
+    distinctions stay distinct (`ink-muted` ≠ `ink-soft`), so a theme cannot collapse two greys.
+
+    **The migration was mechanical.** 1,314 occurrences across 75 distinct classes in the same 35
+    `.tsx` files were rewritten through this fixed table (1:1, no renames of anything else); variant
+    prefixes (`hover:`, `focus:`, …) ride along.
+
+    | was | now | was | now | was | now |
+    |---|---|---|---|---|---|
+    | bg-white | bg-surface | text-slate-600 | text-ink-soft | border-sky-200 | border-accent-200 |
+    | bg-slate-50 | bg-canvas | text-slate-700 | text-ink-body | border-sky-300 | border-accent-300 |
+    | bg-slate-100 | bg-surface-muted | text-slate-800 | text-ink-emphasis | border-sky-400 | border-accent-400 |
+    | bg-slate-200 | bg-surface-sunk | text-slate-900 | text-ink | border-sky-500 | border-accent-500 |
+    | bg-slate-400 | bg-marker-muted | text-white | text-till-ink | ring-sky-200 | ring-accent-200 |
+    | bg-slate-600 | bg-till-muted | accent-slate-900 | accent-ink | ring-sky-400 | ring-accent-400 |
+    | bg-slate-700 | bg-till-hover | decoration-slate-300 | decoration-ink-ghost | ring-sky-500 | ring-accent-500 |
+    | bg-slate-800 | bg-till-inset | text-slate-300 | text-ink-ghost | text-sky-300 | text-accent-300 |
+    | bg-slate-900 | bg-till | text-slate-400 | text-ink-faint | text-sky-700 | text-accent |
+    | border-slate-100 | border-border-hairline | text-slate-500 | text-ink-muted | text-sky-800 | text-accent-800 |
+    | border-slate-200 | border-border | bg-sky-50 | bg-accent-50 | text-sky-900 | text-accent-900 |
+    | border-slate-300 | border-border-strong | bg-sky-100 | bg-accent-100 | bg-emerald-50 | bg-positive-50 |
+    | border-slate-400 | border-marker-muted | bg-sky-300 | bg-accent-300 | bg-emerald-100 | bg-positive-100 |
+    | border-slate-500 | border-border-emphasis | bg-sky-600 | bg-accent-600 | bg-emerald-500 | bg-positive-500 |
+    | border-slate-900 | border-till | border-sky-100 | border-accent-100 | border-emerald-200 | border-positive-200 |
+    | divide-slate-100 | divide-border-hairline | | | ring-emerald-200 | ring-positive-200 |
+    | ring-slate-200 | ring-border | | | text-emerald-700 | text-positive |
+    | | | | | text-emerald-800 | text-positive-800 |
+    | | | | | text-emerald-900 | text-positive-900 |
+
+    | was | now | was | now | was | now |
+    |---|---|---|---|---|---|
+    | bg-amber-50 | bg-warning-50 | bg-red-50 | bg-danger-50 | bg-rose-50 | bg-negative-50 |
+    | bg-amber-100 | bg-warning-100 | bg-red-700 | bg-danger | ring-rose-200 | ring-negative-200 |
+    | border-amber-200 | border-warning-200 | bg-red-800 | bg-danger-800 | text-rose-700 | text-negative |
+    | border-amber-300 | border-warning-300 | border-red-200 | border-danger-200 | text-rose-900 | text-negative-900 |
+    | ring-amber-200 | ring-warning-200 | border-red-300 | border-danger-300 | bg-indigo-700 | bg-note |
+    | text-amber-600 | text-warning-600 | border-red-700 | border-danger | border-indigo-200 | border-note-200 |
+    | text-amber-700 | text-warning-700 | text-red-700 | text-danger | | |
+    | text-amber-800 | text-warning | text-red-800 | text-danger-800 | | |
+    | text-amber-900 | text-warning-900 | | | | |
+    | text-amber-950 | text-warning-950 | | | | |
+
+    **Charts.** `CHART_COLOURS` now holds `var(--color-chart-…)` strings; the SVG kit applies them
+    through inline `style` rather than `fill`/`stroke` attributes, because a custom property resolves
+    in a declaration (which an inline style is) in every browser while presentation-attribute support
+    is not universal. All §16.7 rules survive unchanged (legend + table twin, hatched in-progress
+    week, haloed labels). The two tints are `color-mix` of their own colour so a theme that moves a
+    colour moves its tint too.
+
+    **The PWA exception.** The browser reads `themeColor` and the manifest before any stylesheet
+    exists, so they cannot be variables. Phase 1 keeps the three literals (`layout.tsx`
+    `themeColor`, manifest `theme_color`/`background_color`) pinned to `--color-till` and comments
+    them; `tests/colour-tokens.test.ts` asserts they agree with each other and with the token
+    (±1/255 per channel — Tailwind's oklch→sRGB rounding). Choosing a per-theme chrome colour is
+    Phase 2's decision.
+
+    **Guards.** `tests/colour-tokens.test.ts` is the grep-gate: no raw palette class and no colour
+    literal in `src` outside the PWA exception; every `var(--color-…)` referenced is defined; the
+    semantic names a theme redefines all exist. And `@source not` excludes the docs/README from
+    Tailwind's scan, because the scanner reads prose — the mapping tables in this very decision would
+    otherwise generate palette utilities nothing renders.
+
+    **Verification.** `npm test` 466 green (461 + 5 gate); `tsc`, `format:check`, `next build` green;
+    full Playwright **71** green via SANDBOX entry 8. Pixel proof: 39 screenshots (13 pages at
+    320/412/1400) of `main`'s `src` vs the tokenised `src`, same seeded data, with only the elapsed-
+    time caption ("just now"/"N minutes ago") normalised — **0 differing pixels** on every page,
+    charts included. A theme is therefore one future block that re-declares these names.
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 

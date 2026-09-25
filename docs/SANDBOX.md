@@ -291,6 +291,27 @@ once — the sandbox may be stuck with a stale handle, and a brand-new session i
 
 ---
 
+## 14. Turbopack rejects a symlinked `node_modules` that points outside the project (2026-09-25)
+
+**Symptom:** trying to run a second, pristine checkout (to pixel-diff `main` against a change) by
+`git archive`-ing it to another directory and symlinking the first project's `node_modules` in fails
+at compile time with a Turbopack panic: `Symlink [project]/node_modules is invalid, it points out of
+the filesystem root`. The server prints `Ready` and then dies on the first request.
+
+**Reality:** Next 16's Turbopack resolves packages relative to the project root and treats a
+`node_modules` symlink escaping that root as an error rather than following it.
+
+**What works here:** don't symlink. Either (a) compare against the *same* project by checking the old
+`src/` out over the new (`git checkout <base> -- src`, restart the dev server per entry 9, screenshot,
+`git checkout HEAD -- src`) so both states share one `node_modules` and one seed, or (b) copy
+`node_modules` into the second tree. Route (a) is what produced the 0-pixel main-vs-tokens proof;
+remember to restart the dev server (and clear `.next`) between the two states, and keep the seed
+constant by *not* restarting the seeder between them.
+
+**Do not:** fight the symlink — it is a hard Turbopack rule, not a permissions hiccup.
+
+---
+
 ## History
 
 - **2026-09-25 (v0.14.0 release, session `arena/01a0d9e9-simple-finance`):** entry 13 added after the
