@@ -1245,6 +1245,27 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     documented on the charts page: these filters match the **purchase**, so a matched purchase returns with
     all of its lines, receipt-style, and a split shop appears whole.
 
+158. **On a phone the home page opens at the till (SPEC §15.1, household request 2026-09-25 — explicitly
+    supersedes decision 151's "the page does not scroll itself" clause; 151's focus rule stands
+    unchanged).** The till card sits ~1300px down the page behind the household total and the payday
+    projection, so opening the app on a phone landed on "Shared household ledger" and a purchase at the
+    checkout started with a scroll — the one thing the phone is for (the "walking out of Tesco" tool).
+    Nothing had ever implemented "open at the till": the mobile drawer's **Quick Entry (Till)** link
+    (v0.12.0) was a bare `href: "/"`, and for a while it *looked* like it worked only because the till
+    autofocused Supplier (decision 137) and the browser dragged the page to the focused field — the side
+    effect decision 151 removed, which is why the behaviour appeared to break around v0.13.x. Now it is
+    deliberate: `QuickEntry` takes an `openAtTillOnMobile` prop (the home page passes it; Overview, which
+    embeds the same till as a review surface, does not) and on mount, when the layout is the phone one
+    (`matchMedia('(min-width: 1024px)')` fails), calls `section.scrollIntoView({ block: 'start' })` — a
+    scroll, never a `focus()`, so the keyboard stays down and every decision-151 focus rule holds. The
+    section carries `id="quick-entry"` and `scroll-mt-16` (64px clears the 56px sticky header), and the
+    drawer link is `/#quick-entry` so a tap re-anchors even when the page is already open (the component
+    does not remount on a same-route tap). A laptop still opens at the top. *Browser acceptance:* the old
+    "opens and does not scroll itself" spec is replaced by two — the home page opens with the till's top
+    between 56px and 96px of the viewport, `scrollY > 0` and still no focused field; and from
+    `/purchases`, the drawer's Quick Entry (Till) tap ends at the same place with the same silence from
+    the keyboard.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |

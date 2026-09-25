@@ -24,7 +24,9 @@ const NAV_GROUPS = [
   {
     title: 'Daily & Transactions',
     items: [
-      { href: '/', label: 'Quick Entry (Till)' },
+      // Carries the hash so the tap lands on the till itself — even when the
+      // drawer was opened from `/` already (decision 158).
+      { href: '/#quick-entry', label: 'Quick Entry (Till)' },
       { href: '/overview', label: 'Overview' },
       { href: '/purchases', label: 'Purchases' },
       { href: '/transactions', label: 'All Transactions' },
@@ -97,8 +99,10 @@ export function SiteNav() {
   const [isOpen, setIsOpen] = useState(false);
 
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(`${href}/`);
+    // Compare the path only: a hash link ("/#quick-entry") is the home page.
+    const path = href.split('#')[0] || '/';
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   // Close drawer on route changes

@@ -145,7 +145,18 @@ type LineDraft = {
   targetId: number | null;
 };
 
-export function QuickEntry({ data }: { data: QuickEntryData }) {
+export function QuickEntry({
+  data,
+  openAtTillOnMobile = false,
+}: {
+  data: QuickEntryData;
+  /**
+   * Home page only (decision 158): on a phone the page opens AT the till, so
+   * a purchase starts the moment the app is opened. Overview embeds the same
+   * component and keeps its own top-of-page opening — it is a review surface.
+   */
+  openAtTillOnMobile?: boolean;
+}) {
   const [mode, setMode] = useState<'purchase' | 'fuel' | 'balance' | 'move'>('purchase');
   /**
    * Until React has hydrated this island, a tap switches nothing and a
@@ -155,17 +166,37 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
    * cannot act on yet.
    */
   const [ready, setReady] = useState(false);
+  const tillRef = useRef<HTMLElement>(null);
   useEffect(() => {
     setReady(true);
   }, []);
+  /**
+   * Decision 158: on a phone the home page opens at the till — the household
+   * is standing at the checkout, and the card sits ~1300px down the page
+   * behind the household total and the projection. This is a scroll, never a
+   * `focus()`: nothing takes focus, so the keyboard stays down and every
+   * decision-151 focus rule holds. `scroll-mt-16` on the section clears the
+   * 56px sticky header. Gated on the phone layout (`< lg`, the compact
+   * header's own breakpoint); a laptop still opens at the top.
+   */
+  useEffect(() => {
+    if (!openAtTillOnMobile) return;
+    if (window.matchMedia('(min-width: 1024px)').matches) return;
+    tillRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, [openAtTillOnMobile]);
   return (
     <section
+      ref={tillRef}
+      // `#quick-entry` is the mobile drawer's "Quick Entry (Till)" target, so
+      // a tap re-anchors even when the page is already open (decision 158).
+      id="quick-entry"
       aria-labelledby="quick-entry-heading"
       data-till-ready={ready ? 'true' : 'false'}
       // p-2 on a phone (decision 143): the page margin, this card and the white
       // cards used to stack to ~88px of padding. overflow-x-clip is the safety
       // net — a stray wide element is cut off here instead of panning the page.
-      className="till-touch overflow-x-clip rounded-2xl bg-slate-900 p-2 text-white shadow-sm sm:p-6"
+      // scroll-mt-16: opens/anchors sit below the 56px sticky header (158).
+      className="till-touch scroll-mt-16 overflow-x-clip rounded-2xl bg-slate-900 p-2 text-white shadow-sm sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3 px-1 pt-1 sm:p-0">
         <div className="min-w-0">

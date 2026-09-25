@@ -131,7 +131,8 @@ export default async function HomePage() {
             </p>
           </section>
         )}
-        <QuickEntry data={entryData} />
+        {/* On a phone this page opens at the till (decision 158). */}
+        <QuickEntry data={entryData} openAtTillOnMobile />
 
         <ChartsLinkCard />
 
