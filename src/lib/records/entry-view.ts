@@ -8,10 +8,11 @@ import {
 import { categoryTree, findChildCategory } from './categories';
 import { listDebts } from './debts';
 import { getCycleOutlook, getMoneySnapshot } from './money-view';
+import { listFuelSupplierIds } from './fuel';
 import { listPeople } from './people';
 import { listPots } from './pots';
 import { getDefaultPurchasePotId } from './settings';
-import { listSuppliersForEntry, mostUsedCategoryForSupplier } from './suppliers';
+import { getSupplier, listSuppliersForEntry, mostUsedCategoryForSupplier } from './suppliers';
 import { listVehicles } from './vehicles';
 import type { QuickEntryData } from '../../components/quick-entry';
 
@@ -20,8 +21,8 @@ import type { QuickEntryData } from '../../components/quick-entry';
  * pages, SPEC §15.2 "quick-add always visible"): pots with their reported
  * and projected balances, people, vehicles, live leaf categories, supplier
  * memory with derived most-used categories, and the visible defaults (the
- * pot chosen in Settings, first person, Groceries/Weekly Shop, the payer's
- * own vehicle). One builder — every page that shows Quick Entry cannot
+ * pot chosen in Settings, the signed-in person — decision 146 — else the
+ * first, Groceries/Weekly Shop, the payer's own vehicle). One builder — every page that shows Quick Entry cannot
  * drift.
  *
  * Defaults are the same conventions as Phase 2b (plan decision 50): the
@@ -42,7 +43,34 @@ import type { QuickEntryData } from '../../components/quick-entry';
  * shows as its headline. Both are read-only context here; the checkpoint is
  * never editable in the till form.
  */
-export function buildEntryData(db: Db, nowArg?: Date): QuickEntryData {
+export interface EntryDefaultsInput {
+  people: ReadonlyArray<{ id: number; email: string | null }>;
+  vehicles: ReadonlyArray<{ id: number; ownerPersonId: number | null }>;
+  viewerEmail: string | null | undefined;
+}
+
+/**
+ * Who is holding the phone (decision 146, SPEC §15.1 "prefills payer
+ * (signed-in user)"): the person linked to the viewer's sign-in in Settings,
+ * else the first person; and that person's own vehicle (its Owner), else the
+ * first vehicle. Pure, so the fallbacks are unit-tested.
+ */
+export function entryDefaults({ people, vehicles, viewerEmail }: EntryDefaultsInput): {
+  personId: number | null;
+  vehicleId: number | null;
+} {
+  const wanted = viewerEmail?.trim().toLowerCase() ?? '';
+  const viewer =
+    wanted === '' ? undefined : people.find((person) => person.email?.toLowerCase() === wanted);
+  const person = viewer ?? people[0] ?? null;
+  const vehicle =
+    (person === null ? undefined : vehicles.find((entry) => entry.ownerPersonId === person.id)) ??
+    vehicles[0] ??
+    null;
+  return { personId: person?.id ?? null, vehicleId: vehicle?.id ?? null };
+}
+
+export function buildEntryData(db: Db, nowArg?: Date, viewerEmail?: string | null): QuickEntryData {
   const now = nowArg ?? new Date();
   // The due pass runs inside the money snapshot (SPEC §11.2): converted
   // schedule records must be in the estimate before anything reads it.
@@ -64,11 +92,21 @@ export function buildEntryData(db: Db, nowArg?: Date): QuickEntryData {
     defaultCategoryId: mostUsedCategoryForSupplier(db, supplier.id)?.categoryId ?? null,
   }));
   const defaultPotId = getDefaultPurchasePotId(db);
-  const defaultPerson = people[0] ?? null;
+  const defaults = entryDefaults({ people, vehicles, viewerEmail });
   const defaultCategory =
     findChildCategory(db, 'Groceries', 'Weekly Shop') ?? categoryOptions[0] ?? null;
-  const defaultVehicle =
-    vehicles.find((vehicle) => vehicle.ownerPersonId === defaultPerson?.id) ?? vehicles[0] ?? null;
+  // Only suppliers with a previous fuel purchase (decision 145), most recent
+  // fuel purchase first. Reuses the memory already built where it can.
+  const byId = new Map(supplierOptions.map((option) => [option.id, option]));
+  const fuelSuppliers = listFuelSupplierIds(db).map((id) => {
+    const known = byId.get(id);
+    if (known !== undefined) return known;
+    return {
+      id,
+      name: getSupplier(db, id).name,
+      defaultCategoryId: mostUsedCategoryForSupplier(db, id)?.categoryId ?? null,
+    };
+  });
   return {
     pots: pots.map(({ id, label, kind }) => {
       const potView = snapshot.pots.find((entry) => entry.pot.id === id);
@@ -102,11 +140,12 @@ export function buildEntryData(db: Db, nowArg?: Date): QuickEntryData {
     vehicles: vehicles.map(({ id, label, ownerPersonId }) => ({ id, label, ownerPersonId })),
     categories: categoryOptions,
     suppliers: supplierOptions,
+    fuelSuppliers,
     debts: debts.map(({ id, counterparty, direction }) => ({ id, counterparty, direction })),
     defaultPotId,
-    defaultPersonId: defaultPerson?.id ?? null,
+    defaultPersonId: defaults.personId,
     defaultCategoryId: typeof defaultCategory?.id === 'number' ? defaultCategory.id : null,
-    defaultVehicleId: defaultVehicle?.id ?? null,
+    defaultVehicleId: defaults.vehicleId,
     today: toLocalDateString(now),
     cycle: {
       incomeDate: outlook.incomeDate,

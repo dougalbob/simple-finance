@@ -76,7 +76,7 @@ export default async function OverviewPage({
   const pots = listPots(db);
   const people = listPeople(db);
   const vehicles = listVehicles(db);
-  const entryData = buildEntryData(db, now);
+  const entryData = buildEntryData(db, now, user.email);
   const categoryNames = new Map(
     categoryTree(db).flatMap((parent) =>
       parent.children.map((child) => [child.id, `${parent.name} / ${child.name}`] as const),

@@ -86,14 +86,25 @@ export const auditEntries = sqliteTable(
  */
 
 /** The two household members (labels configured privately; SPEC §3). */
-export const people = sqliteTable('people', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  label: text('label').notNull(),
-  sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-  version: integer('version').notNull().default(1),
-});
+export const people = sqliteTable(
+  'people',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    label: text('label').notNull(),
+    /**
+     * Which allowlisted sign-in is this person (v0.11.0, decision 146). Lower
+     * case; null until linked in Settings. Drives the till's "Paid by" and
+     * vehicle defaults for whoever is signed in. Private data — never seeded
+     * with a real address in the repo.
+     */
+    email: text('email'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    version: integer('version').notNull().default(1),
+  },
+  (table) => [uniqueIndex('people_email_unique').on(table.email)],
+);
 
 /** Vehicles as running-cost targets (SPEC §13), each with an owning person. */
 export const vehicles = sqliteTable('vehicles', {

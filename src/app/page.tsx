@@ -68,7 +68,7 @@ export default async function HomePage() {
       .map((child) => ({ id: child.id, parentName: parent.name, childName: child.name })),
   );
   // Shared builder (mobile home + Overview, decision: one code path).
-  const entryData = buildEntryData(db, now);
+  const entryData = buildEntryData(db, now, user.email);
   const recentPurchases = listPurchases(db, { limit: 12, includeVoided: true });
   const supplierNames = new Map(supplierRows.map((supplier) => [supplier.id, supplier.name]));
   const categoryNames = new Map(

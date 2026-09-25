@@ -6,11 +6,14 @@ import {
   AddVehicleForm,
   CategoryTreeEditor,
   DefaultPurchasePotForm,
+  PersonSignInForm,
   PotEditForm,
   TargetRenameForm,
   WarningLeadsForm,
 } from '@/components/settings-forms';
 import { currentUserFromRequest } from '@/lib/auth/next';
+import { signInEmailChoices } from '@/lib/auth/sign-in-choices';
+import { loadAppConfig } from '@/lib/config';
 import { inspectDocuments } from '@/lib/backup/backup';
 import { getDbHandle } from '@/lib/db/client';
 import { categoryTree } from '@/lib/records/categories';
@@ -44,6 +47,7 @@ export default async function SettingsPage() {
   const people = listPeople(db);
   const vehicles = listVehicles(db);
   const pots = listPots(db);
+  const emailChoices = signInEmailChoices(loadAppConfig(), people);
   const tree = categoryTree(db);
   const fuelByVehicle = getMonthlyFuelByVehicle(db);
   const defaultPurchasePotId = getDefaultPurchasePotId(db);
@@ -85,6 +89,12 @@ export default async function SettingsPage() {
                   version={person.version}
                   currentLabel={person.label}
                 />
+                <PersonSignInForm
+                  personId={person.id}
+                  personLabel={person.label}
+                  email={person.email}
+                  choices={emailChoices}
+                />
               </div>
             ))}
             {vehicles.map((vehicle) => (
@@ -98,6 +108,12 @@ export default async function SettingsPage() {
                   version={vehicle.version}
                   currentLabel={vehicle.label}
                 />
+                <p className="mt-2 text-xs text-slate-500">
+                  Owner:{' '}
+                  {people.find((person) => person.id === vehicle.ownerPersonId)?.label ??
+                    'none (shared)'}{' '}
+                  — the Fuel form starts on this vehicle for its owner.
+                </p>
               </div>
             ))}
             <AddVehicleForm people={people.map(({ id, label }) => ({ id, label }))} />

@@ -480,6 +480,12 @@ function FuelEconomyCard({ vehicle }: { vehicle: VehicleFuelEconomyView }) {
           The latest figure looks unusual — worth checking the readings.
         </p>
       ) : null}
+      {vehicle.fillsWithoutFullTank !== null ? (
+        <p className="mt-2 rounded-md bg-amber-50 p-2 text-xs font-semibold text-amber-900">
+          No full tank marked in the last {vehicle.fillsWithoutFullTank} fills — mpg needs one. Tick
+          “Filled to full” next time the pump clicks off (or fix a past fill from Purchases).
+        </p>
+      ) : null}
       {vehicle.missing.length > 0 ? (
         <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
           <p className="font-semibold">

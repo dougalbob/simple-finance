@@ -144,6 +144,59 @@ export function listFuelFills(db: Db | DbTx): Map<number, FuelFill[]> {
   return byVehicle;
 }
 
+/**
+ * Suppliers with at least one previous **fuel purchase** (decision 145), the
+ * most recent fuel purchase first — the Fuel form's typeahead is fed only
+ * these, so a coffee shop never turns up at the pump. Uses the same
+ * definition as the mpg maths: live, not a refund, Fuel lines all to one
+ * vehicle.
+ */
+export function listFuelSupplierIds(db: Db | DbTx): number[] {
+  const fuelCategoryId = getFuelCategoryId(db);
+  if (fuelCategoryId === null) return [];
+  const rows = db
+    .select({
+      purchaseId: purchases.id,
+      supplierId: purchases.supplierId,
+      occurredAt: purchases.occurredAt,
+      targetKind: allocations.targetKind,
+      targetId: allocations.targetId,
+    })
+    .from(purchases)
+    .innerJoin(allocations, eq(allocations.purchaseId, purchases.id))
+    .where(
+      and(
+        eq(allocations.categoryId, fuelCategoryId),
+        isNull(purchases.voidedAt),
+        isNull(purchases.refundOfPurchaseId),
+      ),
+    )
+    .all();
+  const grouped = new Map<
+    number,
+    { supplierId: number | null; at: number; targets: Set<number | null> }
+  >();
+  for (const row of rows) {
+    const target = row.targetKind === 'vehicle' ? row.targetId : null;
+    const entry = grouped.get(row.purchaseId);
+    if (entry !== undefined) {
+      entry.targets.add(target);
+      continue;
+    }
+    grouped.set(row.purchaseId, {
+      supplierId: row.supplierId,
+      at: row.occurredAt.getTime(),
+      targets: new Set([target]),
+    });
+  }
+  const latest = new Map<number, number>();
+  for (const { supplierId, at, targets } of grouped.values()) {
+    if (supplierId === null || targets.size !== 1 || targets.has(null)) continue;
+    latest.set(supplierId, Math.max(latest.get(supplierId) ?? 0, at));
+  }
+  return [...latest.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([id]) => id);
+}
+
 /** Per fuel purchase, the stretch it closed (for the Purchases rows). */
 export function getFuelClosures(db: Db): Map<number, FuelStretch | FuelGap> {
   const closures = new Map<number, FuelStretch | FuelGap>();
@@ -296,10 +349,18 @@ export interface VehicleFuelEconomyView {
    * on any fill, the odometer on a full tank (a part fill needs none).
    */
   missing: MissingFuelDetail[];
+  /**
+   * How many of the most recent fills in a row have no full tank marked,
+   * when that is at least FUEL_NO_FULL_TANK_NUDGE (else null). With "Filled
+   * to full" off by default (decision 147), this is the nudge that mpg needs
+   * one.
+   */
+  fillsWithoutFullTank: number | null;
 }
 
 export const FUEL_RECENT_FILLS = 6;
 export const FUEL_MISSING_WINDOW_DAYS = 120;
+export const FUEL_NO_FULL_TANK_NUDGE = 3;
 
 /** The Insights panel (SPEC §16.6): one card per vehicle, every vehicle listed. */
 export function getFuelEconomyView(db: Db, nowArg?: Date): VehicleFuelEconomyView[] {
@@ -317,6 +378,8 @@ export function getFuelEconomyView(db: Db, nowArg?: Date): VehicleFuelEconomyVie
     );
     const newestFirst = [...fills].reverse();
     const priced = newestFirst.find((fill) => fill.fuelMillilitres !== null);
+    const lastFull = newestFirst.findIndex((fill) => fill.fullTank);
+    const sinceFull = lastFull === -1 ? newestFirst.length : lastFull;
     return {
       vehicleId: vehicle.id,
       label: vehicle.label,
@@ -350,6 +413,7 @@ export function getFuelEconomyView(db: Db, nowArg?: Date): VehicleFuelEconomyVie
           ],
         }))
         .filter((entry) => entry.missing.length > 0),
+      fillsWithoutFullTank: sinceFull >= FUEL_NO_FULL_TANK_NUDGE ? sinceFull : null,
     };
   });
 }
