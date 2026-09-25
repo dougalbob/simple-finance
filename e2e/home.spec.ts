@@ -601,6 +601,10 @@ test.describe('mobile quick entry', () => {
   test('every page stays reachable on a phone viewport', async ({ page }) => {
     await page.goto('/');
     await waitForTill(page);
+    const menuBtn = page.getByRole('button', { name: 'Open navigation menu' });
+    if (await menuBtn.isVisible()) {
+      await menuBtn.click();
+    }
     const nav = page.getByRole('navigation', { name: 'Pages' });
     for (const label of [
       'Overview',
