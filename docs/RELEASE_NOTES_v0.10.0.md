@@ -1,9 +1,12 @@
 # Release notes — v0.10.0 (payslips on income, fuel economy, and the till fixes)
 
-**Published:** _to be stamped at publication._
-**Merge commit:** _to be stamped at publication._
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.10.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _to be stamped at publication — must differ from v0.9.0's `sha256:4384d7d2…d12aa809`._
+**Published:** 2026-09-25 (tag pushed 08:14 UTC, image verified in the registry 08:17 UTC).
+**Merge commit:** `3f18a62f13192439dc449d7566a3aab9918161fe` (PR #45; short SHA `3f18a62`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.10.0` · `latest` · `sha-3f18a62`
+**Digest:** `sha256:02a7321ece1fc55d245a6503c91c73b7106115bfd01132a53e41f3601d1269e6` — one digest for all
+three tags, different from v0.9.0's `sha256:4384d7d2…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions`; the `publish` run `36111884895`'s own "Verify
+the registry tags resolve" step passed first).
 **Version badge:** `v0.10.0 · pre-release`
 
 ## What changed

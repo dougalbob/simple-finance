@@ -1116,8 +1116,10 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   specs; the weekend-payday probe now needs a Friday after today; a restore upgrades an older archive to the
   running schema and refuses a newer one (decision 142). SPEC §15.1/§16.6/§18.4/§23 amended, mpg removed
   from out-of-scope. `npm test` **378 tests / 95 suites green**, format and typecheck clean, production
-  build green, local Playwright **55 tests green** (SANDBOX entry 8). Publication recorded in
-  [`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md) and `docs/HANDOFF.md`.
+  build green, local Playwright **55 tests green** (SANDBOX entry 8). **Published 2026-09-25**: annotated
+  tag `v0.10.0` on merge commit `3f18a62` (PR #45), publish run `36111884895`, digest
+  `sha256:02a7321ece1fc55d245a6503c91c73b7106115bfd01132a53e41f3601d1269e6` on `v0.10.0` / `latest` /
+  `sha-3f18a62` — one digest, different from v0.9.0's ([`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md)).
 - **v0.8.0 — installable PWA, no offline access (session `arena/01a0d4f9-simple-finance`, from `main` @ `837845a`)**:
   `public/manifest.webmanifest` (static file, not a Next route), `public/icon-192.png` (192×192),
   `public/icon-512.png` (512×512), `public/apple-touch-icon.png` (180×180), all derived from the existing
