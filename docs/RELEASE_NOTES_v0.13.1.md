@@ -1,10 +1,11 @@
 # Release notes — v0.13.1 (the till opens with nothing focused)
 
-**Published:** _pending publish — this draft is stamped once the image is verified in the registry._
-**Merge commit:** _pending publish_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.13.1` · `latest` · `sha-<short>`
-**Digest:** _pending publish — one digest for all three tags, different from v0.13.0's
-`sha256:5264c114…084df0`._
+**Published:** 2026-09-25 (tag pushed 16:11 UTC, image verified in the registry 16:14 UTC).
+**Merge commit:** `a8827b798a9ea1aed8f73568055b0be6fd456f5f` (PR #56; short SHA `a8827b7`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.13.1` · `latest` · `sha-a8827b7`
+**Digest:** `sha256:cced2519eaa99116aab2b6f0dc3239e93f6ebd92c98f29302da191f31702bea4`, one digest for all
+three tags, different from v0.13.0's `sha256:5264c114…084df0` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36159224841` passed).
 **Version badge:** `v0.13.1 · pre-release`
 
 ## What changed

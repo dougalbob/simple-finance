@@ -2,8 +2,8 @@
 
 Date: 2026-09-25. Branch: `arena/01a0d93c-simple-finance` (from `main` @ `2df45db`, the v0.13.0 merge).
 
-**Released as v0.13.1 on 2026-09-25.** Annotated tag `v0.13.1` is on merge commit _pending publish_ (PR
-_pending publish_). Digest _pending publish_ is on `v0.13.1` / `latest` / `sha-<short>`. Details are in
+**Released as v0.13.1 on 2026-09-25.** Annotated tag `v0.13.1` is on merge commit `a8827b7` (PR #56).
+Digest `sha256:cced2519…02bea4` is on `v0.13.1` / `latest` / `sha-a8827b7`. Details are in
 [`docs/RELEASE_NOTES_v0.13.1.md`](RELEASE_NOTES_v0.13.1.md), and the version badge reads
 `v0.13.1 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
@@ -53,7 +53,9 @@ visible.**
 
 `npm test`: 416 tests / 103 suites green. `format:check`, `tsc --noEmit` and `next build` clean. Local
 Playwright (SANDBOX entry 8 recipe, `playwright.local.config.ts`, git-excluded): **63 tests green** (62
-before + 2 new mobile specs − 1 replaced). CI's `browser` job is the gate.
+before + 2 new mobile specs − 1 replaced). CI's `browser` job is the gate — and it went green on the PR
+(run `36158432999`, 3m08s) and again on the `main` merge commit (run `36158820173`), so the two new
+mobile specs have now run in CI's own Chromium as well as locally.
 
 ## Open / deferred
 
