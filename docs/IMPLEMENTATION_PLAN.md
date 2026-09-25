@@ -1286,6 +1286,17 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 
 ## Release history
 
+- **v0.15.0 — the phone opens at the till (session `arena/01a0da35-simple-finance`, from `main` @
+  `09cfc80`, the v0.14.0 post-release merge)**: on a phone the home page now opens at the Quick entry
+  till — a mount-time `scrollIntoView` (`openAtTillOnMobile`, home page only) parks the card's top
+  under the sticky header (`id="quick-entry"`, `scroll-mt-16`), and the mobile drawer's **Quick Entry
+  (Till)** link carries `/#quick-entry` so a tap re-anchors even on the open page. A scroll, never a
+  focus: decision **158** supersedes only 151's "the page does not scroll itself" clause; the keyboard
+  stays down and every focus rule stands. Laptop unchanged. No schema change, no migration. `npm test`
+  461 tests green; Playwright 71 green (two new specs: opens at the till with nothing focused; drawer
+  link lands on the till). Tag `v0.15.0` on `439eea4`, digest
+  `sha256:224cfdc9891f00a4b59444737d9e5d2e4f7126aa06ddc882e98aef0babdccc9e`. Notes:
+  [`RELEASE_NOTES_v0.15.0.md`](RELEASE_NOTES_v0.15.0.md).
 - **v0.14.0 — Charts: the money, drawn (session `arena/01a0d991-simple-finance`, from `main` @ `c50cfa7`,
   the v0.13.1 merge)**: a new `/charts` page with four server-rendered SVG charts — the month ahead
   (household total, zero always on the axis, sub-zero tinted, overdraft line and lowest point labelled),

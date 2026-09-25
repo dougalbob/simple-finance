@@ -1,11 +1,11 @@
 # Release notes — v0.15.0 (the phone opens at the till)
 
-**Published:** 2026-09-25 (tag pushed PENDING, image verified in the registry PENDING).
-**Merge commit:** `PENDING` (PR #PENDING; short SHA `PENDING`)
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.15.0` · `latest` · `sha-PENDING`
-**Digest:** `sha256:PENDING`, one digest for all three tags, different from v0.14.0's
-`sha256:b0caec1f…` (verified through `/users/dougalbob/packages/container/simple-finance/versions` after
-Publish run `PENDING` passed).
+**Published:** 2026-09-25 (tag pushed 21:04 UTC, image verified in the registry 21:09 UTC).
+**Merge commit:** `439eea4ab9a8202f156b781ae8562abd76c30697` (PR #60; short SHA `439eea4`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.15.0` · `latest` · `sha-439eea4`
+**Digest:** `sha256:224cfdc9891f00a4b59444737d9e5d2e4f7126aa06ddc882e98aef0babdccc9e`, one digest for all
+three tags, different from v0.14.0's `sha256:b0caec1f…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36189503448` passed).
 **Version badge:** `v0.15.0 · pre-release`
 
 ## What changed
