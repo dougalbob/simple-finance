@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { londonToday } from './support';
 
 /**
  * Income (SPEC §6, §11.3 — plan decisions 109–113): one-off money recorded
@@ -129,8 +130,9 @@ test.describe('income', () => {
  * the future — so the schedule's next instance really is the shifted one.
  */
 function weekendPaydayProbe(): { dayOfMonth: number } {
-  const today = new Date();
-  const base = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  // The household's today (Europe/London), as the server computes schedules.
+  const [year, month, day] = londonToday().split('-').map(Number);
+  const base = Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1);
   for (let offset = 1; offset <= 70; offset += 1) {
     const stamp = base + offset * 86_400_000;
     const candidate = new Date(stamp);

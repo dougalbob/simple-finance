@@ -1,1 +1,19 @@
 @import 'tailwindcss';
+
+/*
+ * SPEC §15.1 (v0.10.0, decision 136): every control inside the Quick Entry
+ * till is at least a 44px thumb target — including the shared Move forms,
+ * which are drawn at desktop density elsewhere. One rule here rather than a
+ * class on every control, so a control added later cannot quietly come in
+ * small. `e2e/home.spec.ts` measures every tab and fails on anything under 44px.
+ */
+.till-touch
+  :is(
+    button,
+    select,
+    textarea,
+    summary,
+    input:not([type='checkbox']):not([type='radio']):not([type='hidden'])
+  ) {
+  min-height: 44px;
+}

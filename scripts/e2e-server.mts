@@ -20,6 +20,7 @@ import {
 import { createSupplier } from '../src/lib/records/suppliers';
 import { createVehicle } from '../src/lib/records/vehicles';
 import { addSupplierInteraction } from '../src/lib/records/supplier-details';
+import { toLocalDateString } from '../src/lib/time';
 
 /**
  * E2E server (Playwright `webServer`): an isolated, fictional installation.
@@ -45,7 +46,11 @@ function seed(): void {
   const db = handle.db;
 
   const now = new Date();
-  const today = new Date(`${now.toISOString().slice(0, 10)}T12:00:00Z`);
+  // The household's calendar date (Europe/London), not UTC's: between 23:00
+  // and 00:00 UTC in summer they differ, and a seed dated by UTC put "today's"
+  // records on yesterday as far as the app was concerned (decision 134).
+  const todayIso = toLocalDateString(now);
+  const today = new Date(`${todayIso}T12:00:00Z`);
 
   const main = createPot(db, {
     label: 'Main account',
@@ -163,7 +168,7 @@ function seed(): void {
   // Recurring commitments: a direct debit whose contract ends inside the
   // warning window, a standing order, a monthly income schedule (the payday the
   // projection plans to) and an annual insurance renewal.
-  const dueDay = Math.min(now.getUTCDate() + 2, 28);
+  const dueDay = Math.min(Number(todayIso.slice(8, 10)) + 2, 28);
   createSchedule(db, {
     name: 'BroadbandCo fibre',
     kind: 'dd',

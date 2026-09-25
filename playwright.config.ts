@@ -35,6 +35,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     // A phone-ish default; desktop specs override the viewport.
     ...devices['Desktop Chrome'],
+    // The browser keeps the household's calendar, not the CI runner's UTC —
+    // so a date the page computes and a date the server computes agree even
+    // in the summer hour when London is already on tomorrow (decision 134).
+    timezoneId: 'Europe/London',
   },
   projects: [
     {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { addDaysIso, londonToday } from './support';
 
 /**
  * Horizon (SPEC §7.6, v0.5.0): how far the money would go if the household
@@ -102,13 +103,9 @@ test.describe('horizon', () => {
 });
 
 /**
- * An ISO local date `days` ahead, computed in the page's own time zone so
- * the spec is never tied to a calendar date.
+ * An ISO local date `days` ahead of the household's today (Europe/London,
+ * the server's calendar — not the runner's, which is UTC in CI).
  */
 function futureDate(days: number): string {
-  const base = new Date();
-  const shifted = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(
-    shifted.getDate(),
-  ).padStart(2, '0')}`;
+  return addDaysIso(londonToday(), days);
 }
