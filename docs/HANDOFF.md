@@ -6,13 +6,15 @@ Date: 2026-09-25. Branch: `arena/01a0d991-simple-finance` (from `main` @ `c50cfa
 [`docs/RELEASE_NOTES_v0.14.0.md`](RELEASE_NOTES_v0.14.0.md); the version badge reads
 `v0.14.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
-**Since v0.14.0 (decision 158, unreleased).** On a phone the home page now **opens at the till** — a
-mount-time `scrollIntoView` in `QuickEntry` (`openAtTillOnMobile`, home page only), anchored by
-`#quick-entry` / `scroll-mt-16`, with the mobile drawer's **Quick Entry (Till)** link carrying
-`/#quick-entry`. It supersedes decision 151's "the page does not scroll itself" clause only; nothing
-takes focus, so 151's keyboard-quiet rule (and its e2e assertions) still stand. SPEC §15.1 records it,
-`e2e/home.spec.ts` guards it (fresh open + drawer path). Verified on the real browser run: 71 tests
-green.
+**Released as v0.15.0 on 2026-09-25** (decision 158; badge reads `v0.15.0 · pre-release`). On a phone
+the home page now **opens at the till** — a mount-time `scrollIntoView` in `QuickEntry`
+(`openAtTillOnMobile`, home page only), anchored by `#quick-entry` / `scroll-mt-16`, with the mobile
+drawer's **Quick Entry (Till)** link carrying `/#quick-entry`. It supersedes decision 151's "the page
+does not scroll itself" clause only; nothing takes focus, so 151's keyboard-quiet rule (and its e2e
+assertions) still stand. SPEC §15.1 records it, `e2e/home.spec.ts` guards it (fresh open + drawer
+path). Release facts (merge commit `439eea4`, digest, tags) are stamped in
+[`docs/RELEASE_NOTES_v0.15.0.md`](RELEASE_NOTES_v0.15.0.md); the full Playwright suite was green (71
+tests) on the tagged tree.
 
 ## What changed (decisions 152–157)
 
