@@ -1145,6 +1145,31 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     Income page's "Next payday", field order, date auto-applies, date carries pots + Day-to-day, clearing
     does not navigate, the button still applies Day-to-day and pots, ≤ 6 weeks open).
 
+151. **The till opens with nothing focused — the household taps what they want (SPEC §15.1, v0.13.1,
+    household request 2026-09-25).** The till used to focus Supplier as soon as it was ready (decision
+    137). That was right when the till was the whole phone screen; with the free-to-spend card and the
+    payday warning above the form it now costs the tab strip. On the real phone the keyboard rose, the
+    browser scrolled the focused field above it, and the **Purchase / Fuel / Balance / Move** tabs went off
+    the top of the screen — measured on the page before the fix: `scrollY` 1342 with the tab strip at
+    `y=-35`, entirely above the viewport. Their words: *"It is not necessary for any control on the form to
+    get focus when it opens — the user can make that decision by tapping whatever control they want to
+    change. Changing where the page scrolls to looks much cleaner … and avoids the user missing the
+    Purchase/Fuel/Balance/Move buttons."* So the rule is now: **no field is focused as a side-effect of the
+    till becoming ready, or of a type tab becoming visible.** Dropped the `ready` → `supplierRef.focus()`
+    effect in `PurchaseForm` (and the `ready` prop that existed only to feed it); removed `autoFocus` from
+    the Fuel amount and the Balance amount, which stole focus the same way as their tab appeared. The rule
+    is universal rather than phone-only: desktop has room so autofocus costs it nothing there, and one rule
+    is simpler to keep than a media query's worth of exceptions. Every in-flow focus move is untouched,
+    because each answers something the household did — tapping a supplier suggestion (→ Amount), Enter in
+    Supplier (→ Amount), **Next: category →** (→ Category), opening "+ Note" (→ the note it just opened),
+    **Add another** (→ Supplier on card 1). The card's first paint is unchanged: type tabs, pot, payday
+    shortfall warning, free-to-spend figure; the keyboard stays down and the page does not scroll itself.
+    *Browser acceptance:* the old "the till lands on the supplier once it is listening" spec is replaced by
+    two — the home page opens with no field focused **and** `window.scrollY === 0`, and choosing Fuel,
+    Balance or Move grabs no field while tapping Balance's amount still focuses it. Both were checked to
+    fail against the pre-fix component (they caught `supplierName` and then `amount` focused by
+    themselves), which is the only proof worth having that they guard anything.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |

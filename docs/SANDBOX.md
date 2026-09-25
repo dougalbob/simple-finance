@@ -190,6 +190,25 @@ local check reports it — run `npx prettier --write playwright.local.config.ts`
 
 ---
 
+## 11. The fuzzy edit tool can quietly mangle a large file — diff after every edit (2026-09-25)
+
+**Symptom:** three `edit_file` calls against `src/components/quick-entry.tsx` (1900 lines) each reported
+success, and `npm test` even stayed green — but `tsc --noEmit` failed with two `TS1005: ':' expected`. The
+diff showed what had happened: `linePence[index] ?? 0` had become `linePence? 0` (~40 lines away from the
+edited hunk), a stray `   null,` had been inserted into an unrelated JSX prop, and one of the three edits
+had not applied at all. The Node test suite never noticed because it does not import client components.
+
+**What works here:**
+
+- Run `git diff` (or `npx tsc --noEmit`, which catches it in ~15s) **after every edit** to a large file,
+  not once at the end of the session. Fixes are trivial when the hunk is still fresh in mind.
+- For a surgical change in a big file, a small `python3 -` heredoc with `assert s.count(old) == 1` before
+  `s.replace(...)` is both exact and self-checking: it fails loudly if the anchor is not unique.
+- Trusting "Edit succeeded" is not verification. Neither is a green `npm test` for a **component** change —
+  the unit suites are server-side; component behaviour is only covered by `tsc` and the Playwright suite.
+
+---
+
 ## History
 
 - **2026-09-24 (v0.9.0, session `arena/01a0d55f-simple-finance`):** entries 8 and 9 added. The v0.9.0 `browser`
@@ -221,6 +240,13 @@ local check reports it — run `npx prettier --write playwright.local.config.ts`
   CI. Also worth remembering: `next build` rewrites `next-env.d.ts` (its two `reference` imports flip
   between `./.next/dev/types/…` and `./.next/types/…`), so `git checkout -- next-env.d.ts` before committing
   unless the change is the point.
+- **2026-09-25 (v0.13.1, session `arena/01a0d93c-simple-finance`):** entry 8 re-proved a fourth time in a
+  fresh sandbox (the `@sparticuz/chromium` install took 3s and `inflate()` wrote `/tmp/al2023` as before):
+  the full suite, 63 tests across every project, green in ~2.5 minutes with `LD_LIBRARY_PATH=/tmp/al2023/lib`.
+  Entry 11 added — the fuzzy edit tool mangled `quick-entry.tsx` in three places while reporting success,
+  caught by `tsc --noEmit` and undone by diff review. Also re-confirmed: `npm ci --ignore-scripts`,
+  `npm test` (416/103), `tsc --noEmit`, `format:check`, `next build` and `npm audit --omit=dev` all green
+  locally, and `next build` flipped `next-env.d.ts` again (reverted with `git checkout --`).
 - **2026-09-25 (v0.12.1, session `arena/01a0d879-simple-finance`):** entry 8 re-proved a third time in a fresh
   sandbox (Debian 12): `@sparticuz/chromium` from the registry, `al2023.tar.br` inflated by hand,
   `LD_LIBRARY_PATH=/tmp/al2023/lib`, the throwaway `playwright.local.config.ts` overlay — the full suite,

@@ -673,9 +673,19 @@ Home = four big actions:
      available) → confirmation with "Add another", which returns to card 1 on the supplier field.
      Changing Paid by re-targets any line still on the old payer's default (their car, themselves);
      lines pointed elsewhere by hand stay put.
-   - **Focus order at the till:** supplier → amount → Next → category. The form lands on the supplier
-     once it is ready. The keyboard's Enter/Go never saves from card 1: in Supplier it moves to Amount,
-     in Amount (or the note) it is Next.
+   - **Focus at the till (v0.13.1, decision 151): nothing is focused when the page opens.** The till used
+     to land on the supplier as soon as it was ready; on a real phone that raised the on-screen keyboard,
+     the browser scrolled the focused field above it, and the Purchase / Fuel / Balance / Move tab strip
+     went off the top of the screen with it. The household decides what to fill in by tapping it, so no
+     field is focused as a side-effect of **the till becoming ready** or of **a type tab becoming
+     visible** — Fuel and Balance open with nothing focused too. The card's first paint still shows the
+     type tabs, the pot, the payday shortfall warning and the free-to-spend figure; the keyboard stays
+     down and the page does not scroll itself.
+   - **Focus order once the household is typing:** supplier → amount → Next → category. Focus moves only
+     as the answer to something they did: tapping a suggestion moves to Amount, Enter in Supplier moves to
+     Amount, Next moves to the category, "+ Note" focuses the note it just opened, and "Add another"
+     returns to Supplier on card 1. The keyboard's Enter/Go never saves from card 1: in Supplier it moves
+     to Amount, in Amount (or the note) it is Next.
    - **Card switching (mobile only, v0.11.0):** the cards sit side by side in a clipped viewport and move
      with a short `translateX` slide. They are not a native scroll container. They switch on **Next**, the
      **dots**, or a deliberate swipe (≥50px sideways, clearly more sideways than down). Vertical scrolling
@@ -729,8 +739,10 @@ A mobile test asserts `scrollWidth <= clientWidth` on every tab and both cards.
 
 Till details fixed in v0.10.0: **one tap on Save saves** even with the supplier suggestions open (the list
 no longer collapses under the finger); **every** control inside Quick Entry — tabs, chips, toggles, split
-controls — is at least 44px tall, and a mobile test measures them; and the purchase form really does open
-with the cursor in **Supplier**, once the till is ready to listen.
+controls — is at least 44px tall, and a mobile test measures them; and the purchase form used to open with
+the cursor in **Supplier**, once the till was ready to listen. **v0.13.1 reverses that last one**
+(decision 151): on a real phone the keyboard it raised scrolled the type tabs off the screen, so the till
+now opens with nothing focused and the household taps the field they want.
 
 ### 15.2 Desktop — the "sit down and review" tool
 

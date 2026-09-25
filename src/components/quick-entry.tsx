@@ -205,7 +205,7 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
       </div>
 
       <div inert={!ready} className="mt-5">
-        {mode === 'purchase' ? <PurchaseForm data={data} ready={ready} /> : null}
+        {mode === 'purchase' ? <PurchaseForm data={data} /> : null}
         {mode === 'fuel' ? <FuelForm data={data} /> : null}
         {mode === 'balance' ? <BalanceForm data={data} /> : null}
         {mode === 'move' ? <MoveForm data={data} /> : null}
@@ -352,7 +352,7 @@ const SWIPE_RATIO = 1.5;
  * dots, or a deliberate horizontal swipe; the hidden one is `inert`. On a
  * laptop they are the original two columns.
  */
-function PurchaseForm({ data, ready }: { data: QuickEntryData; ready: boolean }) {
+function PurchaseForm({ data }: { data: QuickEntryData }) {
   const [state, formAction, pending] = useActionState<PurchaseActionState, FormData>(
     addPurchaseAction,
     initialPurchaseActionState,
@@ -394,13 +394,17 @@ function PurchaseForm({ data, ready }: { data: QuickEntryData; ready: boolean })
   }, [pending]);
 
   /**
-   * Focus order at the till (SPEC §15.1): supplier → amount → Next. The form
-   * lands on the supplier once the till can hear (decision 137).
+   * Focus order at the till (SPEC §15.1): supplier → amount → Next →
+   * category — the order focus *travels* once the household is typing.
+   *
+   * Nothing focuses on open (decision 151). The form used to land on the
+   * supplier once the till could hear (decision 137), which on a real phone
+   * raised the keyboard and scrolled the Purchase / Fuel / Balance / Move tab
+   * strip off the top of the screen. The household decides what to fill in by
+   * tapping it, so the only focus moves left are answers to something they
+   * did: a suggestion tapped, Enter in Supplier, Next, "+ Note", "Add
+   * another".
    */
-  useEffect(() => {
-    if (ready) supplierRef.current?.focus();
-  }, [ready]);
-
   useEffect(() => {
     const target = pendingFocus.current;
     if (target === null) return;
@@ -1430,13 +1434,16 @@ function FuelForm({ data }: { data: QuickEntryData }) {
       {/* Light card: the dark quick-entry panel behind it made dark labels
           unreadable (contrast fix, v0.9.0). */}
       <div className="min-w-0 space-y-3 rounded-xl bg-white p-3">
+        {/* No autofocus here (decision 151): the household taps the field they
+            want. Focusing it as the Fuel tab appeared raised the keyboard and
+            pushed the tab strip off the screen, the same as the purchase form
+            did. */}
         <Field label="Fuel amount">
           <input
             name="amount"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             inputMode="decimal"
-            autoFocus
             required
             placeholder="0.00"
             className={`${inputClass} text-2xl font-semibold tabular-nums`}
@@ -1599,13 +1606,14 @@ function BalanceForm({ data }: { data: QuickEntryData }) {
             onChange={setPotId}
             options={data.pots.map((pot) => ({ value: pot.id, label: pot.label }))}
           />
+          {/* No autofocus here either (decision 151): the pot comes first and
+              the household taps the figure when they are ready. */}
           <Field label="Balance now" hint="Ledger balance for a bank; counted amount for cash.">
             <input
               name="amount"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               inputMode="decimal"
-              autoFocus
               required
               placeholder="0.00"
               className={`${inputClass} text-2xl font-semibold tabular-nums`}
