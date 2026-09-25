@@ -652,7 +652,6 @@ function PurchaseForm({ data, ready }: { data: QuickEntryData; ready: boolean })
           <div
             data-panel="0"
             inert={hidden(0)}
-            aria-hidden={hidden(0) ? true : undefined}
             onFocusCapture={() => {
               if (hidden(0)) setPanel(0);
             }}
@@ -748,7 +747,6 @@ function PurchaseForm({ data, ready }: { data: QuickEntryData; ready: boolean })
           <div
             data-panel="1"
             inert={hidden(1)}
-            aria-hidden={hidden(1) ? true : undefined}
             onFocusCapture={() => {
               if (hidden(1)) setPanel(1);
             }}
@@ -1728,7 +1726,7 @@ function TabButton({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`min-w-0 rounded-md px-1 py-2 text-center font-medium break-words sm:px-3 ${active ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
+      className={`min-w-0 rounded-md px-0.5 py-2 text-center text-xs font-medium break-words sm:px-3 sm:text-sm ${active ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
     >
       {children}
     </button>

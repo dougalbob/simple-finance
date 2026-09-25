@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { waitForTill } from './support';
 import { APP_RELEASE_STAGE, APP_VERSION } from '../src/lib/version';
 
@@ -13,6 +13,48 @@ function parsePounds(text: string): number {
   const value = match?.[1];
   if (value === undefined) throw new Error(`no £ amount in ${JSON.stringify(text)}`);
   return Number(value.replace(/,/g, ''));
+}
+
+/** The till's two panels (decision 143): switch with the dots, wait for the slide. */
+async function showPanel(entry: Locator, index: 0 | 1): Promise<void> {
+  await entry
+    .getByRole('button', { name: index === 0 ? 'Show the entry panel' : 'Show the details panel' })
+    .click();
+  await expect(entry.locator('[data-panel-track]')).toHaveAttribute(
+    'data-active-panel',
+    String(index),
+  );
+}
+
+/** Tap a pill in a ChipGroup (Paid by, Vehicle) and check it took. */
+async function pickChip(entry: Locator, group: string, label: string): Promise<void> {
+  const radios = entry.getByRole('radiogroup', { name: group });
+  await radios.locator('label', { hasText: label }).click();
+  await expect(radios.getByRole('radio', { name: label })).toBeChecked();
+}
+
+/** A real finger on the glass: Chromium touch events through CDP. */
+async function drag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+  const steps = 8;
+  for (let step = 1; step <= steps; step += 1) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [
+        {
+          x: from.x + ((to.x - from.x) * step) / steps,
+          y: from.y + ((to.y - from.y) * step) / steps,
+        },
+      ],
+    });
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
 }
 
 test.describe('mobile quick entry', () => {
@@ -30,11 +72,15 @@ test.describe('mobile quick entry', () => {
 
     await entry.locator('input[name="supplierName"]').fill('Playwright Paints');
     await entry.locator('input[name="amount"]').fill('12.34');
+    // No Save on the first card (decision 144): Next slides to the category.
+    await entry.getByRole('button', { name: 'Next: category →' }).click();
+    await expect(entry.locator('[data-panel-track]')).toHaveAttribute('data-active-panel', '1');
+    await expect(entry.getByLabel(/^Category/)).toBeFocused();
     await entry.getByLabel('Line 1 amount').fill('12.34');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
     await expect(entry.getByText('Matches exactly')).toBeVisible();
 
-    const saveButton = entry.getByRole('button', { name: 'Save purchase' }).first();
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
     await saveButton.click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
 
@@ -71,8 +117,9 @@ test.describe('mobile quick entry', () => {
     // complete and Save is live without touching the line.
     await entry.locator('input[name="amount"]').fill('85.00');
     await expect(line1).toHaveValue('85.00');
+    await showPanel(entry, 1);
     await expect(entry.getByText('Matches exactly')).toBeVisible();
-    await expect(entry.getByRole('button', { name: 'Save purchase' }).first()).toBeEnabled();
+    await expect(entry.getByRole('button', { name: 'Save purchase' })).toBeEnabled();
 
     // The only category control is still the split line's own, in the
     // details panel above Save — no category field crept in next to the
@@ -112,7 +159,7 @@ test.describe('mobile quick entry', () => {
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
-    const saveButton = entry.getByRole('button', { name: 'Save purchase' }).first();
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
 
     await amount.fill('85');
     await expect(line1).toHaveValue('85.00');
@@ -141,22 +188,25 @@ test.describe('mobile quick entry', () => {
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
-    const saveButton = entry.getByRole('button', { name: 'Save purchase' }).first();
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
 
     await amount.fill('85');
     await expect(line1).toHaveValue('85.00');
 
     // Touching the line is a takeover: their value sticks from here on.
+    await showPanel(entry, 1);
     await line1.fill('40.00');
     await expect(entry.getByText(/Remaining £45\.00/)).toBeVisible();
     await expect(saveButton).toBeDisabled();
 
+    await showPanel(entry, 0);
     await amount.fill('90');
     await expect(line1).toHaveValue('40.00');
     await expect(entry.getByText(/Remaining £50\.00/)).toBeVisible();
     await expect(saveButton).toBeDisabled();
 
     // The exact-total rule is unchanged: matching the total by hand saves.
+    await showPanel(entry, 1);
     await line1.fill('90');
     await expect(entry.getByText('Matches exactly')).toBeVisible();
     await expect(saveButton).toBeEnabled();
@@ -174,6 +224,10 @@ test.describe('mobile quick entry', () => {
     // Naming a remembered supplier writes its most-used category through the
     // shared updateLine path, and the category dropdown uses that path too.
     await entry.locator('input[name="supplierName"]').fill('Corner Foods');
+    await entry.getByLabel('Pot').selectOption({ index: 2 });
+    await entry.getByRole('button', { name: '+ Note' }).click();
+    await entry.getByLabel('Note (optional)').fill('Follows the amount');
+    await showPanel(entry, 1);
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Top-up Shops' });
     await entry
       .getByRole('group', { name: 'For line 1' })
@@ -183,12 +237,11 @@ test.describe('mobile quick entry', () => {
       .getByRole('group', { name: 'Person for line 1' })
       .getByRole('button', { name: 'Sam' })
       .click();
-    await entry.getByLabel('Pot').selectOption({ index: 2 });
-    await entry.getByLabel('Paid by').selectOption({ index: 2 });
+    // Paid by and Date now sit on the second card, below the lines (decision 145).
+    await pickChip(entry, 'Paid by', 'Sam');
     await entry.getByLabel('Date').fill('2024-01-05');
-    await entry.getByRole('button', { name: '+ Note' }).click();
-    await entry.getByLabel('Note (optional)').fill('Follows the amount');
 
+    await showPanel(entry, 0);
     await amount.fill('42.50');
     await expect(line1).toHaveValue('42.50');
     await expect(entry.getByText('Matches exactly')).toBeVisible();
@@ -201,7 +254,7 @@ test.describe('mobile quick entry', () => {
     const amount = entry.locator('input[name="amount"]');
     const line1 = entry.getByLabel('Line 1 amount');
     const line2 = entry.getByLabel('Line 2 amount');
-    const saveButton = entry.getByRole('button', { name: 'Save purchase' }).first();
+    const saveButton = entry.getByRole('button', { name: 'Save purchase' });
     const assignRemaining = entry.getByRole('button', { name: 'Assign remaining' });
 
     await amount.fill('85');
@@ -209,18 +262,21 @@ test.describe('mobile quick entry', () => {
 
     // Splitting deliberately: the new line starts empty, Line 1 is neither
     // cleared nor shrunk, and there is nothing left to assign yet.
+    await showPanel(entry, 1);
     await entry.getByRole('button', { name: '+ Add split' }).click();
     await expect(line1).toHaveValue('85.00');
     await expect(line2).toHaveValue('');
     await expect(assignRemaining).toHaveCount(0);
 
     // A correction to the total must not rewrite the line either.
+    await showPanel(entry, 0);
     await amount.fill('60');
     await expect(line1).toHaveValue('85.00');
     await expect(line2).toHaveValue('');
     await expect(saveButton).toBeDisabled();
 
     // Hand-splitting still obeys the exact-total rule.
+    await showPanel(entry, 1);
     await line2.fill('40');
     await expect(entry.getByText(/Over by £65\.00/)).toBeVisible();
     await expect(saveButton).toBeDisabled();
@@ -232,6 +288,7 @@ test.describe('mobile quick entry', () => {
     // stays exactly as typed.
     await entry.getByRole('button', { name: 'Remove line' }).last().click();
     await expect(line1).toHaveValue('20');
+    await showPanel(entry, 0);
     await amount.fill('30');
     await expect(line1).toHaveValue('20');
     await expect(saveButton).toBeDisabled();
@@ -249,15 +306,19 @@ test.describe('mobile quick entry', () => {
     await entry.locator('input[name="supplierName"]').fill('Playwright Follower Shop');
     await amount.fill('12.00');
     await expect(line1).toHaveValue('12.00');
-    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
+    await entry.getByRole('button', { name: 'Next: category →' }).click();
+    await entry.getByRole('button', { name: 'Save purchase' }).click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
 
     // After the save the line is taken over (the value sticks)...
     await line1.fill('1.00');
     await expect(line1).toHaveValue('1.00');
 
-    // ...and "Add another" hands the following back to the amount.
-    await entry.getByRole('button', { name: 'Add another' }).first().click();
+    // ...and "Add another" hands the following back to the amount, and goes
+    // back to the first card on the supplier (decision 137).
+    await entry.getByRole('button', { name: 'Add another' }).click();
+    await expect(entry.locator('[data-panel-track]')).toHaveAttribute('data-active-panel', '0');
+    await expect(entry.locator('input[name="supplierName"]')).toBeFocused();
     await expect(amount).toHaveValue('');
     await expect(line1).toHaveValue('');
     await amount.fill('7.50');
@@ -345,7 +406,7 @@ test.describe('mobile quick entry', () => {
     await expect(entry.locator('input[name="supplierName"]')).toBeFocused();
   });
 
-  test('one tap on Save saves, even with the supplier suggestions open', async ({ page }) => {
+  test('one tap on Next moves on, even with the supplier suggestions open', async ({ page }) => {
     test.slow(); // its own purchase, against the dev server
     await page.goto('/');
     await waitForTill(page);
@@ -355,17 +416,19 @@ test.describe('mobile quick entry', () => {
     await entry.locator('input[name="amount"]').fill('4.20');
     await expect(entry.getByText('Matches exactly')).toBeVisible();
     // A new name that still matches remembered suppliers: the list stays open
-    // under the field, pushing Save down the page.
+    // under the field, pushing Next down the page.
     await supplier.tap();
     await supplier.fill('Corner');
     const list = entry.getByRole('listbox', { name: 'Supplier suggestions' });
     await expect(list).toBeVisible();
 
-    // The household taps Save once. Closing the list must not move Save out
-    // from under the finger before the tap lands (the v0.9.0 first-tap bug).
-    await entry.getByRole('button', { name: 'Save purchase' }).first().tap();
-    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
+    // One tap on Next. Closing the list must not move the button out from
+    // under the finger before the tap lands (decision 135, now for Next).
+    await entry.getByRole('button', { name: 'Next: category →' }).tap();
+    await expect(entry.locator('[data-panel-track]')).toHaveAttribute('data-active-panel', '1');
     await expect(list).toHaveCount(0);
+    await entry.getByRole('button', { name: 'Save purchase' }).tap();
+    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
   });
 
   test('every control on every till tab is at least 44px tall', async ({ page }) => {
@@ -409,11 +472,11 @@ test.describe('mobile quick entry', () => {
 
     const problems: string[] = [];
     problems.push(...(await tooSmall('Purchase panel 1')));
-    await entry.getByRole('button', { name: 'Show the details panel' }).click();
-    await expect(entry.getByText('Swipe ← back to the entry')).toBeVisible();
+    await showPanel(entry, 1);
+    await page.waitForTimeout(400); // let the 200ms slide finish before measuring
     problems.push(...(await tooSmall('Purchase panel 2')));
-    await entry.getByRole('button', { name: 'Show the entry panel' }).click();
-    await expect(entry.getByText(/Swipe → category/)).toBeVisible();
+    await showPanel(entry, 0);
+    await page.waitForTimeout(400);
     for (const tab of ['Fuel', 'Balance', 'Move']) {
       await entry.getByRole('tab', { name: tab }).click();
       problems.push(...(await tooSmall(tab)));
@@ -425,40 +488,114 @@ test.describe('mobile quick entry', () => {
     expect(problems).toEqual([]);
   });
 
-  test('the second panel is one swipe away, and Save is on both', async ({ page }) => {
+  test('Save is only on the second card; Next, the dots and a real swipe switch cards', async ({
+    page,
+  }) => {
     await page.goto('/');
     await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const track = entry.locator('[data-panel-track]');
 
-    // Save lives on both panels: a purchase is always completable from the
-    // first one, swipe or no swipe.
-    await expect(entry.getByRole('button', { name: 'Save purchase' })).toHaveCount(2);
+    // Decision 144: one Save, on the Category & allocation card.
+    await expect(entry.getByRole('button', { name: 'Save purchase' })).toHaveCount(1);
+    await expect(entry.getByRole('button', { name: 'Next: category →' })).toBeVisible();
     await expect(entry.getByText(/Swipe/)).toBeVisible();
 
     // The dots move between the panels and flip the hint.
-    await entry.getByRole('button', { name: 'Show the details panel' }).click();
+    await showPanel(entry, 1);
     await expect(entry.getByText('Swipe ← back to the entry')).toBeVisible();
-    await entry.getByRole('button', { name: 'Show the entry panel' }).click();
+    await showPanel(entry, 0);
     await expect(entry.getByText(/Swipe → category/)).toBeVisible();
+
+    // Start the drags on the balance card, away from inputs and buttons —
+    // measured afresh each time, because a vertical drag scrolls the page.
+    const balanceCard = async () => {
+      const card = entry.getByText('Free to spend before income');
+      // Mid-screen, clear of the sticky page navigation.
+      await card.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+      const box = await card.boundingBox();
+      if (box === null) throw new Error('no balance card');
+      return { x: box.x + box.width / 2, y: box.y + 4 };
+    };
+
+    // A diagonal thumb (20px sideways, 200px down) is a scroll, not a swipe.
+    let start = await balanceCard();
+    await drag(page, start, { x: start.x - 20, y: start.y + 200 });
+    await page.waitForTimeout(300);
+    await expect(track).toHaveAttribute('data-active-panel', '0');
+
+    // A real horizontal swipe switches — and back again.
+    start = await balanceCard();
+    await drag(page, start, { x: start.x - 150, y: start.y + 10 });
+    await expect(track).toHaveAttribute('data-active-panel', '1');
+    const heading = entry.getByRole('heading', { name: 'Category & allocation' });
+    await heading.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+    const back = await heading.boundingBox();
+    if (back === null) throw new Error('no details heading');
+    const from = { x: back.x + 20, y: back.y + back.height / 2 };
+    await drag(page, from, { x: from.x + 150, y: from.y - 5 });
+    await expect(track).toHaveAttribute('data-active-panel', '0');
+
+    // The hidden card cannot be reached by accident.
+    await expect(entry.locator('[data-panel="1"]')).toHaveAttribute('inert', '');
   });
 
-  test('a purchase can be completed without ever opening the second panel', async ({ page }) => {
-    test.slow(); // its own purchase, against the dev server
+  test('Enter on the first card never saves: supplier → amount → Next', async ({ page }) => {
     await page.goto('/');
     await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const supplier = entry.locator('input[name="supplierName"]');
+    const amount = entry.locator('input[name="amount"]');
 
-    await entry.locator('input[name="supplierName"]').fill('Playwright No Swipe Shop');
-    await entry.locator('input[name="amount"]').fill('3.75');
+    await supplier.fill('Playwright Enter Shop');
+    await supplier.press('Enter');
+    await expect(amount).toBeFocused();
+    await amount.fill('6.66');
     await expect(entry.getByText('Matches exactly')).toBeVisible();
-    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
-    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
+    // The phone keyboard's Go key: implicit submission would press Save on the
+    // hidden card. It must move on instead.
+    await amount.press('Enter');
+    await expect(entry.locator('[data-panel-track]')).toHaveAttribute('data-active-panel', '1');
+    await expect(entry.getByLabel(/^Category/)).toBeFocused();
+    await page.waitForTimeout(1000);
+    await expect(entry.getByRole('status')).toHaveCount(0);
+  });
 
-    await page.goto('/purchases');
-    const results = page.locator('section[aria-labelledby="results-heading"]');
-    await expect(results.locator('tbody tr', { hasText: 'Playwright No Swipe Shop' })).toHaveCount(
-      1,
-    );
+  test('the page never pans sideways — 320px, and 360px with 130% text', async ({ page }) => {
+    test.slow();
+    const noOverflow = async (where: string) => {
+      const sizes = await page.evaluate(() => ({
+        scroll: document.documentElement.scrollWidth,
+        client: document.documentElement.clientWidth,
+      }));
+      expect(sizes.scroll, `${where}: page ${sizes.scroll}px on a ${sizes.client}px screen`).toBe(
+        sizes.client,
+      );
+    };
+    for (const setup of [
+      { width: 320, fontSize: null, label: '320px' },
+      { width: 360, fontSize: '130%', label: '360px @130%' },
+    ]) {
+      await page.setViewportSize({ width: setup.width, height: 780 });
+      await page.goto('/');
+      await waitForTill(page);
+      if (setup.fontSize !== null) {
+        await page.addStyleTag({ content: `html{font-size:${setup.fontSize}}` });
+      }
+      const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+      await noOverflow(`${setup.label} purchase panel 1`);
+      await showPanel(entry, 1);
+      await noOverflow(`${setup.label} purchase panel 2`);
+      await showPanel(entry, 0);
+      for (const tab of ['Fuel', 'Balance', 'Move']) {
+        await entry.getByRole('tab', { name: tab }).click();
+        await noOverflow(`${setup.label} ${tab}`);
+      }
+      for (const moveTab of ['Borrow & repay', 'Swap', 'Other']) {
+        await entry.getByRole('tab', { name: moveTab }).click();
+        await noOverflow(`${setup.label} Move / ${moveTab}`);
+      }
+    }
   });
 
   test('every page stays reachable on a phone viewport', async ({ page }) => {

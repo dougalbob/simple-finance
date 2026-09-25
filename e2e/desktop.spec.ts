@@ -72,7 +72,7 @@ test.describe('desktop review', () => {
     await entry.locator('input[name="amount"]').fill('4.50');
     await entry.getByLabel('Line 1 amount').fill('4.50');
     await entry.getByLabel(/^Category/).selectOption({ label: 'Groceries / Weekly Shop' });
-    await entry.getByRole('button', { name: 'Save purchase' }).first().click();
+    await entry.getByRole('button', { name: 'Save purchase' }).click();
     await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
 
     await page.goto('/purchases');
@@ -296,8 +296,11 @@ test.describe('desktop review', () => {
     await waitForTill(page);
     const quickEntry = page.getByRole('region', { name: /Record it while it is fresh/i });
     await quickEntry.getByRole('tab', { name: 'Fuel' }).click();
+    // The vehicle is a row of chips now (decision 146), one per vehicle.
     await expect(
-      quickEntry.getByLabel('Vehicle').locator('option', { hasText: newVehicle }),
+      quickEntry.getByRole('radiogroup', { name: 'Vehicle' }).getByRole('radio', {
+        name: newVehicle,
+      }),
     ).toHaveCount(1);
 
     await page.goto('/purchases');
