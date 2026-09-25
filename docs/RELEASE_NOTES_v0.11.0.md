@@ -1,9 +1,11 @@
 # Release notes — v0.11.0 (the till fits the phone, and fuel defaults)
 
-**Published:** _stamped at release_
-**Merge commit:** _stamped at release_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.11.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _stamped at release_
+**Published:** 2026-09-25 (tag pushed 10:33 UTC, image verified in the registry 10:36 UTC).
+**Merge commit:** `625ef629407bb78b10ae9798c6a5560183bc4086` (PR #47; short SHA `625ef62`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.11.0` · `latest` · `sha-625ef62`
+**Digest:** `sha256:6f39143d91590e263aee99740b2fca358de23cee9aaddb8bd8b4e8743e10077f`, one digest for all
+three tags, different from v0.10.0's `sha256:02a7321e…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36124711983` passed).
 **Version badge:** `v0.11.0 · pre-release`
 
 ## What changed
