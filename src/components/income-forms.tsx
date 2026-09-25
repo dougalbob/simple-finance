@@ -36,7 +36,7 @@ function FormMessage({ status, message }: { status: string; message: string | nu
     <p
       role="status"
       aria-live="polite"
-      className={status === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}
+      className={status === 'error' ? 'text-sm text-danger' : 'text-sm text-positive'}
     >
       {message}
     </p>
@@ -44,10 +44,10 @@ function FormMessage({ status, message }: { status: string; message: string | nu
 }
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-const labelClass = 'text-xs font-medium text-slate-600';
+  'rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
-  'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 
 /** Integer pence → the text an amount field expects ("120.00"). */
 const penceToAmountText = (pence: number): string => {
@@ -71,7 +71,7 @@ export function IncomeEntryForm({
 }) {
   const [state, formAction, pending] = useActionState(addReceiptAction, initialActionState);
   if (pots.length === 0) {
-    return <p className="text-sm text-slate-600">Create a pot first, then record income.</p>;
+    return <p className="text-sm text-ink-soft">Create a pot first, then record income.</p>;
   }
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -275,7 +275,7 @@ export function IncomeScheduleForm({
   const [state, formAction, pending] = useActionState(addScheduleAction, initialActionState);
   const [frequency, setFrequency] = useState<'monthly' | 'annual'>('monthly');
   if (pots.length === 0) {
-    return <p className="text-sm text-slate-600">Create a pot first, then schedule income.</p>;
+    return <p className="text-sm text-ink-soft">Create a pot first, then schedule income.</p>;
   }
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -377,7 +377,7 @@ export function IncomeScheduleForm({
           </div>
         ) : null}
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-muted">
         A day that lands on a Saturday or Sunday is expected on the Friday before — the app never
         waits for Monday. Short months clamp to their last day (31st → 30th, 28th in February).
       </p>

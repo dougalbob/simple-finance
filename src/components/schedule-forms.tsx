@@ -5,10 +5,10 @@ import { editRenewalAction, editScheduleAction } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-const labelClass = 'text-xs font-medium text-slate-600';
+  'rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
-  'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 
 function FormMessage({ status, message }: { status: string; message: string | null }) {
   if (message === null) return null;
@@ -16,7 +16,7 @@ function FormMessage({ status, message }: { status: string; message: string | nu
     <p
       role="status"
       aria-live="polite"
-      className={status === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}
+      className={status === 'error' ? 'text-sm text-danger' : 'text-sm text-positive'}
     >
       {message}
     </p>
@@ -462,13 +462,13 @@ export function RenewalEditForm(props: RenewalEditFormProps) {
           </select>
         </div>
         <div className="flex items-end">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-ink-body">
             <input
               type="checkbox"
               name="repeatsAnnually"
               value="true"
               defaultChecked={props.repeatsAnnually}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-border-strong"
             />
             Repeats annually (renews one year forward automatically)
           </label>

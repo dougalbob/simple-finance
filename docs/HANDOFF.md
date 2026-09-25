@@ -1,3 +1,79 @@
+# Handoff: Colour tokens — Phase 2 of 2 (add the first theme)
+
+Date: 2026-09-25. Branch: `arena/01a0da84-simple-finance` (from `main` @ `b364f18`, the v0.15.0 merge).
+
+**Phase 1 is done.** The whole colour scheme now lives in one Tailwind v4 `@theme static` block in
+`src/app/globals.css` (decision **159**, SPEC **§15.4**). The 35 `.tsx` files and the chart kit use
+token names only; no palette class or colour literal remains in `src` outside the PWA `themeColor`
+(`layout.tsx`). Rendering is **pixel-identical**: 39 screenshots (13 pages × 320/412/1400) of `main`'s
+`src` vs the tokenised `src`, on the same seeded data, differ by **0 pixels** (only the elapsed-time
+caption was normalised — see "Watch out for"). Gates at Phase-1 close: `npm test` **466** green
+(461 + the new `tests/colour-tokens.test.ts` grep-gate), `tsc`, `format:check`, `next build` and the
+full Playwright suite **71** green (SANDBOX entry 8).
+
+## The household's requirement (recorded as decision 159 — it was never in the spec before)
+
+> The colour scheme must be arranged so that **adding a new theme is a small, single-place change —
+> not an app-wide edit in every page**.
+
+Phase 1 wrote it down (SPEC §15.4 + decision 159) and built the precondition. **Phase 2 (this session)
+is the proof**: ship one theme — a block that re-declares the same `--color-*` names under a selector,
+e.g. `<html data-theme="dark">` — and a Settings toggle. Nothing else may change.
+
+## What a theme touches (and only this)
+
+- **One block.** Re-declare whichever of the existing `--color-*` tokens change, under the theme
+  selector. Semantic names (`canvas`, `surface`, `ink`, `border`, `till`, `accent`, `positive`,
+  `warning`, `danger`, `negative`, `note`, `chart-…`) are all in `globals.css` — read decision 159's
+  table for what each maps to. Do **not** add new palette classes to pages; the grep-gate will fail.
+- **The till stays legible.** `--color-till`/`--color-till-ink` is the by-design-dark surface and its
+  ink, shared today by the till, the primary buttons and the active dark pills. A dark theme will want
+  to split or invert it — do that **in the token block**, not in the pages. `ink-ghost` (slate-300) is
+  used both on the till (quick-entry ×3) and once on a white card (supplier-card.tsx:349); if the two
+  need to diverge, split into a `till-ink-soft` token (four sites).
+- **Contrast rules stand.** "Colour is never the only signal" (§16.7) and the void-button legibility
+  e2e (`e2e/desktop.spec.ts`, asserts the danger label inverts correctly) must stay green.
+
+## Open Phase-2 decisions (record whichever you choose)
+
+1. **Apply before first paint.** To avoid a flash of the wrong theme, set `<html data-theme>` before
+   paint. SSR has no DOM, so you need the choice in a cookie that the layout reads server-side (an
+   inline `<head>` script that reads the cookie works for the pre-hydration paint). Decide and record
+   cookie-vs-inline-script.
+2. **Settings toggle.** Add a key/value setting (audited, like the others in `settings.ts`) e.g.
+   `theme`. Wire a toggle in `settings-forms.tsx` + a server action in `actions.ts`.
+3. **PWA chrome.** `themeColor`/manifest are read before any stylesheet, so they cannot be a variable.
+   Either add the `media` form of `themeColor` for dark, or accept the light chrome; document the
+   choice (SPEC §15.4 already flags it).
+
+## Watch out for (carried forward)
+
+- **Screenshot determinism (learned this session).** The seed's captions tick with wall-clock time
+  ("just now" → "3 minutes ago") and are the *only* thing that differs between two runs of an
+  unchanged tree. To pixel-compare, re-seed and normalise those captions (`just now` / `N units ago`)
+  before the shot; then a diff means a real change. With that, main-vs-tokens was 0 px.
+- **`@theme static` is load-bearing.** The chart kit references `var(--color-chart-…)` from TSX inline
+  styles, which Tailwind's scanner does not see; `static` keeps those variables from being
+  tree-shaken. Don't "tidy" it away.
+- **`@source not` excludes prose from Tailwind's scan.** The scanner reads markdown and comments; the
+  mapping tables in decision 159 would otherwise generate palette utilities. Keep the directive.
+- **Tailwind resolves competing colour utilities by stylesheet order**, not class-attribute order
+  (the void button). `.text-till-ink` is emitted after `.text-danger` — verified again post-tokenise;
+  the e2e guards it.
+- SANDBOX entries 8 (local browser), 9 (stale `next dev` SSR), 13 (GitHub connector drops),
+  14 (Turbopack rejects a symlinked `node_modules`).
+- `next build` flips `next-env.d.ts` — restore before committing. Don't bump the version while
+  Playwright is running (backup spec reads `APP_VERSION`).
+
+---
+
+> Provenance: the Phase-1 brief from the household (2026-09-25) could not be pushed by the previous
+> session; it was reproduced in `arena/01a0da84-simple-finance`, executed as Phase 1, and its
+> requirement recorded as **decision 159** / SPEC **§15.4**. The v0.15.0 handoff that Phase 1 was
+> written against follows below, unchanged.
+
+---
+
 # Handoff: Charts — the money, drawn (v0.14.0)
 
 Date: 2026-09-25. Branch: `arena/01a0d991-simple-finance` (from `main` @ `c50cfa7`, the v0.13.1 merge).

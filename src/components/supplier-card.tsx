@@ -91,20 +91,20 @@ export function SupplierCard({
   return (
     <article
       id={`supplier-${supplier.id}`}
-      className="flex scroll-mt-24 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+      className="flex scroll-mt-24 flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-shadow hover:shadow-md"
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
         aria-controls={`supplier-details-${supplier.id}`}
-        className="group flex w-full cursor-pointer items-center justify-between text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded-lg"
+        className="group flex w-full cursor-pointer items-center justify-between text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 rounded-lg"
       >
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900 transition-colors group-hover:text-sky-700">
+        <h2 className="text-xl font-semibold tracking-tight text-ink transition-colors group-hover:text-accent">
           {supplier.name}
         </h2>
         <span
-          className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors group-hover:bg-slate-100 group-hover:text-slate-700"
+          className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors group-hover:bg-surface-muted group-hover:text-ink-body"
           aria-hidden="true"
         >
           {isExpanded ? (
@@ -119,13 +119,16 @@ export function SupplierCard({
       </button>
 
       {isExpanded ? (
-        <div id={`supplier-details-${supplier.id}`} className="mt-4 border-t border-slate-100 pt-4">
+        <div
+          id={`supplier-details-${supplier.id}`}
+          className="mt-4 border-t border-border-hairline pt-4"
+        >
           <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-            <dt className="font-medium text-slate-500">Phone</dt>
+            <dt className="font-medium text-ink-muted">Phone</dt>
             <dd>
               {supplier.contactPhone !== null ? (
                 <a
-                  className="text-sky-700 hover:underline"
+                  className="text-accent hover:underline"
                   href={`tel:${supplier.contactPhone.replace(/\s+/g, '')}`}
                 >
                   {supplier.contactPhone}
@@ -134,26 +137,23 @@ export function SupplierCard({
                 '—'
               )}
             </dd>
-            <dt className="font-medium text-slate-500">Email</dt>
+            <dt className="font-medium text-ink-muted">Email</dt>
             <dd>
               {supplier.contactEmail !== null ? (
-                <a
-                  className="text-sky-700 hover:underline"
-                  href={`mailto:${supplier.contactEmail}`}
-                >
+                <a className="text-accent hover:underline" href={`mailto:${supplier.contactEmail}`}>
                   {supplier.contactEmail}
                 </a>
               ) : (
                 '—'
               )}
             </dd>
-            <dt className="font-medium text-slate-500">Website</dt>
+            <dt className="font-medium text-ink-muted">Website</dt>
             <dd className="break-words">{supplier.website ?? '—'}</dd>
-            <dt className="font-medium text-slate-500">Address</dt>
+            <dt className="font-medium text-ink-muted">Address</dt>
             <dd className="whitespace-pre-line">{supplier.address ?? '—'}</dd>
           </dl>
           {supplier.notes !== null && supplier.notes !== '' ? (
-            <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{supplier.notes}</p>
+            <p className="mt-3 whitespace-pre-line text-sm text-ink-soft">{supplier.notes}</p>
           ) : null}
           <SupplierContactForm
             supplier={{
@@ -168,7 +168,7 @@ export function SupplierCard({
             }}
           />
 
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-ink-muted">
             References
           </h3>
           <SupplierReferenceForm supplierId={supplier.id} />
@@ -181,31 +181,31 @@ export function SupplierCard({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-ink-muted">
               None recorded — policy or account numbers go here.
             </p>
           )}
 
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Interaction log
           </h3>
           <SupplierInteractionForm supplierId={supplier.id} />
           {interactions.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {interactions.map((interaction) => (
-                <li key={interaction.id} className="border-l-2 border-indigo-200 pl-3">
+                <li key={interaction.id} className="border-l-2 border-note-200 pl-3">
                   <span className="font-medium">
                     {CHANNEL_LABELS[interaction.channel] ?? interaction.channel}
                   </span>{' '}
                   · {interaction.summary}
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-ink-muted">
                     {toLocalDateString(new Date(interaction.occurredAt))} · {interaction.createdBy}
                   </span>
                   {interaction.outcome !== null && interaction.outcome !== '' ? (
-                    <span className="block text-slate-500">{interaction.outcome}</span>
+                    <span className="block text-ink-muted">{interaction.outcome}</span>
                   ) : null}
                   {interaction.followUpDate !== null ? (
-                    <span className="block text-xs text-amber-700">
+                    <span className="block text-xs text-warning-700">
                       Follow up {interaction.followUpDate}
                     </span>
                   ) : null}
@@ -213,17 +213,17 @@ export function SupplierCard({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-500">No interactions yet.</p>
+            <p className="text-sm text-ink-muted">No interactions yet.</p>
           )}
 
-          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="mt-5 text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Recent purchases
           </h3>
           {recentPurchases.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {recentPurchases.map((purchase) => (
                 <li key={purchase.id}>
-                  <span className={purchase.voided ? 'text-slate-400 line-through' : ''}>
+                  <span className={purchase.voided ? 'text-ink-faint line-through' : ''}>
                     {purchase.date} · {formatPence(purchase.totalPence)}
                   </span>
                   <AttachmentForm purchaseId={purchase.id} attachments={purchase.attachments} />
@@ -231,7 +231,7 @@ export function SupplierCard({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-slate-500">Nothing recorded against this supplier yet.</p>
+            <p className="text-sm text-ink-muted">Nothing recorded against this supplier yet.</p>
           )}
         </div>
       ) : null}
@@ -335,24 +335,24 @@ export function SupplierCardList({
             placeholder="Filter suppliers…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-slate-500 focus:outline-none"
+            className="w-full rounded-lg border border-border-strong bg-surface px-3 py-1.5 text-sm placeholder:text-ink-faint focus:border-border-emphasis focus:outline-none"
           />
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+        <div className="flex items-center gap-2 text-xs font-medium text-ink-soft">
           <button
             type="button"
             onClick={expandAll}
-            className="rounded px-2.5 py-1 hover:bg-slate-200 cursor-pointer"
+            className="rounded px-2.5 py-1 hover:bg-surface-sunk cursor-pointer"
           >
             Expand all
           </button>
-          <span className="text-slate-300" aria-hidden="true">
+          <span className="text-ink-ghost" aria-hidden="true">
             ·
           </span>
           <button
             type="button"
             onClick={collapseAll}
-            className="rounded px-2.5 py-1 hover:bg-slate-200 cursor-pointer"
+            className="rounded px-2.5 py-1 hover:bg-surface-sunk cursor-pointer"
           >
             Collapse all
           </button>
@@ -360,7 +360,7 @@ export function SupplierCardList({
       </div>
 
       {filteredCards.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <p className="rounded-xl border border-border bg-surface p-6 text-sm text-ink-muted">
           No suppliers match “{search}”.
         </p>
       ) : (

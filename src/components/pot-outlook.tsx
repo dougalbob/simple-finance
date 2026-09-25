@@ -20,7 +20,7 @@ export function CycleOutlookLine({
 }) {
   if (outlook.incomeDate === null) {
     return (
-      <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <p className="rounded-lg bg-canvas px-3 py-2 text-sm text-ink-soft">
         No expected income is scheduled yet, so there is no “before income lands” figure. Add the
         income schedule in Recurring payments and it appears here.
       </p>
@@ -28,7 +28,7 @@ export function CycleOutlookLine({
   }
   if (outlook.freeToSpendPence === null) {
     return (
-      <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <p className="rounded-lg bg-canvas px-3 py-2 text-sm text-ink-soft">
         Record a balance checkpoint and the “before income lands” figure appears here.
       </p>
     );
@@ -38,8 +38,8 @@ export function CycleOutlookLine({
     <p
       className={`rounded-lg px-3 py-2 text-sm ${
         negative
-          ? 'bg-rose-50 font-medium text-rose-900 ring-1 ring-rose-200'
-          : 'bg-slate-50 text-slate-700'
+          ? 'bg-negative-50 font-medium text-negative-900 ring-1 ring-negative-200'
+          : 'bg-canvas text-ink-body'
       } ${className ?? ''}`}
     >
       Free to spend before income lands ({formatShortLocalDate(outlook.incomeDate)}):{' '}
@@ -71,7 +71,7 @@ export function PotOutlookLine({
   if (pot.shortfallPence !== null) {
     const first = pot.outgoing[0];
     return (
-      <p className="mt-2 rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+      <p className="mt-2 rounded-md bg-warning-100 px-2 py-1 text-xs font-semibold text-warning-900">
         {formatPence(pot.shortfallPence)} short of its own bills
         {window === null ? '' : ` before ${window}`}
         {first === undefined
@@ -81,7 +81,7 @@ export function PotOutlookLine({
     );
   }
   return (
-    <p className="mt-2 text-xs text-slate-600">
+    <p className="mt-2 text-xs text-ink-soft">
       Before income lands{window === null ? '' : ` (${window})`}:{' '}
       <span className="font-semibold tabular-nums">{formatPence(pot.spendablePence)}</span>
     </p>

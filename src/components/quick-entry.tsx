@@ -196,17 +196,17 @@ export function QuickEntry({
       // cards used to stack to ~88px of padding. overflow-x-clip is the safety
       // net — a stray wide element is cut off here instead of panning the page.
       // scroll-mt-16: opens/anchors sit below the 56px sticky header (158).
-      className="till-touch scroll-mt-16 overflow-x-clip rounded-2xl bg-slate-900 p-2 text-white shadow-sm sm:p-6"
+      className="till-touch scroll-mt-16 overflow-x-clip rounded-2xl bg-till p-2 text-till-ink shadow-sm sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3 px-1 pt-1 sm:p-0">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-300">
             Quick entry
           </p>
           <h2 id="quick-entry-heading" className="mt-1 text-xl font-semibold">
             Record it while it is fresh
           </h2>
-          <p className="mt-1 max-w-xl text-sm text-slate-300">
+          <p className="mt-1 max-w-xl text-sm text-ink-ghost">
             Mobile-first entry. Reported balances stay labelled as checkpoints; nothing here is a
             bank connection.
           </p>
@@ -216,7 +216,7 @@ export function QuickEntry({
           // A grid of four equal, shrinkable tabs (decision 143): the old
           // nowrap flex strip had a fixed minimum width that widened the page
           // at 320px or with larger text.
-          className="grid w-full grid-cols-4 gap-1 rounded-lg bg-slate-800 p-1 text-sm sm:w-auto"
+          className="grid w-full grid-cols-4 gap-1 rounded-lg bg-till-inset p-1 text-sm sm:w-auto"
           role="tablist"
           aria-label="Quick entry type"
         >
@@ -255,9 +255,9 @@ export function QuickEntry({
 function MoveForm({ data }: { data: QuickEntryData }) {
   const [mode, setMode] = useState<'transfer' | 'loan' | 'swap' | 'other'>('transfer');
   return (
-    <div className="rounded-xl bg-white p-3 text-slate-900 sm:p-4">
+    <div className="rounded-xl bg-surface p-3 text-ink sm:p-4">
       <div
-        className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-sm sm:grid-cols-4"
+        className="mb-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-muted p-1 text-sm sm:grid-cols-4"
         role="tablist"
         aria-label="Move money type"
       >
@@ -276,7 +276,7 @@ function MoveForm({ data }: { data: QuickEntryData }) {
       </div>
       {mode === 'transfer' ? (
         <div>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Between your own pots — the household total does not move, and spending is untouched.
           </p>
           <TransferForm pots={data.pots} today={data.today} idPrefix="quick-transfer" />
@@ -284,7 +284,7 @@ function MoveForm({ data }: { data: QuickEntryData }) {
       ) : null}
       {mode === 'loan' ? (
         <div>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Borrowing raises what you owe; repayments reduce it. Never income, never spending.
           </p>
           <LoanMovementForm
@@ -294,7 +294,7 @@ function MoveForm({ data }: { data: QuickEntryData }) {
             today={data.today}
           />
           <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            <summary className="cursor-pointer text-sm font-medium text-ink-body">
               Someone new? Track them first
             </summary>
             <div className="mt-2">
@@ -305,7 +305,7 @@ function MoveForm({ data }: { data: QuickEntryData }) {
       ) : null}
       {mode === 'swap' ? (
         <div>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Cash in one hand, a bank transfer in the other — recorded as one pair, so the household
             total provably does not move.
           </p>
@@ -314,7 +314,7 @@ function MoveForm({ data }: { data: QuickEntryData }) {
       ) : null}
       {mode === 'other' ? (
         <div>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-ink-muted">
             Anything else across the household boundary — always with a note saying what it was.
           </p>
           <OtherMovementForm idPrefix="quick-other" pots={data.pots} today={data.today} />
@@ -340,7 +340,7 @@ function MoveTabButton({
       aria-selected={active}
       onClick={onClick}
       className={`min-w-0 rounded-md px-2 py-1.5 font-medium break-words ${
-        active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+        active ? 'bg-surface text-ink shadow-sm' : 'text-ink-soft'
       }`}
     >
       {children}
@@ -665,7 +665,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
   const hidden = (index: number) => !wide && panel !== index;
 
   return (
-    <form action={formAction} onSubmit={guardSubmit} className="text-slate-900">
+    <form action={formAction} onSubmit={guardSubmit} className="text-ink">
       {/* The viewport clips; it is never a scroll container (decision 143). */}
       <div className="overflow-x-clip lg:overflow-visible">
         <div
@@ -693,7 +693,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
             onKeyDown={panelOneKeyDown}
             className="w-full min-w-0 shrink-0"
           >
-            <div className="space-y-3 rounded-xl bg-white p-3">
+            <div className="space-y-3 rounded-xl bg-surface p-3">
               <SelectField
                 label="Pot"
                 name="potId"
@@ -702,7 +702,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                 options={data.pots.map((pot) => ({ value: pot.id, label: pot.label }))}
               />
               {potId === '' ? (
-                <p className="text-xs font-semibold text-amber-700">
+                <p className="text-xs font-semibold text-warning-700">
                   Choose the pot this came out of — no default is set, so nothing is preselected.
                 </p>
               ) : null}
@@ -718,7 +718,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                 onPick={pickSupplier}
               />
               {nearSupplier ? (
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-warning-700">
                   Did you mean{' '}
                   <button
                     type="button"
@@ -762,7 +762,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                 <button
                   type="button"
                   onClick={() => setNoteOpen(true)}
-                  className="rounded-lg px-1 py-2 text-sm font-semibold text-sky-700 underline decoration-dotted"
+                  className="rounded-lg px-1 py-2 text-sm font-semibold text-accent underline decoration-dotted"
                 >
                   + Note
                 </button>
@@ -771,7 +771,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
               <button
                 type="button"
                 onClick={goToCategory}
-                className="min-h-[48px] w-full rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white"
+                className="min-h-[48px] w-full rounded-lg bg-till px-5 py-3 font-semibold text-till-ink"
               >
                 Next: category →
               </button>
@@ -787,16 +787,16 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
             }}
             className="w-full min-w-0 shrink-0"
           >
-            <div className="space-y-3 rounded-xl bg-white p-3">
+            <div className="space-y-3 rounded-xl bg-surface p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="font-semibold">Category &amp; allocation</h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-ink-muted">
                     Each line needs a leaf category and one target.
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2 py-1 text-xs font-semibold ${balanced ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}
+                  className={`rounded-full px-2 py-1 text-xs font-semibold ${balanced ? 'bg-positive-100 text-positive-800' : 'bg-warning-100 text-warning'}`}
                 >
                   {balanced
                     ? 'Matches exactly'
@@ -808,15 +808,15 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                 </span>
               </div>
 
-              <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs break-words tabular-nums text-slate-600">
+              <p className="rounded-md bg-canvas px-2 py-1.5 text-xs break-words tabular-nums text-ink-soft">
                 {allocationSummary(lines, data)}
               </p>
 
               <div className="space-y-3">
                 {lines.map((line, index) => (
-                  <div key={index} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div key={index} className="rounded-lg border border-border bg-surface p-3">
                     <div className="grid gap-2 sm:grid-cols-[1.2fr_0.8fr]">
-                      <label className="min-w-0 text-xs font-semibold text-slate-600">
+                      <label className="min-w-0 text-xs font-semibold text-ink-soft">
                         Category
                         <select
                           ref={index === 0 ? categoryRef : undefined}
@@ -838,7 +838,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                           ))}
                         </select>
                       </label>
-                      <label className="min-w-0 text-xs font-semibold text-slate-600">
+                      <label className="min-w-0 text-xs font-semibold text-ink-soft">
                         {lines.length > 1 ? `Line ${index + 1} amount` : 'Amount'}
                         <input
                           aria-label={`Line ${index + 1} amount`}
@@ -856,7 +856,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                         aria-label={`For line ${index + 1}`}
                         className="flex flex-wrap items-center gap-1.5"
                       >
-                        <span className="mr-0.5 text-xs font-semibold text-slate-600">For</span>
+                        <span className="mr-0.5 text-xs font-semibold text-ink-soft">For</span>
                         <TargetChip
                           active={line.targetKind === 'household'}
                           onClick={() =>
@@ -937,7 +937,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                       <button
                         type="button"
                         onClick={() => assignRemainder(index)}
-                        className="mt-2 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        className="mt-2 rounded-lg border border-border-strong px-2 py-2 text-xs font-semibold text-ink-body hover:bg-surface-muted"
                       >
                         Assign remaining
                       </button>
@@ -950,7 +950,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                             current.filter((_, lineIndex) => lineIndex !== index),
                           )
                         }
-                        className="mt-2 block text-xs font-semibold text-red-700 underline"
+                        className="mt-2 block text-xs font-semibold text-danger underline"
                       >
                         Remove line
                       </button>
@@ -962,7 +962,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
               <button
                 type="button"
                 onClick={addSplit}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-ink-body hover:bg-surface-muted"
               >
                 + Add split
               </button>
@@ -990,7 +990,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                 <button
                   type="submit"
                   disabled={saveBlocked}
-                  className="min-h-[48px] flex-1 rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-[48px] flex-1 rounded-lg bg-till px-5 py-3 font-semibold text-till-ink disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pending ? 'Saving…' : 'Save purchase'}
                 </button>
@@ -998,7 +998,7 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
                   <button
                     type="button"
                     onClick={resetForAnother}
-                    className="min-h-[48px] rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700"
+                    className="min-h-[48px] rounded-lg border border-border-strong px-4 py-3 text-sm font-semibold text-ink-body"
                   >
                     Add another
                   </button>
@@ -1027,40 +1027,40 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
 function PotBalance({ pot }: { pot: EntryPotOption | null }) {
   if (pot === null) {
     return (
-      <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+      <p className="rounded-lg bg-canvas p-2.5 text-xs text-ink-soft">
         Pick the pot the money left — its last reported balance appears here.
       </p>
     );
   }
   if (pot.kind === 'cash') {
     return (
-      <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+      <p className="rounded-lg bg-canvas p-2.5 text-xs text-ink-soft">
         Cash pot — no balance is shown for cash. Count the notes when it matters.
       </p>
     );
   }
   const firstDue = pot.dueBeforeIncome[0];
   return (
-    <div className="rounded-lg bg-slate-50 p-2.5">
+    <div className="rounded-lg bg-canvas p-2.5">
       {pot.checkpoint === null ? (
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-ink-soft">
           Never checkpointed — this pot has no reported balance and no estimate, by design.
         </p>
       ) : (
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-ink-soft">
           Last reported{' '}
           <span
-            className="font-semibold tabular-nums text-slate-900"
+            className="font-semibold tabular-nums text-ink"
             title={pot.checkpoint.reportedAtLabel}
           >
             {formatPence(pot.checkpoint.amountPence)}
           </span>{' '}
           · {pot.checkpoint.ageLabel}
-          <span className="text-slate-400"> ({pot.checkpoint.reportedAtLabel})</span>
+          <span className="text-ink-faint"> ({pot.checkpoint.reportedAtLabel})</span>
         </p>
       )}
       {pot.shortfallPence !== null ? (
-        <p className="mt-1.5 rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+        <p className="mt-1.5 rounded-md bg-warning-100 px-2 py-1 text-xs font-semibold text-warning-900">
           {pot.label} would be {formatPence(pot.shortfallPence)} short before income lands
           {firstDue !== undefined
             ? ` — ${firstDue.name} ${formatPence(firstDue.amountPence)} on ${firstDue.dueLabel}`
@@ -1083,7 +1083,7 @@ function PotBalance({ pot }: { pot: EntryPotOption | null }) {
 function CycleSummary({ cycle }: { cycle: EntryCycleOutlook }) {
   if (cycle.incomeDate === null) {
     return (
-      <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+      <p className="rounded-lg bg-canvas p-2.5 text-xs text-ink-soft">
         No expected income is scheduled yet, so there is no “before income lands” figure. Add it in
         Recurring payments and it appears here.
       </p>
@@ -1091,7 +1091,7 @@ function CycleSummary({ cycle }: { cycle: EntryCycleOutlook }) {
   }
   if (cycle.freeToSpendPence === null) {
     return (
-      <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600">
+      <p className="rounded-lg bg-canvas p-2.5 text-xs text-ink-soft">
         Free to spend before {cycle.incomeDateLabel}: record a balance checkpoint and this figure
         appears here.
       </p>
@@ -1100,23 +1100,23 @@ function CycleSummary({ cycle }: { cycle: EntryCycleOutlook }) {
   const negative = cycle.freeToSpendPence < 0;
   return (
     <div
-      className={`rounded-lg p-2.5 ${negative ? 'bg-rose-50 ring-1 ring-rose-200' : 'bg-slate-50'}`}
+      className={`rounded-lg p-2.5 ${negative ? 'bg-negative-50 ring-1 ring-negative-200' : 'bg-canvas'}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Free to spend before income
         </span>
         <span
-          className={`min-w-0 text-xl font-semibold break-words tabular-nums sm:text-2xl ${negative ? 'text-rose-700' : 'text-slate-900'}`}
+          className={`min-w-0 text-xl font-semibold break-words tabular-nums sm:text-2xl ${negative ? 'text-negative' : 'text-ink'}`}
         >
           {formatPence(cycle.freeToSpendPence)}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-600">
+      <p className="mt-1 text-xs text-ink-soft">
         {cycle.incomeSource ?? 'Income'} lands {cycle.incomeDateLabel} (
         {cycle.days === 1 ? '1 day' : `${cycle.days} days`}). {beforeIncomeSentence(cycle)}
       </p>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-muted">
         A projection of the records in this app — never a bank balance.
       </p>
     </div>
@@ -1233,7 +1233,7 @@ function SupplierTypeahead({
 
   return (
     <div>
-      <label className="block text-sm font-semibold text-slate-800">
+      <label className="block text-sm font-semibold text-ink-emphasis">
         {label}
         <input
           ref={inputRef}
@@ -1267,7 +1267,7 @@ function SupplierTypeahead({
           className={`${inputClass} mt-1`}
         />
       </label>
-      <span className="mt-1 block text-xs font-normal text-slate-500">
+      <span className="mt-1 block text-xs font-normal text-ink-muted">
         {value.trim() === '' ? emptyHint : 'Tap a match, or keep typing a new name.'}
       </span>
       {open && matches.length > 0 ? (
@@ -1276,7 +1276,7 @@ function SupplierTypeahead({
           role="listbox"
           aria-label="Supplier suggestions"
           aria-hidden={closing ? true : undefined}
-          className={`mt-1 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm ${closing ? 'invisible' : ''}`}
+          className={`mt-1 divide-y divide-border-hairline overflow-hidden rounded-lg border border-border bg-surface shadow-sm ${closing ? 'invisible' : ''}`}
         >
           {matches.map((supplier, index) => (
             <li key={supplier.id}>
@@ -1287,11 +1287,11 @@ function SupplierTypeahead({
                 // Keep the caret in the field so a tap never has to fight a blur.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => commit(supplier.name)}
-                className={`flex min-h-[44px] w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm ${index === active ? 'bg-sky-50' : 'hover:bg-slate-50'}`}
+                className={`flex min-h-[44px] w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm ${index === active ? 'bg-accent-50' : 'hover:bg-canvas'}`}
               >
                 <span className="font-medium">{supplier.name}</span>
                 {supplier.defaultCategoryId !== null ? (
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-ink-muted">
                     {categories.find((category) => category.id === supplier.defaultCategoryId)
                       ?.childName ?? 'remembered'}
                   </span>
@@ -1322,8 +1322,8 @@ function TargetChip({
       onClick={onClick}
       className={`min-h-[36px] rounded-full border px-3 py-1.5 text-sm font-medium ${
         active
-          ? 'border-sky-300 bg-sky-100 text-sky-900'
-          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+          ? 'border-accent-300 bg-accent-100 text-accent-900'
+          : 'border-border-strong bg-surface text-ink-body hover:bg-canvas'
       }`}
     >
       {children}
@@ -1347,11 +1347,11 @@ function PanelHint({ panel, onShow }: { panel: number; onShow: (index: number) =
         >
           <span
             aria-hidden="true"
-            className={`block h-2.5 w-2.5 rounded-full ${panel === index ? 'bg-sky-300' : 'bg-slate-600'}`}
+            className={`block h-2.5 w-2.5 rounded-full ${panel === index ? 'bg-accent-300' : 'bg-till-muted'}`}
           />
         </button>
       ))}
-      <span className="text-xs text-slate-300">
+      <span className="text-xs text-ink-ghost">
         {panel === 0 ? 'Swipe → category & splits' : 'Swipe ← back to the entry'}
       </span>
     </div>
@@ -1460,11 +1460,11 @@ function FuelForm({ data }: { data: QuickEntryData }) {
     <form
       action={formAction}
       onSubmit={guardSubmit}
-      className="grid gap-3 text-slate-900 lg:grid-cols-[0.9fr_1.1fr] lg:gap-4"
+      className="grid gap-3 text-ink lg:grid-cols-[0.9fr_1.1fr] lg:gap-4"
     >
       {/* Light card: the dark quick-entry panel behind it made dark labels
           unreadable (contrast fix, v0.9.0). */}
-      <div className="min-w-0 space-y-3 rounded-xl bg-white p-3">
+      <div className="min-w-0 space-y-3 rounded-xl bg-surface p-3">
         {/* No autofocus here (decision 151): the household taps the field they
             want. Focusing it as the Fuel tab appeared raised the keyboard and
             pushed the tab strip off the screen, the same as the purchase form
@@ -1505,18 +1505,18 @@ function FuelForm({ data }: { data: QuickEntryData }) {
           </Field>
         </div>
         <input type="hidden" name="fullTankShown" value="1" />
-        <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-ink-emphasis">
           <input
             type="checkbox"
             name="fullTank"
             value="1"
             checked={fullTank}
             onChange={(event) => setFullTank(event.target.checked)}
-            className="h-5 w-5 shrink-0 accent-slate-900"
+            className="h-5 w-5 shrink-0 accent-ink"
           />
           <span className="min-w-0">
             Filled to full
-            <span className="block text-xs font-normal text-slate-500">
+            <span className="block text-xs font-normal text-ink-muted">
               Tick only when the pump clicked off at full — mpg is measured between full tanks.
             </span>
           </span>
@@ -1545,12 +1545,12 @@ function FuelForm({ data }: { data: QuickEntryData }) {
           onChange={setPotId}
           options={data.pots.map((pot) => ({ value: pot.id, label: pot.label }))}
         />
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Category is fixed to Vehicle Running / Fuel. Tap the other vehicle when it was the one
           filled.
         </p>
       </div>
-      <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-900">
+      <div className="min-w-0 space-y-3 rounded-xl border border-border bg-canvas p-3 text-ink">
         <SupplierTypeahead
           inputRef={supplierRef}
           value={supplierName}
@@ -1563,7 +1563,7 @@ function FuelForm({ data }: { data: QuickEntryData }) {
           emptyHint="Fuel stations you have used before — tap one."
         />
         {nearSupplier ? (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-warning-700">
             Did you mean{' '}
             <button
               type="button"
@@ -1597,7 +1597,7 @@ function FuelForm({ data }: { data: QuickEntryData }) {
         <button
           type="submit"
           disabled={pending || !canSave}
-          className="min-h-[48px] w-full rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          className="min-h-[48px] w-full rounded-lg bg-till px-5 py-3 font-semibold text-till-ink disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           {pending ? 'Saving…' : 'Save fuel'}
         </button>
@@ -1625,10 +1625,10 @@ function BalanceForm({ data }: { data: QuickEntryData }) {
     submitGuard.current = true;
   }
   return (
-    <form action={formAction} onSubmit={guardSubmit} className="max-w-2xl text-slate-900">
+    <form action={formAction} onSubmit={guardSubmit} className="max-w-2xl text-ink">
       {/* Light card: this form used to sit straight on the dark quick-entry
           panel, which made its dark labels unreadable (contrast fix, v0.9.0). */}
-      <div className="space-y-3 rounded-xl bg-white p-3">
+      <div className="space-y-3 rounded-xl bg-surface p-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <SelectField
             label="Pot"
@@ -1678,7 +1678,7 @@ function BalanceForm({ data }: { data: QuickEntryData }) {
         <button
           type="submit"
           disabled={pending || potId === '' || parsePence(amount) === null}
-          className="min-h-[48px] rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-[48px] rounded-lg bg-till px-5 py-3 font-semibold text-till-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? 'Saving…' : 'Save checkpoint'}
         </button>
@@ -1694,7 +1694,7 @@ function DuplicateNotice({ notice }: { notice: DuplicateNoticeState }) {
     initialActionState,
   );
   return (
-    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+    <div className="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-3 text-sm text-warning-950">
       <p className="font-semibold">Possible duplicate — the purchase was saved, not blocked.</p>
       <p className="mt-1">
         {notice.enteredBy} recorded a matching {formatPence(notice.totalPence)} entry{' '}
@@ -1722,7 +1722,7 @@ function DuplicateNotice({ notice }: { notice: DuplicateNoticeState }) {
       {state.message ? (
         <p
           role="status"
-          className={`mt-2 ${state.status === 'error' ? 'text-red-800' : 'text-emerald-800'}`}
+          className={`mt-2 ${state.status === 'error' ? 'text-danger-800' : 'text-positive-800'}`}
         >
           {state.message}
         </p>
@@ -1738,7 +1738,7 @@ function EntryMessage({ state }: { state: ActionState | PurchaseActionState }) {
         <p
           role="status"
           aria-live="polite"
-          className={`mt-3 text-sm ${state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}`}
+          className={`mt-3 text-sm ${state.status === 'error' ? 'text-danger' : 'text-positive'}`}
         >
           {state.message}
         </p>
@@ -1765,7 +1765,7 @@ function TabButton({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`min-w-0 rounded-md px-0.5 py-2 text-center text-xs font-medium break-words sm:px-3 sm:text-sm ${active ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}
+      className={`min-w-0 rounded-md px-0.5 py-2 text-center text-xs font-medium break-words sm:px-3 sm:text-sm ${active ? 'bg-surface text-ink' : 'text-ink-ghost hover:text-till-ink'}`}
     >
       {children}
     </button>
@@ -1782,10 +1782,10 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block text-sm font-semibold text-slate-800">
+    <label className="block text-sm font-semibold text-ink-emphasis">
       {label}
       {children}
-      <span className="mt-1 block text-xs font-normal text-slate-500">{hint}</span>
+      <span className="mt-1 block text-xs font-normal text-ink-muted">{hint}</span>
     </label>
   );
 }
@@ -1808,7 +1808,7 @@ function SelectField({
   options: Array<{ value: number; label: string }>;
 }) {
   return (
-    <label className="block text-sm font-semibold text-slate-800">
+    <label className="block text-sm font-semibold text-ink-emphasis">
       {label}
       <select
         name={name}
@@ -1849,7 +1849,7 @@ function ChipGroup({
   const labelId = useId();
   return (
     <div role="radiogroup" aria-labelledby={labelId}>
-      <span id={labelId} className="block text-sm font-semibold text-slate-800">
+      <span id={labelId} className="block text-sm font-semibold text-ink-emphasis">
         {label}
       </span>
       <div className="mt-1 flex flex-wrap gap-2">
@@ -1858,10 +1858,10 @@ function ChipGroup({
           return (
             <label
               key={option.value}
-              className={`relative inline-flex min-h-[44px] min-w-[44px] max-w-full cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sky-400 ${
+              className={`relative inline-flex min-h-[44px] min-w-[44px] max-w-full cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent-400 ${
                 checked
-                  ? 'border-sky-500 bg-sky-100 text-sky-900'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-accent-500 bg-accent-100 text-accent-900'
+                  : 'border-border-strong bg-surface text-ink-body hover:bg-canvas'
               }`}
             >
               <input
@@ -1909,4 +1909,4 @@ function defaultTarget(
 }
 
 const inputClass =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-normal text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200';
+  'block w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-normal text-ink placeholder:text-ink-faint focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-200';

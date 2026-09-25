@@ -87,11 +87,11 @@ export default async function SuppliersPage({
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
           Reference desk
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Suppliers</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           When something goes wrong, the number, the policy reference and the history of the
           conversation are here — not dug out of a drawer. Both of us see everything, and every
           entry records who wrote it.
@@ -101,12 +101,12 @@ export default async function SuppliersPage({
       {followUps.length > 0 ? (
         <section
           aria-labelledby="supplier-follow-ups"
-          className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4"
+          className="mb-6 rounded-xl border border-warning-200 bg-warning-50 p-4"
         >
-          <h2 id="supplier-follow-ups" className="text-sm font-semibold text-amber-900">
+          <h2 id="supplier-follow-ups" className="text-sm font-semibold text-warning-900">
             Promised follow-ups
           </h2>
-          <ul className="mt-2 space-y-1 text-sm text-amber-900">
+          <ul className="mt-2 space-y-1 text-sm text-warning-900">
             {followUps.map((item, index) => (
               <li key={index}>
                 <span className="font-medium tabular-nums">{item.date}</span> · {item.supplier} —{' '}
@@ -118,7 +118,7 @@ export default async function SuppliersPage({
       ) : null}
 
       {cards.length === 0 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600">
+        <section className="rounded-xl border border-border bg-surface p-6 text-ink-soft">
           Suppliers appear here after the first purchase, or can be added while entering one.
         </section>
       ) : (

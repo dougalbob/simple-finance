@@ -79,13 +79,13 @@ export default async function ChartsPage({
   return (
     <main className="mx-auto max-w-7xl overflow-x-clip px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Charts</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Charts</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">The money, drawn</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-ink-soft">
           Four questions: where the balance goes next month, whether the shopping is creeping up,
           whose discretionary spending is moving, and whether the fixed bills are coming down. Every
           chart carries its numbers underneath —{' '}
-          <Link href="/insights" className="font-medium text-sky-700 hover:underline">
+          <Link href="/insights" className="font-medium text-accent hover:underline">
             Insights
           </Link>{' '}
           holds the same figures as tables, and the two always agree.
@@ -99,7 +99,7 @@ export default async function ChartsPage({
         <CommitmentsSection view={commitments} params={params} />
       </div>
 
-      <p className="mt-6 text-xs text-slate-500">
+      <p className="mt-6 text-xs text-ink-muted">
         Clicking a bar opens the purchases behind it. Those filters match the <em>purchase</em>, and
         a matched purchase comes back with all of its lines, receipt-style — so a split shop appears
         whole, not as the single line that matched.
@@ -177,7 +177,7 @@ function ForecastSection({ view }: { view: ForecastChartView }) {
         title="Where the balance goes, today to a month ahead"
         className="lg:col-span-2"
       >
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-soft">
           The forecast needs at least one balance checkpoint. Record one on the till and it appears
           here.
         </p>
@@ -266,12 +266,12 @@ function ForecastSection({ view }: { view: ForecastChartView }) {
 
 function DipList({ view }: { view: ForecastChartView }) {
   if (view.series.dips.length === 0) {
-    return <p className="text-xs text-slate-500">Nothing is due in the next month.</p>;
+    return <p className="text-xs text-ink-muted">Nothing is due in the next month.</p>;
   }
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-600">What makes it dip</p>
-      <ul className="mt-0.5 space-y-0.5 text-xs text-slate-600">
+      <p className="text-xs font-semibold text-ink-soft">What makes it dip</p>
+      <ul className="mt-0.5 space-y-0.5 text-xs text-ink-soft">
         {view.series.dips.map((dip) => (
           <li key={dip.date} className="flex justify-between gap-2">
             <span>{formatShortLocalDate(dip.date)}</span>
@@ -287,18 +287,18 @@ function DayDetails({ view }: { view: ForecastChartView }) {
   if (view.details.length === 0) return null;
   return (
     <details className="mt-2">
-      <summary className="cursor-pointer text-xs font-medium text-slate-600">
+      <summary className="cursor-pointer text-xs font-medium text-ink-soft">
         What lands on each day ({view.details.length} days)
       </summary>
       <ul className="mt-2 space-y-2 text-xs">
         {view.details.map((detail) => (
           <li key={detail.date}>
-            <p className="font-medium text-slate-700">{formatShortLocalDate(detail.date)}</p>
-            <ul className="mt-0.5 space-y-0.5 text-slate-600">
+            <p className="font-medium text-ink-body">{formatShortLocalDate(detail.date)}</p>
+            <ul className="mt-0.5 space-y-0.5 text-ink-soft">
               {detail.commitments.map((line) => (
                 <li key={`c-${line.name}`} className="flex justify-between gap-3">
                   <span>
-                    {line.name} <span className="text-slate-400">· {line.potLabel}</span>
+                    {line.name} <span className="text-ink-faint">· {line.potLabel}</span>
                   </span>
                   <span className="tabular-nums">−{formatPence(line.amountPence)}</span>
                 </li>
@@ -310,11 +310,11 @@ function DayDetails({ view }: { view: ForecastChartView }) {
                 </li>
               ))}
               {detail.receipts.map((line) => (
-                <li key={`r-${line.name}`} className="flex justify-between gap-3 text-emerald-800">
+                <li key={`r-${line.name}`} className="flex justify-between gap-3 text-positive-800">
                   <span>
                     {line.name}
                     {line.expected ? ' (expected)' : ''}{' '}
-                    <span className="text-slate-400">· {line.potLabel}</span>
+                    <span className="text-ink-faint">· {line.potLabel}</span>
                   </span>
                   <span className="tabular-nums">+{formatPence(line.amountPence)}</span>
                 </li>
@@ -410,7 +410,7 @@ function renderGroceries(
         key: week.weekStart,
         muted: !week.complete,
         cells: [
-          <a key="link" href={href(week)} className="text-sky-700 hover:underline">
+          <a key="link" href={href(week)} className="text-accent hover:underline">
             {week.weekStart}
             {week.complete ? '' : ' (so far)'}
           </a>,
@@ -505,8 +505,8 @@ function PersonalSection({
               aria-current={chip.on ? 'true' : undefined}
               className={`rounded-full border px-3 py-1 text-xs font-medium ${
                 chip.on
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'border-till bg-till text-till-ink'
+                  : 'border-border-strong bg-surface text-ink-soft hover:bg-canvas'
               }`}
             >
               {chip.on ? '✓ ' : ''}
@@ -517,7 +517,7 @@ function PersonalSection({
       }
     >
       {view.laptop.series.length === 0 ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-soft">
           Nothing selected. Tap a name above to put a series back on the chart.
         </p>
       ) : (
@@ -600,7 +600,7 @@ function renderPersonal(
             <a
               key={cell.key}
               href={hrefFor(month.from, month.to, cell.key)}
-              className="text-sky-700 hover:underline"
+              className="text-accent hover:underline"
             >
               {formatPence(cell.amountPence)}
             </a>
@@ -669,15 +669,15 @@ function CommitmentsSection({ view, params }: { view: CommitmentChartView; param
         aria-current={view.scheduleOnly ? 'true' : undefined}
         className={`rounded-full border px-3 py-1 text-xs font-medium ${
           view.scheduleOnly
-            ? 'border-slate-900 bg-slate-900 text-white'
-            : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+            ? 'border-till bg-till text-till-ink'
+            : 'border-border-strong bg-surface text-ink-soft hover:bg-canvas'
         }`}
       >
         {view.scheduleOnly ? '✓ ' : ''}Schedule-converted only
       </Link>
       <Link
         href="/settings#commitment-categories"
-        className="text-xs font-medium text-sky-700 hover:underline"
+        className="text-xs font-medium text-accent hover:underline"
       >
         Choose categories →
       </Link>
@@ -692,12 +692,12 @@ function CommitmentsSection({ view, params }: { view: CommitmentChartView; param
         title="Are the direct debits coming down?"
         action={action}
       >
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-ink-soft">
           No categories are tracked as fixed commitments yet. Tick the ones that are bills —
           Insurance and Road Tax but not Fuel, for instance — in{' '}
           <Link
             href="/settings#commitment-categories"
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-accent hover:underline"
           >
             Settings
           </Link>
@@ -735,7 +735,7 @@ function CommitmentsSection({ view, params }: { view: CommitmentChartView; param
     key: month.from,
     muted: !month.complete,
     cells: [
-      <a key="link" href={href(month.from, month.to)} className="text-sky-700 hover:underline">
+      <a key="link" href={href(month.from, month.to)} className="text-accent hover:underline">
         {month.label}
         {month.complete ? '' : ' (so far)'}
       </a>,
@@ -791,10 +791,10 @@ function CommitmentsSection({ view, params }: { view: CommitmentChartView; param
           footer={
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-semibold text-slate-600">
+                <p className="text-xs font-semibold text-ink-soft">
                   Tracked categories ({view.trackedCategories.length})
                 </p>
-                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                <ul className="mt-1 space-y-0.5 text-xs text-ink-soft">
                   {view.trackedCategories.map((category) => (
                     <li key={category.id}>
                       {category.parent} / {category.child}
@@ -804,15 +804,15 @@ function CommitmentsSection({ view, params }: { view: CommitmentChartView; param
                 </ul>
               </div>
               <div>
-                <p className="text-xs font-semibold text-slate-600">
+                <p className="text-xs font-semibold text-ink-soft">
                   By category over {series.months.length} months
                 </p>
                 {series.byCategory.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-ink-muted">
                     Nothing recorded in the tracked categories in this window.
                   </p>
                 ) : (
-                  <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                  <ul className="mt-1 space-y-0.5 text-xs text-ink-soft">
                     {series.byCategory.map((entry) => (
                       <li key={entry.categoryId} className="flex justify-between gap-3">
                         <span>
@@ -867,11 +867,11 @@ function ChartCard({
     <section
       id={id}
       aria-labelledby={`${id}-heading`}
-      className={`min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className ?? ''}`}
+      className={`min-w-0 rounded-xl border border-border bg-surface p-4 shadow-sm ${className ?? ''}`}
     >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
             {eyebrow}
           </p>
           <h2 id={`${id}-heading`} className="text-lg font-semibold sm:text-xl">

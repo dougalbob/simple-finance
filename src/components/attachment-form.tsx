@@ -71,7 +71,7 @@ export function AttachmentForm({
         <ul className="flex flex-wrap gap-2">
           {attachments.map((attachment) => (
             <li key={attachment.id} className="flex flex-wrap items-center gap-1">
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 font-medium text-warning">
                 <a
                   href={`/api/attachments/${attachment.fileKey}`}
                   target="_blank"
@@ -80,7 +80,7 @@ export function AttachmentForm({
                 >
                   <span aria-hidden="true">📎</span>
                   <span className="max-w-[160px] truncate">{attachment.originalName}</span>
-                  <span className="text-amber-600">{formatSize(attachment.sizeBytes)}</span>
+                  <span className="text-warning-600">{formatSize(attachment.sizeBytes)}</span>
                 </a>
               </span>
               <RemoveReceiptControl
@@ -114,14 +114,14 @@ export function AttachmentForm({
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-slate-800 px-2 py-1 text-white disabled:opacity-60"
+            className="rounded bg-till-inset px-2 py-1 text-till-ink disabled:opacity-60"
           >
             {pending ? 'Attaching…' : words.attach}
           </button>
           {state.message !== null ? (
             <span
               role="status"
-              className={state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}
+              className={state.status === 'error' ? 'text-danger' : 'text-positive'}
             >
               {state.message}
             </span>
@@ -154,18 +154,18 @@ function RemoveReceiptControl({
             type="submit"
             disabled={pending}
             aria-label={confirmName}
-            className="rounded border border-red-300 bg-white px-1.5 py-0.5 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+            className="rounded border border-danger-300 bg-surface px-1.5 py-0.5 font-medium text-danger hover:bg-danger-50 disabled:opacity-60"
           >
             {pending ? 'Removing…' : 'Confirm'}
           </button>
           <button
             type="button"
             onClick={() => setArmed(false)}
-            className="rounded px-1 py-0.5 text-slate-500 hover:text-slate-800"
+            className="rounded px-1 py-0.5 text-ink-muted hover:text-ink-emphasis"
           >
             Cancel
           </button>
-          <span className="text-slate-500">
+          <span className="text-ink-muted">
             Deletes the file from this installation. An older backup is the only way back.
           </span>
         </>
@@ -174,16 +174,13 @@ function RemoveReceiptControl({
           type="button"
           onClick={() => setArmed(true)}
           aria-label={removeName}
-          className="rounded px-1 py-0.5 font-medium text-slate-500 hover:bg-slate-100 hover:text-red-800"
+          className="rounded px-1 py-0.5 font-medium text-ink-muted hover:bg-surface-muted hover:text-danger-800"
         >
           Remove
         </button>
       )}
       {state.message !== null ? (
-        <span
-          role="status"
-          className={state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}
-        >
+        <span role="status" className={state.status === 'error' ? 'text-danger' : 'text-positive'}>
           {state.message}
         </span>
       ) : null}

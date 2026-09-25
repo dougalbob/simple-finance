@@ -7,20 +7,37 @@ import { formatAxisPence, yFor, type ChartDomain, type Plot } from './scale';
  * phone, and Playwright can assert the markup directly.
  */
 
-/** The series palette. Every colour is also named in a legend or a table. */
+/**
+ * The series palette. Every colour is also named in a legend or a table.
+ *
+ * These are references to the colour tokens in `src/app/globals.css`
+ * (decision 159), not colour literals: the chart kit never decides a colour,
+ * so a theme that redefines the tokens re-tints every drawing without this
+ * file changing. They reach the SVG through an inline `style` rather than a
+ * `fill`/`stroke` attribute — a custom property resolves in a declaration,
+ * which an inline style is, in every browser; presentation-attribute support
+ * is not universal. The same strings are used for the HTML legend swatches.
+ */
 export const CHART_COLOURS = {
-  line: '#0369a1',
-  lineFill: 'rgba(3, 105, 161, 0.14)',
-  bar: '#0284c7',
-  barMuted: '#bae6fd',
-  reference: '#b45309',
-  average: '#0f766e',
-  danger: '#b91c1c',
-  dangerTint: 'rgba(185, 28, 28, 0.08)',
-  grid: '#e2e8f0',
-  axis: '#94a3b8',
-  text: '#475569',
-  series: ['#0369a1', '#b45309', '#475569', '#7c3aed', '#0f766e'],
+  line: 'var(--color-chart-1)',
+  lineFill: 'var(--color-chart-line-fill)',
+  bar: 'var(--color-chart-bar)',
+  barMuted: 'var(--color-chart-bar-muted)',
+  reference: 'var(--color-chart-2)',
+  average: 'var(--color-chart-5)',
+  danger: 'var(--color-chart-danger)',
+  dangerTint: 'var(--color-chart-danger-tint)',
+  grid: 'var(--color-chart-grid)',
+  axis: 'var(--color-chart-axis)',
+  text: 'var(--color-chart-text)',
+  halo: 'var(--color-chart-halo)',
+  series: [
+    'var(--color-chart-1)',
+    'var(--color-chart-2)',
+    'var(--color-chart-3)',
+    'var(--color-chart-4)',
+    'var(--color-chart-5)',
+  ],
 } as const;
 
 export const AXIS_FONT = 10;
@@ -39,7 +56,7 @@ export function Gridlines({ domain, plot }: { domain: ChartDomain; plot: Plot })
               x2={plot.left + plot.width}
               y1={y}
               y2={y}
-              stroke={isZero ? CHART_COLOURS.axis : CHART_COLOURS.grid}
+              style={{ stroke: isZero ? CHART_COLOURS.axis : CHART_COLOURS.grid }}
               strokeWidth={isZero ? 1 : 1}
             />
             <text
@@ -47,7 +64,7 @@ export function Gridlines({ domain, plot }: { domain: ChartDomain; plot: Plot })
               y={y + 3}
               textAnchor="end"
               fontSize={AXIS_FONT}
-              fill={CHART_COLOURS.text}
+              style={{ fill: CHART_COLOURS.text }}
             >
               {formatAxisPence(tick)}
             </text>
@@ -70,7 +87,7 @@ export function SubZeroBand({ domain, plot }: { domain: ChartDomain; plot: Plot 
       y={zeroY}
       width={plot.width}
       height={Math.max(0, bottom - zeroY)}
-      fill={CHART_COLOURS.dangerTint}
+      style={{ fill: CHART_COLOURS.dangerTint }}
     />
   );
 }
@@ -81,8 +98,8 @@ export function SubZeroBand({ domain, plot }: { domain: ChartDomain; plot: Plot 
  * `side` puts the label at the start or the end of the line: two references
  * whose values are close (the configured weekly figure and the 8-week
  * average, say) would otherwise print on top of each other. The label is
- * drawn with a white halo (`paintOrder="stroke"`) so it stays readable where
- * it crosses a bar.
+ * drawn with a halo in the surface colour (`paintOrder="stroke"`) so it stays
+ * readable where it crosses a bar.
  */
 export function ReferenceLine({
   valuePence,
@@ -109,7 +126,7 @@ export function ReferenceLine({
         x2={plot.left + plot.width}
         y1={y}
         y2={y}
-        stroke={colour}
+        style={{ stroke: colour }}
         strokeWidth={1.25}
         strokeDasharray="4 3"
       />
@@ -118,8 +135,7 @@ export function ReferenceLine({
         y={y - 3}
         textAnchor={atStart ? 'start' : 'end'}
         fontSize={AXIS_FONT}
-        fill={colour}
-        stroke="#ffffff"
+        style={{ fill: colour, stroke: CHART_COLOURS.halo }}
         strokeWidth={2.5}
         paintOrder="stroke"
       >
@@ -149,7 +165,7 @@ export function BandLabels({
           y={plot.top + plot.height + 13}
           textAnchor="middle"
           fontSize={AXIS_FONT}
-          fill={CHART_COLOURS.text}
+          style={{ fill: CHART_COLOURS.text }}
         >
           {label}
         </text>

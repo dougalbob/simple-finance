@@ -77,10 +77,10 @@ function FormMessage({ status, message }: { status: string; message: string | nu
       aria-live="polite"
       className={
         status === 'error'
-          ? 'text-sm text-red-700'
+          ? 'text-sm text-danger'
           : status === 'ok'
-            ? 'text-sm text-emerald-700'
-            : 'text-sm text-slate-600'
+            ? 'text-sm text-positive'
+            : 'text-sm text-ink-soft'
       }
     >
       {message}
@@ -88,10 +88,10 @@ function FormMessage({ status, message }: { status: string; message: string | nu
   );
 }
 
-const inputClass = 'rounded border border-slate-300 bg-white px-3 py-2 text-base';
-const labelClass = 'block text-sm font-medium text-slate-700';
+const inputClass = 'rounded border border-border-strong bg-surface px-3 py-2 text-base';
+const labelClass = 'block text-sm font-medium text-ink-body';
 const buttonClass =
-  'rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-4 py-2 text-sm font-medium text-till-ink disabled:opacity-60';
 
 export function AddScheduleForm({ data }: { data: RecurringData }) {
   const [state, formAction, pending] = useActionState(addScheduleAction, initialActionState);
@@ -247,14 +247,14 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
                   placeholder="e.g. Northern Power Co"
                   className={inputClass}
                 />
-                <span className="mt-1 block text-xs text-slate-500">
+                <span className="mt-1 block text-xs text-ink-muted">
                   Creates the same supplier record used on Purchases, Renewals and Suppliers. Add
                   contact details there afterwards.
                 </span>
               </div>
             ) : null}
             {kind === 'so' && supplierMode === '' ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-ink-muted">
                 Standing orders that are household transfers need no supplier. Supplier payments
                 should pick one so converted purchases land on the right card.
               </p>
@@ -280,7 +280,7 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
         <label className={labelClass}>
           Contract end date (optional)
           <input name="contractEndsOn" type="date" className={inputClass} />
-          <span className="mt-1 block text-xs text-slate-500">
+          <span className="mt-1 block text-xs text-ink-muted">
             Informational — a reminder to shop around. Instances never stop automatically.
           </span>
         </label>
@@ -314,20 +314,20 @@ export function CancelScheduleForm({
   return (
     <form
       action={formAction}
-      className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-2"
+      className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-canvas p-2"
     >
       <div>
-        <label className="block text-xs font-medium text-slate-600">
+        <label className="block text-xs font-medium text-ink-soft">
           Cancel from (local date)
           <input
             name="effectiveOn"
             type="date"
             defaultValue={today}
             required
-            className="ml-2 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+            className="ml-2 rounded border border-border-strong bg-surface px-2 py-1 text-sm"
           />
         </label>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-muted">
           Instances from that date stop; converted history is kept.
         </p>
       </div>
@@ -393,7 +393,7 @@ export function AddRenewalForm({ data }: { data: RecurringData }) {
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-ink-body">
           <input name="repeatsAnnually" type="checkbox" defaultChecked />
           Repeats annually (auto-advances, 29 Feb → 28 Feb)
         </label>
@@ -449,7 +449,7 @@ export function ProjectionSettingsForm({ data }: { data: ProjectionSettingsData 
           </label>
         ))}
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-muted">
         Blank clears a figure. Each number is one projected event — a weekly shop every 7 days, a
         fill every 30 days per vehicle — counted from when you last recorded one (the Insights
         honesty loop compares them with recent actuals).

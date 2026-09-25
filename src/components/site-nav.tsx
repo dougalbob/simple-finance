@@ -193,12 +193,12 @@ export function SiteNav() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
         {/* Desktop Navbar (lg and up) */}
         <div className="mx-auto hidden max-w-7xl items-center justify-between gap-x-4 px-4 py-2 lg:flex">
-          <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight text-slate-900">
+          <Link href="/" className="shrink-0 text-sm font-semibold tracking-tight text-ink">
             {APP_NAME}
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-normal text-ink-muted">
               v{APP_VERSION} · {APP_RELEASE_STAGE}
             </span>
           </Link>
@@ -213,8 +213,8 @@ export function SiteNav() {
                 aria-current={isActive(item.href) ? 'page' : undefined}
                 className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
                   isActive(item.href)
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-till text-till-ink'
+                    : 'text-ink-soft hover:bg-surface-muted hover:text-ink'
                 }`}
               >
                 {item.label}
@@ -232,13 +232,13 @@ export function SiteNav() {
               aria-label="Open navigation menu"
               aria-expanded={isOpen}
               aria-controls="mobile-nav-drawer"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-ink-body hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
             >
               <Bars3Icon className="h-6 w-6" />
             </button>
-            <Link href="/" className="text-sm font-semibold tracking-tight text-slate-900">
+            <Link href="/" className="text-sm font-semibold tracking-tight text-ink">
               {APP_NAME}
-              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-normal text-slate-500">
+              <span className="ml-1.5 rounded-full bg-surface-muted px-1.5 py-0.5 text-[11px] font-normal text-ink-muted">
                 v{APP_VERSION}
               </span>
             </Link>
@@ -249,7 +249,7 @@ export function SiteNav() {
       {/* Mobile Drawer Backdrop */}
       {isOpen ? (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-300 lg:hidden"
+          className="fixed inset-0 z-40 bg-till/50 backdrop-blur-xs transition-opacity duration-300 lg:hidden"
           onClick={() => setIsOpen(false)}
           aria-hidden="true"
         />
@@ -261,21 +261,21 @@ export function SiteNav() {
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-surface shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
           isOpen
             ? 'translate-x-0 pointer-events-auto'
             : '-translate-x-full pointer-events-none invisible'
         }`}
       >
         {/* Drawer Header */}
-        <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4">
+        <div className="flex h-14 items-center justify-between border-b border-border px-4">
           <Link
             href="/"
             onClick={() => setIsOpen(false)}
-            className="text-sm font-semibold tracking-tight text-slate-900"
+            className="text-sm font-semibold tracking-tight text-ink"
           >
             {APP_NAME}
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-normal text-ink-muted">
               v{APP_VERSION} · {APP_RELEASE_STAGE}
             </span>
           </Link>
@@ -283,7 +283,7 @@ export function SiteNav() {
             type="button"
             onClick={() => setIsOpen(false)}
             aria-label="Close navigation menu"
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-ink-muted hover:bg-surface-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -293,7 +293,7 @@ export function SiteNav() {
         <nav aria-label="Pages" className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {NAV_GROUPS.map((group) => (
             <div key={group.title}>
-              <p className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <p className="px-3 text-xs font-semibold uppercase tracking-wider text-ink-faint">
                 {group.title}
               </p>
               <ul className="mt-1.5 space-y-1">
@@ -305,8 +305,8 @@ export function SiteNav() {
                       aria-current={isActive(item.href) ? 'page' : undefined}
                       className={`flex min-h-[44px] items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         isActive(item.href)
-                          ? 'bg-slate-900 text-white'
-                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          ? 'bg-till text-till-ink'
+                          : 'text-ink-body hover:bg-surface-muted hover:text-ink'
                       }`}
                     >
                       {item.label}
@@ -319,7 +319,7 @@ export function SiteNav() {
         </nav>
 
         {/* Drawer Footer hint */}
-        <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
+        <div className="border-t border-border-hairline px-4 py-3 text-xs text-ink-faint">
           Swipe left to close · tap outside to dismiss
         </div>
       </div>

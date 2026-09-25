@@ -51,7 +51,7 @@ function FormMessage({ status, message }: { status: string; message: string | nu
     <p
       role="status"
       aria-live="polite"
-      className={status === 'error' ? 'text-sm text-red-700' : 'text-sm text-emerald-700'}
+      className={status === 'error' ? 'text-sm text-danger' : 'text-sm text-positive'}
     >
       {message}
     </p>
@@ -59,22 +59,23 @@ function FormMessage({ status, message }: { status: string; message: string | nu
 }
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-slate-500 focus:outline-none';
-const labelClass = 'text-xs font-medium text-slate-600';
+  'rounded border border-border-strong bg-surface px-2.5 py-1.5 text-sm focus:border-border-emphasis focus:outline-none';
+const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
-  'rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60';
+  'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 /**
  * Destructive submit. Deliberately self-contained rather than
- * `${submitClass} … text-red-700`: Tailwind resolves competing utilities by
+ * `${submitClass} … text-danger`: Tailwind resolves competing utilities by
  * their order in the *generated stylesheet*, not by the order in the class
- * attribute, and `.text-white` is emitted after `.text-red-700` — so layering a
- * colour override on top of `submitClass` produced white-on-white (and
- * white-on-red-50 on hover, 1.09:1). Red label on white at rest, inverting to a
- * saturated red-700 with a white label on hover (6.42:1 — WCAG AA), which also
+ * attribute, and `.text-till-ink` is emitted after `.text-danger` (verified
+ * again in the token build, decision 159) — so layering a colour override on
+ * top of `submitClass` produced ink-on-ink (and a 1.09:1 label on hover).
+ * Danger label on a surface at rest, inverting to a saturated danger
+ * background with a till-ink label on hover (6.42:1 — WCAG AA), which also
  * keeps it legible on a touch screen where `:hover` never applies.
  */
 const dangerSubmitClass =
-  'rounded border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:border-red-700 hover:bg-red-700 hover:text-white disabled:opacity-60';
+  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-till-ink disabled:opacity-60';
 
 interface LineEditorProps {
   idPrefix: string;
@@ -104,7 +105,7 @@ function LineEditor({ idPrefix, lines, setLines, categories, people, vehicles }:
         return (
           <div
             key={index}
-            className="grid grid-cols-2 items-end gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-12"
+            className="grid grid-cols-2 items-end gap-2 rounded-lg bg-canvas p-2 sm:grid-cols-12"
           >
             <div className="flex flex-col gap-1 sm:col-span-3">
               <label htmlFor={`${idPrefix}-amount-${index}`} className={labelClass}>
@@ -203,7 +204,7 @@ function LineEditor({ idPrefix, lines, setLines, categories, people, vehicles }:
               },
             ])
           }
-          className="text-xs font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
+          className="text-xs font-medium text-ink-soft underline underline-offset-2 hover:text-ink"
         >
           Add a line
         </button>
@@ -467,21 +468,21 @@ export function RecentEntryActions(props: RecentEntryActionsProps) {
         <button
           type="button"
           onClick={() => setMode(mode === 'edit' ? 'none' : 'edit')}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink-body hover:bg-canvas"
         >
           Edit
         </button>
         <button
           type="button"
           onClick={() => setMode(mode === 'refund' ? 'none' : 'refund')}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink-body hover:bg-canvas"
         >
           Refund
         </button>
         <button
           type="button"
           onClick={() => setMode(mode === 'void' ? 'none' : 'void')}
-          className="rounded border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+          className="rounded border border-danger-200 bg-surface px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger-50"
         >
           Void
         </button>
@@ -538,7 +539,7 @@ export function TransferForm({ pots, today, idPrefix = 'transfer' }: TransferFor
   const [state, formAction, pending] = useActionState(addTransferAction, initialActionState);
   if (pots.length < 2) {
     return (
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-ink-soft">
         Create at least two pots before moving money between them.
       </p>
     );
@@ -596,7 +597,7 @@ export function TransferForm({ pots, today, idPrefix = 'transfer' }: TransferFor
           placeholder="e.g. 50.00"
           className={inputClass}
         />
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Recorded as you see it; the ledger books it out of one pot and into the other.
         </p>
       </div>

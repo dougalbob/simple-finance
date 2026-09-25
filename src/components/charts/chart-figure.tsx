@@ -60,19 +60,19 @@ export function ChartFigure({
 }: ChartFigureProps) {
   return (
     <figure data-chart={chart} data-variant={variant} className="m-0">
-      <p data-chart-headline className="text-sm font-semibold text-slate-900 sm:text-base">
+      <p data-chart-headline className="text-sm font-semibold text-ink sm:text-base">
         {headline}
       </p>
       <div className="mt-2">{children}</div>
       {footer !== undefined ? <div className="mt-2">{footer}</div> : null}
-      <figcaption className="mt-2 text-xs leading-5 text-slate-500">
+      <figcaption className="mt-2 text-xs leading-5 text-ink-muted">
         <span
           className={`mr-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
             basis === 'Reported'
-              ? 'bg-emerald-50 text-emerald-800'
+              ? 'bg-positive-50 text-positive-800'
               : basis === 'Projected'
-                ? 'bg-amber-50 text-amber-900'
-                : 'bg-sky-50 text-sky-900'
+                ? 'bg-warning-50 text-warning-900'
+                : 'bg-accent-50 text-accent-900'
           }`}
         >
           {basis}
@@ -80,13 +80,13 @@ export function ChartFigure({
         {caption}
       </figcaption>
       <details className="mt-2">
-        <summary className="cursor-pointer text-xs font-medium text-slate-600">
+        <summary className="cursor-pointer text-xs font-medium text-ink-soft">
           Show the numbers ({rows.length} {rows.length === 1 ? 'row' : 'rows'})
         </summary>
         <div className="mt-2 overflow-x-auto">
           <table data-chart-table={chart} className="w-full text-xs">
             <caption className="sr-only">{headline}</caption>
-            <thead className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+            <thead className="text-left text-[11px] uppercase tracking-wide text-ink-muted">
               <tr>
                 {columns.map((column) => (
                   <th
@@ -105,7 +105,7 @@ export function ChartFigure({
               {rows.map((row) => (
                 <tr
                   key={row.key}
-                  className={`border-t border-slate-100 ${row.muted ? 'text-slate-400' : ''}`}
+                  className={`border-t border-border-hairline ${row.muted ? 'text-ink-faint' : ''}`}
                 >
                   {row.cells.map((cell, index) => (
                     <td
@@ -122,7 +122,7 @@ export function ChartFigure({
             </tbody>
             {totals !== undefined ? (
               <tfoot>
-                <tr className="border-t border-slate-300 font-semibold">
+                <tr className="border-t border-border-strong font-semibold">
                   {totals.map((cell, index) => (
                     <td
                       key={columns[index]?.key ?? index}
@@ -150,7 +150,7 @@ export function ChartLegend({
   items: Array<{ key: string; label: string; fill: string; note?: string }>;
 }) {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
       {items.map((item) => (
         <li key={item.key} className="flex items-center gap-1.5">
           <span
@@ -160,7 +160,7 @@ export function ChartLegend({
           />
           <span>
             {item.label}
-            {item.note !== undefined ? <span className="text-slate-400"> {item.note}</span> : null}
+            {item.note !== undefined ? <span className="text-ink-faint"> {item.note}</span> : null}
           </span>
         </li>
       ))}
