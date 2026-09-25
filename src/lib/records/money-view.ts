@@ -615,8 +615,17 @@ interface NextIncome {
   scheduleName: string | null;
 }
 
-function nextExpectedIncome(db: Db, today: string): NextIncome | null {
-  const schedule = db
+/**
+ * The earliest unconverted **receipt schedule** instance strictly after
+ * today — scheduled income only (the salary), already weekend-shifted.
+ * Shared by `nextExpectedIncome` and `nextScheduledIncomeDate` so there is
+ * one query for "the next payday on a schedule".
+ */
+function nextReceiptScheduleInstance(
+  db: Db,
+  today: string,
+): { dueDate: string; scheduleId: number; scheduleName: string } | undefined {
+  return db
     .select({
       dueDate: scheduleInstances.dueDate,
       scheduleId: schedules.id,
@@ -634,6 +643,21 @@ function nextExpectedIncome(db: Db, today: string): NextIncome | null {
     .orderBy(asc(scheduleInstances.dueDate), asc(scheduleInstances.id))
     .limit(1)
     .get();
+}
+
+/**
+ * The next **scheduled income** date (Horizon's default, SPEC §7.6, decision
+ * 150): receipt schedules only. Unlike `nextExpectedIncome` (§7.2/§7.7) a
+ * debt's expected support never counts — the household anchors the horizon
+ * on the salary, and borrowed money is never income (§10.2). null when no
+ * receipt schedule has an upcoming instance.
+ */
+export function nextScheduledIncomeDate(db: Db, today: string): string | null {
+  return nextReceiptScheduleInstance(db, today)?.dueDate ?? null;
+}
+
+function nextExpectedIncome(db: Db, today: string): NextIncome | null {
+  const schedule = nextReceiptScheduleInstance(db, today);
   const inflow = expectedInflowLines(db, today, null, null)[0] ?? null;
 
   const scheduleOption: NextIncome | null =

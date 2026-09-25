@@ -1123,6 +1123,27 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     filter. Typed filters and manually opened cards survive a form action, as before. Browser acceptance:
     the Recurring spec clicks the link and asserts URL, filter value, a single card and `aria-expanded`;
     the Contracts spec clicks "BroadbandCo card →" and asserts the same, then goes back.
+150. **Horizon opens on the day before the next scheduled income, and a date change applies itself (SPEC
+    §7.6, v0.13.0, household request 2026-09-25).** *Default:* a param-less visit (any `?pots=`/`?daytoday=`
+    still gets it) looks ahead to the day before the next **scheduled** income. The household clarified
+    "income" means the salary, so **only receipt schedules count** — a debt's expected support never sets the
+    default, even when it lands first; the payday window (§7.2) and the till figure (§7.7) keep counting it,
+    and the two definitions are allowed to differ (pinned by a test). Earliest receipt schedule wins, already
+    weekend-shifted. One query serves both reads (`nextReceiptScheduleInstance` →
+    `nextScheduledIncomeDate`, exported from `money-view.ts`); the rule is a pure resolver
+    (`lib/records/horizon-default.ts`, `resolveHorizonThrough`) with `tests/horizon-default.test.ts`
+    (12 cases). Clamp rules: income tomorrow ⇒ tomorrow (the income day — preferred over jumping to +35,
+    since it still answers "how do we reach payday"); beyond 400 days ⇒ today + 400; no scheduled income ⇒
+    today + 35 (unchanged); a valid in-range `?through=` is used unchanged. *Apply on change:* the form order
+    is pots → Day-to-day → date → button; a small client island (`HorizonLookAheadForm`) keeps the plain
+    `GET /horizon` form and calls `requestSubmit()` on the date's `change` — skipped when the field is empty
+    or `validity.valid` is false. Only the date auto-applies (a navigation per pot tick would make the
+    ordering pointless); the button stays for pots/Day-to-day and without JS. A `data-horizon-ready` flag
+    marks hydration for specs, and the form dims while the navigation is in flight. *Known quirk kept and
+    documented:* an empty pot selection still means every pot (now said under the checkboxes); changing that
+    is a separate household call. Browser acceptance: nine horizon specs (default date read against the
+    Income page's "Next payday", field order, date auto-applies, date carries pots + Day-to-day, clearing
+    does not navigate, the button still applies Day-to-day and pots, ≤ 6 weeks open).
 
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
@@ -1303,6 +1324,10 @@ src/lib/records/supplier-details.ts — reference pairs + interaction log as aud
 src/lib/records/supplier-focus.ts — v0.12.1 pure deep-link resolver for /suppliers (?supplierId= / ?id= /
                                 ?q= / #supplier-<id>) + `supplierCardHref`/`supplierFocusKey` (decision 149)
 tests/supplier-focus.test.ts  — v0.12.1: 15 cases over that resolver (stale ids, junk ids, the focus key)
+src/lib/records/horizon-default.ts — v0.13.0 pure Horizon default date (day before the next scheduled income,
+                                clamped; five-week fallback; explicit ?through= wins) — decision 150
+tests/horizon-default.test.ts — v0.13.0: 12 cases (the clamp table + scheduled-income-only against the DB)
+src/components/horizon-look-ahead-form.tsx — v0.13.0 client island: the GET form, date change submits
 src/app/api/restore/route.ts  — live in-place restore endpoint (confirmed, bounded, same-origin, authenticated)
 src/app/api/attachments/[fileKey]/route.ts — authenticated private serving (nosniff, no-store)
 src/components/backup-panel.tsx — Settings backup & restore UI (download + typed-confirmation restore)

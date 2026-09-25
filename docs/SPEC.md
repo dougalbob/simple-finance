@@ -275,7 +275,9 @@ projection (groceries/fuel vary by pot and payment method and would muddy a tran
 The payday projection answers "will we reach payday without dipping below zero?" The **horizon** answers a
 different question: **"if we only paid what is already expected, where would we land on date D — and how low
 would we go on the way?"** It is the same arithmetic as §7.2 with the window freed from the payday: the user
-picks any date up to 400 days ahead, and the engine runs to that date instead of to the next salary.
+picks any date up to 400 days ahead, and the engine runs to that date instead of to the next salary. The
+field **opens on the day before the next scheduled income** (v0.13.0, decision 150), so the out-of-the-box view
+answers *"where would we land the day before the salary lands?"*.
 
 ```days = throughDate − today             (whole days, local date arithmetic, today < throughDate ≤ today + 400)
 where_we'd_land = household_available_now
@@ -302,11 +304,28 @@ where_we'd_land = household_available_now
   recorded and the balance brought to zero or below — expects nothing, while a debt with no movements yet is
   *not* settled and projects from the day the plan was set (fixing the v0.5.0 gap where a brand-new debt, £0
   and no movements, projected nothing at all).
+- **The default date (v0.13.0, decision 150).** With no `?through=` (whatever else is in the URL), the date is
+  **the day before the next scheduled income** — the earliest upcoming instance of a *receipt schedule*,
+  already moved off a weekend (§11.3). Only scheduled income counts: a debt's expected support is borrowed
+  money, never income (§10.2), so it never sets the default, even when it lands first. This deliberately
+  differs from the payday window (§7.2) and the till figure (§7.7), which do count the support. The default is
+  clamped into the selectable window: income **tomorrow** ⇒ tomorrow (the income day itself, so that window
+  includes the salary — preferred to jumping to five weeks); income **beyond 400 days** ⇒ today + 400. With
+  **no scheduled income at all** the long-standing default stands: five weeks ahead (today + 35). An explicit
+  `?through=` that is valid and in range is always used as named. An annual-only income makes the default a
+  long window, so the detail blocks start collapsed (> 60 days) — honest, if heavier.
+- **Form order and applying (v0.13.0, decision 150).** The form reads top to bottom: **pots → Day-to-day →
+  "Look ahead to" date → "Look ahead" button**. Changing the **date** applies the look-ahead itself (the form
+  submits on the date's `change`), carrying the pots and Day-to-day chosen above it. Pots and Day-to-day do
+  **not** apply on their own — the button is their explicit control, and the whole path without JavaScript.
+  Clearing the date, or an invalid/out-of-range date, never submits (HTML validation still applies).
 - **Every pot is selected by default**; the household untick to scope the projection. A debt's expected
   inflow counts only while the pot its loan movements actually go through is selected.
 - **Search-params persistence:** the through date, pot selection and day-to-day toggle ride in the URL
   (`?through=…&pots=…&daytoday=…`), so a look-ahead can be shared and survives a refresh. The chosen date is
-  clamped to the window on load, exactly as the transaction window clamps its dates.
+  clamped to the window on load, exactly as the transaction window clamps its dates. An empty pot selection
+  means *every* pot, so unticking every pot and applying counts every pot again (the page says so under the
+  checkboxes).
 - **Detail blocks** (commitments, expected money in with the `expected` flag, day-by-day table) stay
   `<details open>` for windows of 60 days or less and start collapsed beyond that, so the honest inputs are
   one tap away without the page turning into a spreadsheet.
@@ -727,7 +746,7 @@ Menu pages:
 | **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag (on a phone the filter card collapses behind **Show filters**, starts open if any filter is already applied, and From/To date share a row); inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
 | **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money, **income**), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, a debt's expected support as flagged `EXP<` rows outside the totals (v0.7.0), and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
 | **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
-| **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead, scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), the projected day-to-day events (dated shops/fills, v0.6.0) and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
+| **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead (opens on the day before the next scheduled income; a date change applies itself, v0.13.0), scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), the projected day-to-day events (dated shops/fills, v0.6.0) and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
 | **Income** | Money coming in: the scheduled income (salary) that converts itself, editable in place from the next instance onward; one-off income recorded by hand with an optional source; and one list of everything received — scheduled and one-off together, with inline correction, void and the retained history. Income is desktop-shaped by the household's choice: it is not a till-side task, so nothing here is squeezed into the mobile quick-entry panel. |
 | **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
