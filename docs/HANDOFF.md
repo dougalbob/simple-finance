@@ -3,10 +3,10 @@
 Date: 2026-09-25. Branch: `arena/01a0d778-simple-finance` (from `main` @ `5cb28e3`, the v0.9.0 merge
 plus its release commit).
 
-**Released as v0.10.0** — the tag, merge commit and digest are stamped in
-[`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md) once published (this file is written before the
-merge, because the branch cannot be pushed after it). The household's two steps in Unraid: back up, then
-Force Update. The version-badge check is `v0.10.0 · pre-release`.
+**Released as v0.10.0 on 2026-09-25** — annotated tag `v0.10.0` on merge commit `3f18a62` (PR #45), digest
+`sha256:02a7321e…1269e6` on `v0.10.0` / `latest` / `sha-3f18a62`. The household's two steps in Unraid: back
+up, then Force Update. Facts are stamped in [`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md); the
+version-badge check is `v0.10.0 · pre-release`.
 
 **Why this session started:** the previous session committed four post-v0.9.0 fixes while GitHub was having
 an outage; the push never landed and the sandbox was lost. They were re-done here from their description
