@@ -100,7 +100,7 @@ describe('migration 0009 on an installation that already has receipts', () => {
       assert.throws(() =>
         raw.prepare(`UPDATE purchases SET fuel_millilitres = -5 WHERE id = 1`).run(),
       );
-      assert.equal(raw.pragma('foreign_key_check').length, 0);
+      assert.deepEqual(raw.pragma('foreign_key_check'), []);
       assert.equal(raw.pragma('integrity_check', { simple: true }), 'ok');
     } finally {
       handle.raw.close();

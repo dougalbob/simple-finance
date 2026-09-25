@@ -102,6 +102,41 @@ test.describe('income', () => {
     expect(new Date(`${next}T12:00:00Z`).getUTCDay()).toBe(5); // Friday
   });
 
+  test('a payslip can be attached to an income record and opened', async ({ page }) => {
+    test.slow();
+    await page.goto('/income');
+    const form = page.locator('section[aria-labelledby="one-off-income-heading"]');
+    await form.getByLabel('Amount received').fill('1234.56');
+    await form.getByLabel('Into which pot?').selectOption({ label: 'Salary account' });
+    await form.getByLabel('What was it / who from? (optional)').fill('Playwright Payroll Ltd');
+    await form.getByRole('button', { name: 'Record income' }).click();
+    await expect(form.getByRole('status')).toContainText(/Playwright Payroll Ltd/i);
+
+    const list = page.locator('section[aria-labelledby="income-history-heading"]');
+    const row = list.locator('li', { hasText: 'Playwright Payroll Ltd' }).first();
+    // Decision 138: the pipeline sniffs the bytes, so this must be a real
+    // (tiny, fictional) PDF — never a household payslip.
+    await row.getByLabel('Payslip or document file').setInputFiles({
+      name: 'fictional-payslip.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'),
+    });
+    await row.getByRole('button', { name: 'Attach payslip' }).click();
+    const link = row.getByRole('link', { name: /fictional-payslip\.pdf/ });
+    await expect(link).toBeVisible({ timeout: 30_000 });
+    const href = await link.getAttribute('href');
+    expect(href).toMatch(/^\/api\/attachments\/[0-9a-f-]+\.pdf$/);
+    const served = await page.request.get(href!);
+    expect(served.status()).toBe(200);
+    expect(served.headers()['content-type']).toBe('application/pdf');
+
+    // Still there after a fresh load; the upload control stays for a second page.
+    await page.reload();
+    const again = list.locator('li', { hasText: 'Playwright Payroll Ltd' }).first();
+    await expect(again.getByRole('link', { name: /fictional-payslip\.pdf/ })).toBeVisible();
+    await expect(again.getByRole('button', { name: 'Attach payslip' })).toBeVisible();
+  });
+
   test('a scheduled income can be added and appears with its next payday', async ({ page }) => {
     test.slow();
     await page.goto('/income');
@@ -141,7 +176,10 @@ function weekendPaydayProbe(): { dayOfMonth: number } {
     const dayOfMonth = candidate.getUTCDate();
     if (dayOfMonth > 28) continue;
     const backDays = weekday === 6 ? 1 : 2;
-    if (stamp - backDays * 86_400_000 < base) continue;
+    // Strictly after today: a Friday that *is* today may already have been
+    // received (the seeded salary on the 27th is, when the 27th is a Sunday),
+    // and then the next instance is a month later — not a weekend.
+    if (stamp - backDays * 86_400_000 <= base) continue;
     return { dayOfMonth };
   }
   throw new Error('no weekend payday found in the next 70 days');

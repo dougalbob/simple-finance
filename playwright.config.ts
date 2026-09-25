@@ -106,6 +106,14 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project (v0.10.0): adds its own vehicle and three fuel fills, so it
+      // runs after the specs that assert Insights and vehicle lists, and before
+      // the backup project's restore rewinds the installation.
+      name: 'fuel',
+      testMatch: /fuel\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },
