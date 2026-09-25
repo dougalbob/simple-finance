@@ -33,6 +33,34 @@ async function pickChip(entry: Locator, group: string, label: string): Promise<v
   await expect(radios.getByRole('radio', { name: label })).toBeChecked();
 }
 
+/**
+ * Nothing the household did not tap is focused (decision 151).
+ *
+ * Focus at the till moves only as the answer to something they did — tapping a
+ * field, Enter in Supplier, Next, "+ Note", "Add another" — never as a
+ * side-effect of the till becoming ready or of a type tab appearing. A tab
+ * button they just tapped keeps its own focus; a text field the page focused by
+ * itself is the bug this guards.
+ */
+async function expectNoFieldFocused(page: Page): Promise<void> {
+  const active = await page.evaluate(() => {
+    const element = document.activeElement;
+    if (element === null) return null;
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'body' || tag === 'html') return null;
+    return {
+      tag,
+      name: element.getAttribute('name'),
+      inTill: element.closest('[data-till-ready]') !== null,
+    };
+  });
+  const fields = ['input', 'select', 'textarea'];
+  expect(
+    active === null || !fields.includes(active.tag),
+    `a field was focused without the household tapping it: ${JSON.stringify(active)}`,
+  ).toBe(true);
+}
+
 /** A real finger on the glass: Chromium touch events through CDP. */
 async function drag(
   page: Page,
@@ -396,14 +424,80 @@ test.describe('mobile quick entry', () => {
     await expect(list).toHaveCount(0);
   });
 
-  test('the till lands on the supplier once it is listening', async ({ page }) => {
+  test('the home page opens with nothing focused, and does not scroll itself', async ({ page }) => {
     await page.goto('/');
     await waitForTill(page);
     const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
-    // SPEC §15.1 focus order: who you paid → how much → save. The form used to
-    // try to focus the supplier while it was still inert (before hydration
-    // finished), which silently did nothing.
-    await expect(entry.locator('input[name="supplierName"]')).toBeFocused();
+
+    // Decision 151: nothing takes focus when the till opens. On the household's
+    // real phone the old autofocus raised the on-screen keyboard, the browser
+    // scrolled the focused field above it, and the Purchase / Fuel / Balance /
+    // Move tab strip went off the top of the screen with it (measured here
+    // before the fix: the page jumped 1342px and the tab strip sat at y=-35).
+    await expectNoFieldFocused(page);
+
+    // The page has not moved by itself: the household opens the app at the top,
+    // where the household total and the projection are, and scrolls to the till
+    // when they want it. Playwright has no reliable on-screen-keyboard signal,
+    // so the scroll position and the tab strip's own box are the proxies.
+    const scrolled = await page.evaluate(() => window.scrollY);
+    expect(scrolled, `the page scrolled itself ${scrolled}px on open`).toBe(0);
+
+    // Everything the card shows in its first paint is there without a tap:
+    // the type tabs, the pot, and what is left before income lands.
+    await expect(entry.getByRole('tab', { name: 'Purchase' })).toBeVisible();
+    await expect(entry.getByLabel('Pot').locator('option:checked')).toHaveText('Main account');
+    await expect(entry.getByText('Free to spend before income')).toBeVisible();
+
+    // Scrolled to the till the way the household scrolls to it: the type tabs
+    // are inside the viewport, so a different mode is one tap away.
+    await entry.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+    const tabs = entry.getByRole('tablist', { name: 'Quick entry type' });
+    await expect(tabs).toBeVisible();
+    const box = await tabs.boundingBox();
+    const viewport = page.viewportSize();
+    expect(box).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    if (box === null || viewport === null) return;
+    expect(box.y, `tab strip top at y=${box.y}`).toBeGreaterThanOrEqual(0);
+    expect(
+      box.y + box.height,
+      `tab strip bottom at y=${box.y + box.height} on a ${viewport.height}px screen`,
+    ).toBeLessThanOrEqual(viewport.height);
+
+    // That scroll was ours, not the browser's answer to a focus call.
+    await expectNoFieldFocused(page);
+  });
+
+  test('choosing a type does not grab a field: Fuel, Balance and Move wait to be tapped', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForTill(page);
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+
+    // The same rule as the opening page (decision 151), one level down:
+    // choosing a *type* is not choosing a field. The Fuel amount and the
+    // Balance figure used to autofocus as the tab appeared, with the same
+    // keyboard-and-scroll cost on a phone.
+    await entry.getByRole('tab', { name: 'Fuel' }).click();
+    await expect(entry.getByLabel('Fuel amount')).toBeVisible();
+    await expectNoFieldFocused(page);
+
+    await entry.getByRole('tab', { name: 'Balance' }).click();
+    await expect(entry.getByLabel('Balance now')).toBeVisible();
+    await expectNoFieldFocused(page);
+
+    await entry.getByRole('tab', { name: 'Move' }).click();
+    await expect(entry.getByLabel('From pot')).toBeVisible();
+    await expectNoFieldFocused(page);
+
+    // Tapping the field itself still works, and still focuses it — the
+    // household's tap, not the page's idea.
+    await entry.getByRole('tab', { name: 'Balance' }).click();
+    const balance = entry.getByLabel('Balance now');
+    await balance.click();
+    await expect(balance).toBeFocused();
   });
 
   test('one tap on Next moves on, even with the supplier suggestions open', async ({ page }) => {
