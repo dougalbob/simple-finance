@@ -38,6 +38,22 @@ settings key** in one release.
 
 ## Watch out for (learned this session)
 
+- **A controlled select before hydration is a silent black hole (proven 2026-09-25).** The merge's
+  `browser` job flaked on `desktop.spec.ts`'s vehicle picker: `selectOption` landed before
+  `PurchaseFilterForm` hydrated, React state stayed empty and the dependent Target select never
+  populated — DOM and state visibly disagreed (a delayed-JS probe reproduces it on demand). The form
+  now carries the decision-131 signal (`data-filters-ready` + `inert`), `waitForFilters` lives in
+  `e2e/support.ts`, and the spec's fixture name is unique per retry. Any client island with controlled
+  inputs needs the same signal before a test drives it — check the next form you touch.
+- **`getDbHandle()` compared a raw path with a resolved one.** With a relative `DATA_DIR`/
+  `DATABASE_PATH` the identity check never matched, so every call closed and reopened the handle and
+  `/settings` (the only double caller) 500'd mid-render with "The database connection is not open".
+  Fixed in the v0.14.0 stamp (`path.resolve` on both sides · `tests/db-handle.test.ts`) — but still
+  start the dev preview with absolute paths (`DATA_DIR=$PWD/…`). SANDBOX entry 12.
+- **The Arena GitHub connector drops mid-session.** Reconnect windows (batch the remote work, toggle on
+  request, verify, report completed steps on any 401) are now standard practice for every release —
+  read SANDBOX entry 13 before touching GitHub in a release session.
+
 - **The screenshots found what the assertions could not.** Headless Chromium (SANDBOX entry 8) rendered
   `/charts` at 1400px and 320px, and reading the PNGs back caught two real defects no locator would have:
   the groceries reference labels printed on top of each other (fixed by alternating start/end and a white
@@ -59,7 +75,10 @@ settings key** in one release.
 
 ## Test state
 
-`npm test`: **459 tests / 111 suites green** (43 new). `format:check`, `tsc --noEmit`, `next build` and
+`npm test`: **459 tests / 111 suites green** (43 new). The v0.14.0 stamp adds `tests/db-handle.test.ts`
+(the `getDbHandle` identity check with a relative path) and `waitForFilters` in `e2e/support.ts` —
+**461 tests / 112 suites** green after it, Playwright still **70 tests green** with the hardened filter
+form. `format:check`, `tsc --noEmit`, `next build` and
 `npm audit --omit=dev` clean. Local Playwright (SANDBOX entry 8 recipe, `playwright.local.config.ts`,
 git-excluded): **70 tests green** across every project, including the new `charts` project (7 specs). CI's
 `browser` job is the gate and went green on the PR and on the `main` merge commit.

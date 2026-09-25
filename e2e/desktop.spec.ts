@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addDaysIso, londonToday, waitForTill } from './support';
+import { addDaysIso, londonToday, waitForFilters, waitForTill } from './support';
 
 /**
  * Desktop review paths (blueprint §12): the dense overview, the purchases table
@@ -309,7 +309,10 @@ test.describe('desktop review', () => {
     // This changes only household configuration. It deliberately does not add
     // a receipt or any financial data.
     test.slow();
-    const newVehicle = 'Vehicle C';
+    // Unique per retry: the database survives a retry, so a hard-coded name
+    // turns every retry into "There is already a vehicle called …".
+    const newVehicle =
+      test.info().retry === 0 ? 'Vehicle C' : `Vehicle C (retry ${test.info().retry})`;
     await page.goto('/settings');
     const addVehicle = page.getByRole('form', { name: 'Add vehicle' });
     await addVehicle.getByLabel('Name').fill(newVehicle);
@@ -331,10 +334,11 @@ test.describe('desktop review', () => {
     ).toHaveCount(1);
 
     await page.goto('/purchases');
-    await page.getByLabel('Target type').selectOption('vehicle');
-    await expect(page.getByLabel('Target').locator('option', { hasText: newVehicle })).toHaveCount(
-      1,
-    );
+    await waitForFilters(page);
+    await page.getByLabel('Target type', { exact: true }).selectOption('vehicle');
+    await expect(
+      page.getByLabel('Target', { exact: true }).locator('option', { hasText: newVehicle }),
+    ).toHaveCount(1);
 
     await page.goto('/recurring');
     await expect(page.locator('select[name="target"] option', { hasText: newVehicle })).toHaveCount(

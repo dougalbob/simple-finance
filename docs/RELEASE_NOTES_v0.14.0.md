@@ -1,9 +1,11 @@
 # Release notes — v0.14.0 (Charts: the money, drawn)
 
-**Published:** _pending — completed at publication._
-**Merge commit:** _pending_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.14.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _pending_
+**Published:** 2026-09-25 (tag pushed 19:27 UTC, image verified in the registry 19:29 UTC).
+**Merge commit:** `d013d8f0a6af09589a62f3586e20adc34e5fd0f1` (PR #58; short SHA `d013d8f`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.14.0` · `latest` · `sha-d013d8f`
+**Digest:** `sha256:b0caec1f3ea78bc806667f56b8ee4608ab44da2894cd0fb494a2c9bab1835ed6`, one digest for all
+three tags, different from v0.13.1's `sha256:cced2519…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36179770697` passed).
 **Version badge:** `v0.14.0 · pre-release`
 
 ## What changed
@@ -100,6 +102,15 @@ that one Settings form.
 reconciling every chart figure against an independent sum over the recorded purchases). Formatting,
 TypeScript and the production build clean. Playwright 70 tests green locally across every project,
 including 7 new charts specs at 320px, 360px with 130% text, and 1400px.
+
+One CI footnote, stated plainly: the merge commit's `browser` job went red once on the vehicle-picker
+spec in `desktop.spec.ts` — a hydration race, not a defect in this release's code. The spec changed a
+controlled select before the `/purchases` filter island had hydrated, so React swallowed the change and
+the Target picker never populated (reproduced and proven afterwards with a delayed-JS probe; the same
+suite is 70/70 green on the exact tagged tree, locally and in every earlier CI run of it). The filter
+form now carries the decision-131 ready signal (`data-filters-ready`, `inert` until hydrated), and the
+spec waits for it and uses a retry-unique fixture name — those land immediately after publication, in
+the change-set that carries these notes.
 
 ## Version badge
 
