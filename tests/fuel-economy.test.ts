@@ -28,7 +28,7 @@ import { VersionConflictError } from '../src/lib/records/errors';
 import { createHouseholdFixture, type HouseholdFixture } from './household';
 
 /**
- * Fuel economy (SPEC §16.4, v0.10.0 — decisions 139–141): full tank to full
+ * Fuel economy (SPEC §16.6, v0.10.0 — decisions 139–141): full tank to full
  * tank, UK gallons, nothing guessed. The pure calculation first, then the
  * database layer: the optional details on the fuel entry, the later edit and
  * the Insights view.

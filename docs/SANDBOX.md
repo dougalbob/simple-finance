@@ -171,6 +171,23 @@ server-rendered HTML kept coming from the pre-edit module.)
 fresh `scripts/e2e-server.mts` start after clearing `.next` rendered the attribute immediately. Do not
 conclude the code is wrong from a `curl` against a long-running dev server.
 
+## 10. Unpushed commits die with the sandbox — push after every step (2026-09-25)
+
+**What happened:** after v0.9.0 was published, session `arena/01a0d55f-simple-finance` committed four
+follow-up fixes locally (decisions 134–137) while GitHub was having an outage, so the push never landed.
+That sandbox was then gone; the next session found `main` and the session branch still at the v0.9.0 merge
+and had to re-implement the fixes from the conversation's description (session
+`arena/01a0d778-simple-finance`, v0.10.0).
+
+**What to do:** push the session branch after **every** commit (`git push origin <session branch>`) and check
+it with `git ls-remote origin <session branch>` — a local commit is not saved work. If a push fails, say so
+to the household at once and keep a note of what is unpushed in `docs/HANDOFF.md` at the next successful
+push, rather than carrying on for several commits.
+
+**Related trap:** `npm run format:check` runs `prettier --check .`, which also sees the untracked,
+git-excluded `playwright.local.config.ts` from entry 8. CI never has that file, so it cannot fail CI, but the
+local check reports it — run `npx prettier --write playwright.local.config.ts` once after creating it.
+
 ---
 
 ## History
@@ -185,6 +202,10 @@ conclude the code is wrong from a `curl` against a long-running dev server.
   specs (`e2e/support.ts` · `waitForTill`) and in the pot guard (decision 132). Entry 9 records the Turbopack
   dev-cache surprise found on the way. Everything else behaved as recorded: `npm ci --ignore-scripts`,
   `npm test`, `tsc --noEmit`, `format:check`, `next build` all green locally.
+- **2026-09-25 (v0.10.0, session `arena/01a0d778-simple-finance`):** entry 10 added after the post-v0.9.0
+  commits were lost with their sandbox. Entry 8 re-proved from scratch in a fresh sandbox (Debian 12 image,
+  `libnss3` still missing without `LD_LIBRARY_PATH`): the full suite, now 55 tests, green in ~2.3 minutes.
+  `npm test` 376/95, `tsc --noEmit`, `format:check` and `next build` green locally.
 - **2026-09-22:** Initial entries after v0.1.8 (category-tree revalidation). Verified in this sandbox: `npm ci --ignore-scripts` → 86 packages, 248/248 Node tests, `next build` green, Playwright blocked as above. Source: session `arena/01a0ca74-simple-finance` discussion 2026-09-22 19:xx UTC.
 - **2026-09-23:** Committed in v0.1.9 and every claim above re-probed in a **fresh** sandbox (session `arena/01a0cc97-simple-finance`), since uncommitted working-tree drafts do not survive between sessions. All reproduced: 86 packages, 248/248 tests, 67 suites, `tsc --noEmit` clean, `prettier --check .` clean, `next build` 15 routes, `npm audit --omit=dev` 0 vulnerabilities. Hosts re-confirmed — `nodejs.org` / `cdn.playwright.dev` / `objects.githubusercontent.com` fail with curl exit 35 (`SSL_ERROR_SYSCALL`), `deb.debian.org` with exit 52 and `apt-get update` failing all three indices at `151.101.x.x:80`, while `registry.npmjs.org`, `api.github.com` and `codeload.github.com` return HTTP/2 200. Missing browser libs re-confirmed absent via `ldconfig` (`libnss3`, `libgbm`, `libgtk-3`, `libxdamage`, `libxkbcommon`) and no `Xvfb`. One correction: `~/.nodebuild/nodedir` did not exist in the fresh sandbox, so entry 1 now says plainly that the header tree must be assembled first.
 - **2026-09-23 (later, same session):** entries 6 and 7 added after hitting them while verifying the v0.1.9 publish. `ghcr.io` blocked with curl exit 35 including the anonymous pull-token endpoint, and no Docker daemon, so registry verification went via the publish workflow's step conclusion plus `/users/dougalbob/packages/container/simple-finance/versions` on `api.github.com` — note the **user** scope (`/orgs/...` 404s) and that the digest is the `name` field, since `digest` is always `null`. GitHub Actions log text blocked via `productionresultssa5.blob.core.windows.net`, so step conclusions were read instead. v0.1.9 resolved to `sha256:7b7d053dd4e2451c2076747acbe7a27fb0da89bc5847d042707ec244707a6b4d` on tags `v0.1.9` / `latest` / `sha-9393a85`, differing from v0.1.8's `sha256:da65d23e…`, which was not retagged.

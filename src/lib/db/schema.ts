@@ -184,7 +184,7 @@ export const purchases = sqliteTable(
      * positive when present (column CHECKs in migration 0009). Litres are held
      * as whole millilitres, the way money is held as whole pence.
      * `fuelFullTank` marks a fill to the brim: mpg is measured between two of
-     * those (SPEC §16.4). Non-fuel purchases carry the default and ignore it.
+     * those (SPEC §16.6). Non-fuel purchases carry the default and ignore it.
      */
     odometerMiles: integer('odometer_miles'),
     fuelMillilitres: integer('fuel_millilitres'),

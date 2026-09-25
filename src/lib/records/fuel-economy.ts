@@ -1,5 +1,5 @@
 /**
- * Fuel economy (SPEC §16.4, v0.10.0 — decisions 139–141). Pure: no database,
+ * Fuel economy (SPEC §16.6, v0.10.0 — decisions 139–141). Pure: no database,
  * no clock. The DB assembly lives in `fuel.ts`, so the Insights panel, the
  * after-save sentence and the tests all share this one code path.
  *

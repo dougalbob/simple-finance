@@ -9,7 +9,7 @@ import { openDatabase } from '../src/lib/db/client';
 import { applyMigrations } from '../src/lib/db/migrate';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
 import { APP_VERSION } from '../src/lib/version';
-import { makeTempDir } from './helpers';
+import { makeTempDir, migrationsFolderBefore } from './helpers';
 
 const PASSWORD = 'correct-horse-battery-staple';
 
@@ -124,6 +124,76 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       assert.equal(countRows(summary.previousPreservedAs, 'pots'), 1); // old data preserved
     } finally {
       source.raw.close();
+    }
+  });
+
+  it('brings a backup from an older version up to this schema before it goes live', async () => {
+    // v0.10.0: a live restore reopens without the entrypoint's migration run,
+    // so the restore itself upgrades an archive taken on v0.9.0 (0000…0008).
+    const dir = await makeTempDir('sf-restore-older-');
+    const older = openDatabase(path.join(dir, 'v0.9.0.sqlite'));
+    let backup: Awaited<ReturnType<typeof createEncryptedBackup>>;
+    try {
+      applyMigrations(older.db, await migrationsFolderBefore('0009_income_documents_fuel_details'));
+      createPot(older.db, { label: 'Main account', kind: 'bank', actor: 'alex@example.com' });
+      backup = await createEncryptedBackup({ handle: older, password: PASSWORD });
+    } finally {
+      older.raw.close();
+    }
+    const target = path.join(
+      await makeTempDir('sf-restore-older-target-'),
+      'simple-finance.sqlite',
+    );
+    await restoreEncryptedBackup({
+      archive: backup.bytes,
+      password: PASSWORD,
+      targetDatabasePath: target,
+    });
+    assert.equal(countRows(target, '__drizzle_migrations'), 10);
+    assert.equal(countRows(target, 'pots'), 1);
+    const db = new Database(target, { readonly: true });
+    try {
+      const purchaseColumns = (
+        db.prepare('PRAGMA table_info(purchases)').all() as Array<{ name: string }>
+      ).map((column) => column.name);
+      assert.ok(purchaseColumns.includes('odometer_miles'));
+      assert.ok(purchaseColumns.includes('fuel_millilitres'));
+      const attachmentColumns = (
+        db.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
+      ).map((column) => column.name);
+      assert.ok(attachmentColumns.includes('receipt_id'));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses a backup from a newer version and leaves the installation alone', async () => {
+    const handle = await seededHandle();
+    try {
+      // A migration this build has never heard of, applied after all of ours.
+      handle.raw
+        .prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
+        .run('from-the-future', Date.UTC(2099, 0, 1));
+      const backup = await createEncryptedBackup({ handle, password: PASSWORD });
+      const target = path.join(await makeTempDir('sf-restore-newer-'), 'simple-finance.sqlite');
+      const existing = openDatabase(target);
+      applyMigrations(existing.db);
+      createPot(existing.db, { label: 'Keep me', kind: 'cash', actor: 'sam@example.com' });
+      existing.raw.close();
+
+      await assert.rejects(
+        () =>
+          restoreEncryptedBackup({
+            archive: backup.bytes,
+            password: PASSWORD,
+            targetDatabasePath: target,
+          }),
+        (err: unknown) => err instanceof RestoreError && /newer version/.test(err.message),
+      );
+      assert.equal(countRows(target, 'pots'), 1);
+      assert.equal(countRows(target, 'checkpoints'), 0);
+    } finally {
+      handle.raw.close();
     }
   });
 

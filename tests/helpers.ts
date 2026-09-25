@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import http from 'node:http';
+import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -88,4 +89,27 @@ export function headerSource(headers: Record<string, string>): {
   const lower: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) lower[key.toLowerCase()] = value;
   return { get: (name: string) => lower[name.toLowerCase()] ?? null };
+}
+
+/**
+ * A copy of the checked-in migrations folder as an older release shipped it:
+ * every migration up to, but not including, `firstMissingTag` (e.g.
+ * '0009_income_documents_fuel_details' gives v0.9.0's 0000…0008). For upgrade
+ * tests — a database migrated with this folder is shaped like that release's.
+ */
+export async function migrationsFolderBefore(firstMissingTag: string): Promise<string> {
+  const dir = path.join(await makeTempDir('sf-migrations-'), 'drizzle');
+  cpSync(path.resolve('drizzle'), dir, { recursive: true });
+  const journalPath = path.join(dir, 'meta', '_journal.json');
+  const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+    entries: Array<{ idx: number; tag: string }>;
+  };
+  const cut = journal.entries.find((entry) => entry.tag === firstMissingTag);
+  if (cut === undefined) throw new Error(`no migration tagged ${firstMissingTag}`);
+  for (const entry of journal.entries.filter((e) => e.idx >= cut.idx)) {
+    rmSync(path.join(dir, `${entry.tag}.sql`));
+  }
+  journal.entries = journal.entries.filter((entry) => entry.idx < cut.idx);
+  writeFileSync(journalPath, JSON.stringify(journal));
+  return dir;
 }

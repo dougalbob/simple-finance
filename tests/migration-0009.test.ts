@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { openDatabase } from '../src/lib/db/client';
 import { applyMigrations } from '../src/lib/db/migrate';
-import { makeTempDir } from './helpers';
+import { makeTempDir, migrationsFolderBefore } from './helpers';
 
 /**
  * Migration 0009 (v0.10.0) rebuilds the `attachments` table so a document can
@@ -18,17 +17,7 @@ describe('migration 0009 on an installation that already has receipts', () => {
   it('keeps every attachment and purchase exactly as it was', async () => {
     const dir = await makeTempDir('sf-mig0009-');
     // A migrations folder as v0.9.0 shipped it: 0000…0008.
-    const before = path.join(dir, 'drizzle-v0.9.0');
-    cpSync(path.resolve('drizzle'), before, { recursive: true });
-    rmSync(path.join(before, '0009_income_documents_fuel_details.sql'));
-    const journalPath = path.join(before, 'meta', '_journal.json');
-    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
-      entries: Array<{ tag: string }>;
-    };
-    journal.entries = journal.entries.filter(
-      (entry) => entry.tag !== '0009_income_documents_fuel_details',
-    );
-    writeFileSync(journalPath, JSON.stringify(journal));
+    const before = await migrationsFolderBefore('0009_income_documents_fuel_details');
 
     const handle = openDatabase(path.join(dir, 'upgrade.sqlite'));
     try {

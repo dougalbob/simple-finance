@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { waitForTill } from './support';
 
 /**
- * Fuel economy (v0.10.0 — plan decisions 139–141, SPEC §15.1/§16.4).
+ * Fuel economy (v0.10.0 — plan decisions 139–141, SPEC §15.1/§16.6).
  *
  * One story, told the way the household would: a full tank with the
  * odometer, a quick part fill, then a full tank recorded in a hurry with no

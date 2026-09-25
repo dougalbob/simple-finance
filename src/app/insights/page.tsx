@@ -438,7 +438,7 @@ function HonestyComparison({
   );
 }
 
-/** One vehicle's mpg card (SPEC §16.4, v0.10.0 — decision 140). */
+/** One vehicle's mpg card (SPEC §16.6, v0.10.0 — decision 140). */
 function FuelEconomyCard({ vehicle }: { vehicle: VehicleFuelEconomyView }) {
   return (
     <div

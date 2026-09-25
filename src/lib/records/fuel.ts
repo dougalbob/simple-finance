@@ -26,7 +26,7 @@ import { PurchaseNotFoundError, type Purchase } from './purchases';
 import { listVehicles } from './vehicles';
 
 /**
- * Fuel details and fuel economy against the database (SPEC §15.1, §16.4 —
+ * Fuel details and fuel economy against the database (SPEC §15.1, §16.6 —
  * v0.10.0, decisions 139–141). The arithmetic is `fuel-economy.ts`'s; this
  * module only finds the fills and writes the details.
  *
@@ -301,7 +301,7 @@ export interface VehicleFuelEconomyView {
 export const FUEL_RECENT_FILLS = 6;
 export const FUEL_MISSING_WINDOW_DAYS = 120;
 
-/** The Insights panel (SPEC §16.4): one card per vehicle, every vehicle listed. */
+/** The Insights panel (SPEC §16.6): one card per vehicle, every vehicle listed. */
 export function getFuelEconomyView(db: Db, nowArg?: Date): VehicleFuelEconomyView[] {
   const now = nowArg ?? new Date();
   const today = toLocalDateString(now);
