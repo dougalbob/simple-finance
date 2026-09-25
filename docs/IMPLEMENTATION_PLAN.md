@@ -1165,6 +1165,19 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 
 ## Release history
 
+- **v0.13.0 — Horizon opens at the next payday window, and date changes apply immediately (session
+  `arena/01a0d8b1-simple-finance` + release completion on `arena/01a0d912-simple-finance`, from `main` @
+  `7a2a3a4`, the v0.12.1 merge)**: Horizon defaults the through date to the day before the next scheduled
+  **receipt schedule** (salary only — a debt's expected support never sets the default), and changing the
+  look-ahead date applies itself (decision **150**). Pure resolver `src/lib/records/horizon-default.ts`
+  with `tests/horizon-default.test.ts` (12 cases); client island
+  `src/components/horizon-look-ahead-form.tsx`; browser suite extended to 9 horizon specs. No schema
+  change, no migration. `npm test` **416 tests / 103 suites green**, format, typecheck and production
+  build clean, local Playwright **62 tests green**. **Published 2026-09-25**: annotated tag `v0.13.0` on
+  merge commit `8fcc65b` (PR #54), publish run `36152070421`, digest
+  `sha256:5264c114054935f76ddd59238ddb6f0fff1e552ab2005a6a8a937ab38a084df0` on `v0.13.0` / `latest` /
+  `sha-8fcc65b` — one digest, different from v0.12.1's
+  ([`docs/RELEASE_NOTES_v0.13.0.md`](RELEASE_NOTES_v0.13.0.md)).
 - **v0.12.1 — a "Supplier card" link opens that supplier (session `arena/01a0d879-simple-finance`, from
   `main` @ `63c77c7`, the v0.12.0 merge)**: the links v0.12.0 painted on Recurring Payments and Contracts &
   Renewals pointed at a bare `/suppliers`. They now carry `/suppliers?supplierId=<id>` and the page opens

@@ -1,11 +1,11 @@
 # Release notes — v0.13.0 (Horizon opens at the next payday window, and date changes apply immediately)
 
-**Published:** 2026-09-25 (tag pushed PENDING, image verified in the registry PENDING).
-**Merge commit:** `PENDING` (PR #PENDING; short SHA `PENDING`)
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.13.0` · `latest` · `sha-PENDING`
-**Digest:** `sha256:PENDING`, one digest for all three tags, different from v0.12.1's
-`sha256:4fe6c12f…` (verified through `/users/dougalbob/packages/container/simple-finance/versions` after
-Publish run `PENDING` passed).
+**Published:** 2026-09-25 (tag pushed 15:07 UTC, image verified in the registry 15:10 UTC).
+**Merge commit:** `8fcc65b7f799236c1fc22d753de407f4ff232f46` (PR #54; short SHA `8fcc65b`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.13.0` · `latest` · `sha-8fcc65b`
+**Digest:** `sha256:5264c114054935f76ddd59238ddb6f0fff1e552ab2005a6a8a937ab38a084df0`, one digest for all
+three tags, different from v0.12.1's `sha256:4fe6c12f…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions` after Publish run `36152070421` passed).
 **Version badge:** `v0.13.0 · pre-release`
 
 ## What changed
