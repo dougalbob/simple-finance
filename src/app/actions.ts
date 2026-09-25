@@ -54,10 +54,13 @@ import {
 import {
   createPerson,
   DuplicatePersonLabelError,
+  InvalidPersonEmailError,
   InvalidPersonLabelError,
   listPeople,
   renamePerson,
+  setPersonEmail,
 } from '@/lib/records/people';
+import { signInEmailChoices } from '@/lib/auth/sign-in-choices';
 import {
   createPurchase,
   createRefund,
@@ -1103,6 +1106,45 @@ export async function saveDefaultPurchasePotAction(
       return { status: 'error', message: err.message };
     }
     return { status: 'error', message: 'The default pot could not be saved. Please try again.' };
+  }
+}
+
+/**
+ * "Signs in as" (SPEC §15.2, decision 146): which allowlisted sign-in is
+ * which person, so the till defaults Paid by and the vehicle to whoever is
+ * holding the phone. Empty unlinks.
+ */
+export async function savePersonEmailAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+  const personId = Number(formData.get('personId'));
+  const raw = formData.get('email');
+  const email = typeof raw === 'string' && raw.trim() !== '' ? raw.trim().toLowerCase() : null;
+  if (!Number.isInteger(personId) || personId <= 0) {
+    return { status: 'error', message: 'That person could not be found.' };
+  }
+  try {
+    const db = getDbHandle().db;
+    const updated = setPersonEmail(db, {
+      id: personId,
+      email,
+      allowedEmails: signInEmailChoices(loadAppConfig(), listPeople(db)),
+      actor: user.email,
+    });
+    revalidatePages();
+    return {
+      status: 'ok',
+      message:
+        email === null
+          ? `${updated.label} is not linked to a sign-in.`
+          : `Saved — ${updated.label} signs in as ${email}.`,
+    };
+  } catch (err) {
+    if (err instanceof InvalidPersonEmailError) return { status: 'error', message: err.message };
+    return { status: 'error', message: 'The sign-in link could not be saved. Please try again.' };
   }
 }
 

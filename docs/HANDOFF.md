@@ -1,81 +1,63 @@
-# Handoff — payslips on income, fuel economy, and the lost till fixes (v0.10.0)
+# Handoff: the till fits the phone, and fuel defaults (v0.11.0)
 
-Date: 2026-09-25. Branch: `arena/01a0d778-simple-finance` (from `main` @ `5cb28e3`, the v0.9.0 merge
-plus its release commit).
+Date: 2026-09-25. Branch: `arena/01a0d807-simple-finance` (from `main` @ `d3ff42e`, the v0.10.0 merge).
 
-**Released as v0.10.0 on 2026-09-25** — annotated tag `v0.10.0` on merge commit `3f18a62` (PR #45), digest
-`sha256:02a7321e…1269e6` on `v0.10.0` / `latest` / `sha-3f18a62`. The household's two steps in Unraid: back
-up, then Force Update. Facts are stamped in [`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md); the
-version-badge check is `v0.10.0 · pre-release`.
+**Release status:** see [`docs/RELEASE_NOTES_v0.11.0.md`](RELEASE_NOTES_v0.11.0.md). The merge commit, tag
+and digest are stamped there once they are published. The household does two things in Unraid: back up,
+then Force Update. After updating they set **Settings → Household names → Signs in as** for each person.
 
-**Why this session started:** the previous session committed four post-v0.9.0 fixes while GitHub was having
-an outage; the push never landed and the sandbox was lost. They were re-done here from their description
-(decisions 134–137), and SANDBOX entry 10 now says to push after every commit. The household then chose to
-ship them in one release together with two new features.
+## What changed (decisions 143–148)
 
-## What changed
-
-- **Till fixes (decisions 134–137)** — `e2e/support.ts` `londonToday`/`addDaysIso` and
-  `timezoneId: 'Europe/London'` (the suite no longer fails 23:00–00:00 UTC); the supplier typeahead hides
-  in place (`closing`) on a pointer blur so one tap on Save saves; `.till-touch` in `globals.css` makes
-  every Quick Entry control ≥44px and a mobile spec measures them all; the purchase form focuses Supplier
-  once `ready` is true.
-- **Migration `0009_income_documents_fuel_details`** — `attachments` rebuilt: `purchase_id` nullable, new
-  `receipt_id` → `receipts`, `CHECK attachments_one_owner` (exactly one). `purchases` gains
-  `odometer_miles`, `fuel_millilitres` (integer mL) and `fuel_full_tank` (default 1), with positive-value
-  checks. Upgrade of a v0.9.0-shaped database with receipts is tested (`tests/migration-0009.test.ts`).
-- **Income documents (decision 138)** — `records/attachments.ts` takes `purchaseId` *or* `receiptId`
-  (`AttachmentOwner`, `listStoredReceiptAttachments`); audit entity `receipt`. `AttachmentForm` takes
-  `receiptId` and `allowUpload` and words itself for payslips (no forced camera). The Income page's
-  "Income received" rows list and accept documents; voided rows keep theirs but take no new ones.
-- **Fuel (decisions 139–141)** — `records/fuel-economy.ts` (pure: parsing, UK-gallon mpg full tank to full
-  tank, gaps, totals, the post-save sentence; safe in client components), `records/fuel.ts` (DB: fills per
-  vehicle, audited/versioned `editFuelDetails`, the Insights view, row context), Quick Entry Fuel gains
-  Litres/Odometer/Filled to full with a live price per litre, `components/fuel-details-form.tsx` on the
-  Purchases and Overview rows, and the Insights **Fuel economy** panel.
-- **Restore upgrades older archives (decision 142)** — found while writing the notes: a live restore
-  reopened the database without migrating it, so an archive from before 0009 would have broken every page
-  reading `purchases` until a restart. `restoreEncryptedBackup` now refuses a newer archive and migrates an
-  older one on the staged copy, before the swap.
-- **Docs** — SPEC §2 non-goals, §13, §15.1, §16 item 6 and **§16.6**, E2, §18.4, §23; decisions 134–142;
-  SANDBOX entry 10; v0.10.0 in all five version places.
+- **No sideways page (143).** The Quick Entry tab strip is a shrinkable `grid-cols-4`, the Move sub-tabs a
+  2×2/4 grid, and the headline wraps. The section has `overflow-x: clip`, and on a phone the black card is
+  `p-2`. Two home-page `grid` wrappers gained `grid-cols-1`: their implicit `auto` tracks grew to the widest
+  input.
+- **Explicit card switching (143).** The native scroll-snap container is gone. The track moves by
+  `translateX` inside a clipped viewport with `touch-action: pan-y`. It switches on Next, the dots, or a
+  touch swipe of ≥50px that is ≥1.5× more sideways than down. The hidden card is `inert`, and `lg:` keeps
+  two static columns (`useWideLayout`). `data-active-panel` on `[data-panel-track]` is the spec hook.
+- **Next instead of Save on card 1 (144).** Save is only on card 2. Enter on card 1 is intercepted
+  (Supplier → Amount, else Next). `canSave` is now `saveBlocked`.
+- **Card 2 order and chips (145).** Category → For → lines → "+ Add split" → Paid by (`ChipGroup`) → Date →
+  Save. `ChipGroup` = radios as pills in a `radiogroup`. `ChipSelect` is renamed `SelectField` (the pot
+  stays a select). The Fuel supplier uses `SupplierTypeahead` over `QuickEntryData.fuelSuppliers`
+  (`listFuelSupplierIds`).
+- **Signed-in defaults (146).** Migration `0010_people_email` adds `people.email` (nullable, unique).
+  Settings has a per-person "Signs in as" select (`signInEmailChoices`, `setPersonEmail`, audit
+  `person.email`), and vehicle cards show their Owner. `buildEntryData(db, now, user.email)` uses the pure
+  `entryDefaults`. The Fuel vehicle follows Paid by until a vehicle is tapped.
+- **Full tank off by default (147)** and the Insights nudge `fillsWithoutFullTank` (≥3 fills with none
+  full).
+- **Docs:** SPEC §15.1 (rewritten), §15.2 Settings row, §16.6; decisions 143–148; v0.11.0 in all five places.
 
 ## Watch out for (learned this session)
 
-- **§16.N means item N of the Insights list.** Code already cited "§16.4" for the honesty loop, so the fuel
-  section is **§16.6** (item 6), not a new "16.4". Keep to that when adding panels.
-- **A "fuel purchase" is a definition, not a flag:** live, not a refund, Fuel-category lines all to one
-  vehicle. The fuel cost is the Fuel lines only. `fuelRowDetails` returns `null` for anything else, which is
-  why a split that sends fuel to two vehicles shows no fuel editor. Refunds do not reduce a fill.
-- **Totals are ratios of sums.** "Last 12 months" mpg is total miles ÷ total gallons over measured
-  stretches, never an average of mpg figures. `tests/fuel-economy.test.ts` pins this.
-- **The odometer is only demanded on full tanks.** The "missing details" list flags missing litres on any
-  fill but a missing odometer only on a full tank — a part fill's mileage is never used.
-- **Two nullable owners, one CHECK.** Anything new that creates `attachments` rows must set exactly one of
-  `purchase_id`/`receipt_id`; the database refuses otherwise. Backup/restore and the serving route never
-  look at the owner, which is why they needed no change.
-- **The audit `entity_id` is text.** Compare with `String(id)` in tests.
-- **Restore now runs migrations.** `restoreEncryptedBackup` reads `./drizzle` (or `migrationsFolder`); the
-  container image ships it next to the server. A test that fabricates a database must start from real
-  migrations, or the upgrade step will refuse or fail it.
-- **Date-dependent specs:** the weekend-payday probe picked a weekend day whose Friday was *today*, which
-  the seeded salary had already been received on (the 27th was a Sunday). It now needs a Friday after
-  today. If a spec fails only on certain dates, look for "today" edge cases like this one.
+- **Emulation with default text is not enough.** Android font/display size broke a layout that looked fine
+  at 360–412px. Keep testing at 320px and at 360px with `html{font-size:130%}`. Never put `nowrap` on
+  anything unbounded, and give grids explicit `grid-cols-1` (not the implicit `auto` track).
+- **The hidden till card is `inert`.** Specs must switch cards before acting on the other card's fields
+  (`showPanel` in `e2e/home.spec.ts`). Assertions still see off-screen elements; actions do not work on them.
+  Desktop projects (1400px) see both columns and need nothing.
+- **Swipes in specs** use CDP `Input.dispatchTouchEvent` (the `drag` helper). Scroll the start point to the
+  middle of the screen first, or the sticky nav eats the touch.
+- **Chips in specs:** click the pill's `<label>` inside `getByRole('radiogroup', { name })`, then assert the
+  radio `toBeChecked()` (the `pickChip` helper).
+- **Turbopack stale SSR (SANDBOX entry 9)** bit again while taking screenshots: `rm -rf .next` and restart.
+- **The Overview page logs a hydration warning** (`<p>` containing a `<details>`/`<form>` at
+  `overview/page.tsx:305`). It was there before this release and is out of scope here, but worth fixing
+  soon.
 
 ## Test state
 
-`npm test` — **378 tests, all green, 95 suites** (was 357/90). `npm run format:check`, `npx tsc --noEmit`
-and `npm run build` are clean. Local Playwright (SANDBOX entry 8) — **55 tests green** across every project
-(was 50), including the new `fuel` project and the payslip spec; CI's `browser` job remains the gate.
+`npm test`: all green (new `tests/entry-defaults.test.ts`; the fuel-economy nudge test; restore counts
+eleven migrations). `format:check`, `tsc --noEmit` and `build` are clean. Local Playwright (SANDBOX entry
+8): all 58 tests passed across every project. The swipe test failed once in the first full run (the start
+point was under the sticky nav). It was fixed, and the mobile project then passed twice in a row. CI's
+`browser` job is the gate.
 
-## Open / deferred (not forgotten)
+## Open / deferred
 
-- **UK gallons were assumed**, not explicitly confirmed by the household (the UK default; 4.54609 L). If
-  they want US gallons or L/100 km it is one constant and a label.
-- **Supplier-level documents** (a policy PDF not tied to a purchase) stay deferred — OQ10.
-- **The home page's recent-entries table is read-only** and shows no fuel details; Purchases and Overview
-  carry the editor.
-- **Swipe physics and the 44px sizes have only been driven by emulation** (Pixel 7 profile); a real thumb on
-  a real phone is still the household's verdict.
-- **Home page mobile layout is still untouched**; the household decides later what to hide on a phone.
-- **The Cloudflare Access app** still wants its PWA paths intact (v0.8.0 note); nothing here changes that.
+- **The household's real phone is the final check (148).** Ask for the same three views as the before
+  screenshots (2026-09-25 10:38 / 10:39 / 10:41).
+- UK gallons still assumed. Supplier-level documents are still deferred (OQ10).
+- Home page mobile layout beyond the till is still the household's later call.

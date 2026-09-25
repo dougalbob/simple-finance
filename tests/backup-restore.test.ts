@@ -94,8 +94,8 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       assert.equal(countRows(target, 'pots'), 1);
       assert.equal(countRows(target, 'checkpoints'), 2);
       assert.equal(countRows(target, 'audit_entries'), 3);
-      // One row per applied migration: 0000…0009 (ten files).
-      assert.equal(countRows(target, '__drizzle_migrations'), 10);
+      // One row per applied migration: 0000…0010 (eleven files).
+      assert.equal(countRows(target, '__drizzle_migrations'), 11);
     } finally {
       handle.raw.close();
     }
@@ -149,7 +149,7 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       password: PASSWORD,
       targetDatabasePath: target,
     });
-    assert.equal(countRows(target, '__drizzle_migrations'), 10);
+    assert.equal(countRows(target, '__drizzle_migrations'), 11);
     assert.equal(countRows(target, 'pots'), 1);
     const db = new Database(target, { readonly: true });
     try {
@@ -158,6 +158,11 @@ describe('encrypted backup + restore round-trip (isolated copies only)', () => {
       ).map((column) => column.name);
       assert.ok(purchaseColumns.includes('odometer_miles'));
       assert.ok(purchaseColumns.includes('fuel_millilitres'));
+      // v0.11.0's 0010 as well: people gain the "Signs in as" email.
+      const peopleColumns = (
+        db.prepare('PRAGMA table_info(people)').all() as Array<{ name: string }>
+      ).map((column) => column.name);
+      assert.ok(peopleColumns.includes('email'));
       const attachmentColumns = (
         db.prepare('PRAGMA table_info(attachments)').all() as Array<{ name: string }>
       ).map((column) => column.name);

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import { waitForTill } from './support';
 
 /**
@@ -34,7 +34,7 @@ test.describe('fuel economy', () => {
       expect(status).toContainText(`${VEHICLE}: full tank at 30,000 miles noted`),
     );
 
-    // 2. Part fill: just litres, the tick taken off.
+    // 2. Part fill: just litres, the tick left off.
     await recordFuel(page, { amount: '20.00', litres: '14', fullTank: false }, (status) =>
       expect(status).toContainText(`Part fill for ${VEHICLE}`),
     );
@@ -89,13 +89,93 @@ async function recordFuel(
   await entry.getByLabel('Litres (optional)').fill(fill.litres);
   if (fill.odometer !== undefined)
     await entry.getByLabel('Odometer (optional)').fill(fill.odometer);
+  // Off by default since v0.11.0 (decision 147): a full tank is ticked on purpose.
   const tick = entry.getByLabel(/Filled to full/);
-  await expect(tick).toBeChecked();
-  if (fill.fullTank === false) await tick.uncheck();
-  await entry.getByLabel('Vehicle').selectOption({ label: VEHICLE });
-  await entry.getByLabel('Paid by').selectOption({ label: 'Alex' });
+  await expect(tick).not.toBeChecked();
+  if (fill.fullTank !== false) await tick.check();
+  await pickChip(entry, 'Vehicle', VEHICLE);
+  await pickChip(entry, 'Paid by', 'Alex');
   const pot = entry.getByLabel('Pot');
   if ((await pot.inputValue()) === '') await pot.selectOption({ label: 'Main account' });
   await entry.getByRole('button', { name: 'Save fuel' }).click();
   await check(entry.getByRole('status'));
 }
+
+async function pickChip(entry: Locator, group: string, label: string): Promise<void> {
+  const radios = entry.getByRole('radiogroup', { name: group });
+  await radios.locator('label', { hasText: label }).click();
+  await expect(radios.getByRole('radio', { name: label })).toBeChecked();
+}
+
+async function openFuelTab(page: Page): Promise<Locator> {
+  await page.goto('/');
+  await waitForTill(page);
+  const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+  await entry.getByRole('tab', { name: 'Fuel' }).click();
+  return entry;
+}
+
+async function linkSignIn(page: Page, person: string, email: string): Promise<void> {
+  await page.goto('/settings');
+  const select = page.getByLabel(`${person} signs in as`);
+  const form = page.locator('form', { has: select });
+  await select.selectOption(email);
+  await form.getByRole('button', { name: 'Save sign-in' }).click();
+  await expect(form.getByRole('status')).toContainText(`${person} signs in as ${email}`, {
+    timeout: 30_000,
+  });
+}
+
+test.describe('the Fuel tab at the pump (v0.11.0)', () => {
+  test('offers only fuel suppliers, and a new name can still be typed', async ({ page }) => {
+    const entry = await openFuelTab(page);
+    const supplier = entry.getByLabel('Supplier (optional)');
+    await supplier.click();
+    const list = entry.getByRole('listbox', { name: 'Supplier suggestions' });
+    // Corner Foods has a seeded purchase with fuel for Vehicle A; The Corner
+    // Cafe only ever sold a coffee (decision 145).
+    await expect(list.getByRole('option', { name: /Corner Foods/ })).toBeVisible();
+    await expect(list.getByRole('option', { name: /Corner Cafe/ })).toHaveCount(0);
+    await supplier.fill('corner');
+    await expect(list.getByRole('option')).toHaveCount(1);
+    await supplier.fill('Playwright Forecourt');
+    await expect(list).toHaveCount(0);
+    await expect(supplier).toHaveValue('Playwright Forecourt');
+  });
+
+  test('opens on the signed-in person and their own car; a tap overrides it', async ({ page }) => {
+    test.slow();
+    // The seed links the dev sign-in to Alex, owner of Vehicle A.
+    let entry = await openFuelTab(page);
+    const vehicles = entry.getByRole('radiogroup', { name: 'Vehicle' });
+    const payers = entry.getByRole('radiogroup', { name: 'Paid by' });
+    await expect(vehicles.getByRole('radio', { name: 'Vehicle A' })).toBeChecked();
+    await expect(payers.getByRole('radio', { name: 'Alex' })).toBeChecked();
+
+    // Until a vehicle is tapped it follows the payer's car...
+    await pickChip(entry, 'Paid by', 'Sam');
+    await expect(vehicles.getByRole('radio', { name: 'Vehicle B' })).toBeChecked();
+    // ...and once it has been tapped, a payer change leaves it alone.
+    await pickChip(entry, 'Vehicle', 'Vehicle A');
+    await pickChip(entry, 'Paid by', 'Alex');
+    await pickChip(entry, 'Paid by', 'Sam');
+    await expect(vehicles.getByRole('radio', { name: 'Vehicle A' })).toBeChecked();
+
+    // Link the same sign-in to Sam instead: the till follows (decision 146).
+    const email = 'alex@example.com';
+    await linkSignIn(page, 'Sam', email);
+    try {
+      entry = await openFuelTab(page);
+      await expect(
+        entry
+          .getByRole('radiogroup', { name: 'Vehicle' })
+          .getByRole('radio', { name: 'Vehicle B' }),
+      ).toBeChecked();
+      await expect(
+        entry.getByRole('radiogroup', { name: 'Paid by' }).getByRole('radio', { name: 'Sam' }),
+      ).toBeChecked();
+    } finally {
+      await linkSignIn(page, 'Alex', email);
+    }
+  });
+});

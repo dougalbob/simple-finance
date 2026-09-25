@@ -6,7 +6,7 @@ import { applyMigrations } from '../src/lib/db/migrate';
 import { findChildCategory } from '../src/lib/records/categories';
 import { createDebt, editDebt } from '../src/lib/records/debts';
 import { createExternalMovement } from '../src/lib/records/external-movements';
-import { createPerson } from '../src/lib/records/people';
+import { createPerson, setPersonEmail } from '../src/lib/records/people';
 import { addCheckpoint, createPot } from '../src/lib/records/pots';
 import { createPurchase } from '../src/lib/records/purchases';
 import { createReceipt } from '../src/lib/records/receipts';
@@ -70,6 +70,10 @@ function seed(): void {
 
   const alex = createPerson(db, { label: 'Alex', actor: ACTOR, now });
   const sam = createPerson(db, { label: 'Sam', actor: ACTOR, now });
+  // "Signs in as" (v0.11.0, decision 146): the dev identity is Alex, so the
+  // till opens with Paid by = Alex and the Fuel tab on Alex's Vehicle A. The
+  // fuel spec moves the link to Sam and back to prove the default follows it.
+  setPersonEmail(db, { id: alex.id, email: ACTOR, allowedEmails: [ACTOR], actor: ACTOR, now });
   const vehicleA = createVehicle(db, {
     label: 'Vehicle A',
     ownerPersonId: alex.id,

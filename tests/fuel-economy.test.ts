@@ -434,4 +434,24 @@ describe('fuel details in the database', () => {
       fx.close();
     }
   });
+
+  it('nudges on Insights when several recent fills have no full tank marked', async () => {
+    const fx = await createHouseholdFixture();
+    try {
+      fuelPurchase(fx, { day: '2026-09-01', pence: 5000, fullTank: true, odometerMiles: 1000 });
+      fuelPurchase(fx, { day: '2026-09-05', pence: 2000, fullTank: false });
+      fuelPurchase(fx, { day: '2026-09-09', pence: 2000, fullTank: false });
+      const view = () =>
+        getFuelEconomyView(fx.db, new Date('2026-09-20T17:00:00Z')).find(
+          (entry) => entry.vehicleId === fx.vehicles.vehicleA.id,
+        );
+      assert.equal(view()?.fillsWithoutFullTank, null, 'two part fills: not yet');
+      fuelPurchase(fx, { day: '2026-09-12', pence: 2000, fullTank: false });
+      assert.equal(view()?.fillsWithoutFullTank, 3);
+      fuelPurchase(fx, { day: '2026-09-15', pence: 5000, fullTank: true, odometerMiles: 1400 });
+      assert.equal(view()?.fillsWithoutFullTank, null, 'a full tank clears it');
+    } finally {
+      fx.close();
+    }
+  });
 });

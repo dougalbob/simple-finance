@@ -639,21 +639,31 @@ All pages remain reachable on mobile (nothing hidden) — they are simply not th
 
 Home = four big actions:
 
-1. **Add Purchase (redesigned v0.9.0)** — pot first, then the two balance figures (§7.7): the pot's **last
-   reported checkpoint** with its age (bank pots only; cash shows nothing), the household **"free to spend
-   before income lands"** headline, and the pot's own shortfall warning when the bills leaving it outrun it.
-   Then supplier (typeahead: recents first, filtered as you type, inline rows — no browser popup; tapping a
-   suggestion fills the name, applies the remembered category and moves to Amount) → amount → paid-by and
-   date chips → "+ Note" collapsed out of the way → save. Category, target ("For": household / person /
-   vehicle) and any **Split** lines live on the second panel; save is on **both** panels so the entry never
-   needs a swipe to complete (enabled only when the lines total exactly; remainder helper available) →
-   confirmation with "Add another", which returns to the first panel on the supplier field.
-   - **Focus order at the till:** supplier → amount → save. The amount is not focused on open, and the form
-     lands on the supplier.
-   - **Swipe panels (mobile only):** the two panels are a scroll-snapped pair (`scroll-snap-type: x
-     mandatory`), hints and dots showing the second exists. Progressive enhancement — with no scroll-snap
-     the panels still scroll sideways, and every field on the second panel is reachable by keyboard. On a
-     laptop (`lg:` and up) they are the original two columns.
+1. **Add Purchase (redesigned v0.9.0, re-laid out v0.11.0)**. Two cards.
+   - **Card 1, record it:** pot first, then the two balance figures (§7.7): the pot's **last
+     reported checkpoint** with its age (bank pots only; cash shows nothing), the household **"free to
+     spend before income lands"** headline, and the pot's own shortfall warning when the bills leaving it
+     outrun it. Then supplier (typeahead: recents first, filtered as you type, inline rows, no browser
+     popup; tapping a suggestion fills the name, applies the remembered category and moves to Amount) →
+     amount → "+ Note" collapsed out of the way → a full-width **Next: category →** button. **There is no
+     Save on card 1** (v0.11.0): the supplier's remembered category is only shown on card 2, and it must
+     be seen before it is saved.
+   - **Card 2, Category & allocation:** category → "For" (household / person / vehicle) → split lines →
+     "+ Add split" → **Paid by** (one tap-button per person, radio semantics) → **Date** (full width,
+     "Today if blank") → **Save purchase** (enabled only when the lines total exactly; remainder helper
+     available) → confirmation with "Add another", which returns to card 1 on the supplier field.
+     Changing Paid by re-targets any line still on the old payer's default (their car, themselves);
+     lines pointed elsewhere by hand stay put.
+   - **Focus order at the till:** supplier → amount → Next → category. The form lands on the supplier
+     once it is ready. The keyboard's Enter/Go never saves from card 1: in Supplier it moves to Amount,
+     in Amount (or the note) it is Next.
+   - **Card switching (mobile only, v0.11.0):** the cards sit side by side in a clipped viewport and move
+     with a short `translateX` slide. They are not a native scroll container. They switch on **Next**, the
+     **dots**, or a deliberate swipe (≥50px sideways, clearly more sideways than down). Vertical scrolling
+     never moves them (`touch-action: pan-y`), and the hidden card is `inert`. On a laptop (`lg:` and up)
+     they are two static columns.
+   - **Payer default:** Paid by starts on the person linked to the signed-in email (§15.2 "Signs in as"),
+     else the first person.
    - The default pot is **a setting**, not a guess from a pot's label (§15.2 Settings). With none configured
      the form starts with no pot selected, and Save stays off until one is chosen — a purchase has to name
      the pot it came out of, and the server refuses one that does not.
@@ -663,13 +673,20 @@ Home = four big actions:
      strip and forms are `inert` until then, refusing input instead of silently swallowing it. The acceptance
      suite waits on that signal (`e2e/support.ts` · `waitForTill`) before it drives the till; assertions
      auto-wait, keystrokes do not.
-2. **Add Fuel** — prefills payer (signed-in user), pot default, category Fuel, target = the payer's own
-   vehicle (one-tap flip to the other vehicle). The **amount is the only required typing**.
+2. **Add Fuel**: prefills the payer (the signed-in person, via "Signs in as"; else the first person), the
+   pot default, category Fuel (fixed), and the vehicle = **that person's own vehicle** (its Owner; else
+   the first vehicle). Vehicle and Paid by are tap-buttons, so the other car is one tap. Until a vehicle
+   is tapped it follows Paid by. Once tapped, a Paid by change leaves it alone. The **amount is the only
+   required typing**.
+   - **Supplier (v0.11.0):** the same inline typeahead as purchases, fed **only suppliers with a previous
+     fuel purchase** (the §16.6 definition), most recent fill first; "Did you mean" compares against those
+     only. A new name can be typed and becomes a fuel supplier from its first fill.
    - **Litres and odometer (v0.10.0), both optional.** Two more boxes — litres from the pump or receipt,
-     miles from the dashboard — and a **Filled to full** tick, on by default (untick for a part fill). The
-     price per litre is shown as the litres are typed (amount ÷ litres; never stored). Anything left blank
-     can be added later from the purchase's row on Purchases or Overview ("Fuel details — add odometer &
-     litres"); that edit is versioned and audited like any other.
+     miles from the dashboard — and a **Filled to full** tick, **off by default** (v0.11.0; tick it when
+     the pump clicked off at full). The price per litre is shown as the litres are typed (amount ÷ litres;
+     never stored). Anything left blank can be added later from the purchase's row on Purchases or Overview
+     ("Fuel details — add odometer & litres"); that edit is versioned and audited like any other, and shows
+     the stored tick.
    - **The save answers with the mpg:** one sentence under the form — e.g. "Vehicle A: 41.2 mpg over 312
      miles since the last full tank. 40.12 L at 142.9p/L." — or, when mpg cannot be worked out yet, why
      (part fill: worked out at the next full tank; first full tank noted; a reading or litres missing).
@@ -684,9 +701,12 @@ preselected (always visible, always changeable) chip. Near-duplicate supplier na
 time ("Did you mean: Tesco?"). The suggestion list is rendered into the page (v0.9.0), because the
 browser's native `<datalist>` popup is fiddly on a phone and different on every device.
 
-Layout rule at the till (v0.9.0): a phone screen with the keyboard open is roughly half a screen, so the
-critical fields and Save fit in it; inputs and buttons are at least 44px tall, and nothing overflows a
-320px-wide viewport (the panels scroll sideways, never the page).
+Layout rule at the till (v0.9.0, tightened v0.11.0): a phone screen with the keyboard open is roughly half
+a screen, so the critical fields and Next fit in it; inputs and buttons are at least 44px tall; and **the
+page never becomes wider than the screen**, at 320px or at 360px with 130% text (Android's font and display
+size settings). The tab strip is a four-column grid that shrinks, nothing unbounded is `nowrap`, the Quick
+Entry section clips (`overflow-x: clip`) as a safety net, and on a phone the black card's padding is `p-2`.
+A mobile test asserts `scrollWidth <= clientWidth` on every tab and both cards.
 
 Till details fixed in v0.10.0: **one tap on Save saves** even with the supplier suggestions open (the list
 no longer collapses under the finger); **every** control inside Quick Entry — tabs, chips, toggles, split
@@ -713,7 +733,7 @@ Menu pages:
 | **Contracts & Renewals** | Key dates: renewal records with per-item warning leads and annual advance; schedules' contract end dates; everything inside its warning window first, sorted by date; history of past renewals (§22). |
 | **Accounts & Pots** | Per-pot checkpoint timeline and current estimates; transfer records; staleness of every pot; overdraft context (limit, threshold) for the Main account; informal debts with derived balances and an optional expected-support plan (amount, day-of-month, until date — editable forward-looking, v0.7.0); borrow/repay/swap/other entry and history; archiving for empty pots. |
 | **Insights** | §16 panels. |
-| **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends; **the default pot for purchases** (v0.9.0 — an explicit choice, never a guess from a pot's label). (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
+| **Settings** | Household labels; pots; category-tree editor; projection figures; thresholds; payday/income config; default warning lead for renewals/contract ends; **the default pot for purchases** (v0.9.0 — an explicit choice, never a guess from a pot's label); **"Signs in as"** per person (v0.11.0 — which allowlisted `AUTH_ALLOWED_EMAILS` sign-in is that person; drives the till's Paid by and Fuel vehicle defaults; audited, unique, stored only in the private database); each vehicle's Owner shown. (Suppliers live on their own page.) All private numbers live here at runtime — never in the repo. |
 
 **Calendar (agreed: read-only month view).** A month grid on Recurring Payments showing due DD/SO instances and
 expected receipts — another view of the same schedule data, never a second database. Clicking a day shows that
@@ -846,6 +866,10 @@ edit or void anything.
 - **Only fuel counts.** A fuel purchase is one whose Fuel lines all go to a single vehicle; its fuel cost is
   those lines only, so a split with a shop item does not distort the price per litre. Refunds and voided
   purchases are ignored.
+- **"Filled to full" is off by default (v0.11.0).** A forgotten tick on a genuine full tank only lengthens
+  a stretch — its litres roll into the next full tank, so the figure stays right — whereas a mistaken tick on
+  a part fill produces a wrong mpg. When a vehicle's last three or more fills have none marked full,
+  Insights says "no full tank marked in the last N fills — mpg needs one".
 - **Insights shows, per vehicle:** the latest measured stretch; the last 12 months (total miles ÷ total
   gallons — a ratio of totals, never an average of averages); fuel cost per mile; the latest price per litre;
   recent fills missing litres (or, on a full tank, the odometer), each linked to its Purchases row; and the

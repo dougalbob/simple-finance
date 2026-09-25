@@ -68,7 +68,7 @@ export default async function HomePage() {
       .map((child) => ({ id: child.id, parentName: parent.name, childName: child.name })),
   );
   // Shared builder (mobile home + Overview, decision: one code path).
-  const entryData = buildEntryData(db, now);
+  const entryData = buildEntryData(db, now, user.email);
   const recentPurchases = listPurchases(db, { limit: 12, includeVoided: true });
   const supplierNames = new Map(supplierRows.map((supplier) => [supplier.id, supplier.name]));
   const categoryNames = new Map(
@@ -132,7 +132,7 @@ export default async function HomePage() {
         )}
         <QuickEntry data={entryData} />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <DueThisWeekSection items={dueThisWeek} potNames={potNames} />
           <KeyDatesSection
             items={keyDates.map((alert) => ({ ...alert, message: keyDateMessage(alert) }))}
@@ -211,7 +211,10 @@ export default async function HomePage() {
           )}
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* grid-cols-1 (minmax(0,1fr)), not the implicit auto column: an auto
+            track grows to its widest input and pushed the page sideways on a
+            narrow phone with larger text (decision 143). */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section
             aria-labelledby="add-pot-heading"
             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -536,7 +539,7 @@ function RecurringSection({
         </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <div>
             <h3 className="mb-2 text-sm font-semibold text-slate-700">

@@ -7,6 +7,7 @@ import {
   renameTargetAction,
   saveCategoryAction,
   saveDefaultPurchasePotAction,
+  savePersonEmailAction,
   saveWarningLeadsAction,
 } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
@@ -483,6 +484,55 @@ export function DefaultPurchasePotForm({ pots, defaultPotId }: DefaultPurchasePo
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Save default pot'}
       </button>
+      <FormMessage status={state.status} message={state.message} />
+    </form>
+  );
+}
+
+export interface PersonSignInFormProps {
+  personId: number;
+  personLabel: string;
+  email: string | null;
+  choices: string[];
+}
+
+/**
+ * "Signs in as" (SPEC §15.2, decision 146): which allowlisted sign-in is this
+ * person. The till then starts Paid by — and the Fuel form's vehicle — on
+ * whoever is signed in, instead of on the first person for everyone.
+ */
+export function PersonSignInForm({ personId, personLabel, email, choices }: PersonSignInFormProps) {
+  const [state, formAction, pending] = useActionState(savePersonEmailAction, initialActionState);
+  const id = `person-email-${personId}`;
+  return (
+    <form action={formAction} className="mt-3 flex flex-col gap-1">
+      <input type="hidden" name="personId" value={personId} />
+      <label htmlFor={id} className={labelClass}>
+        Signs in as
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          id={id}
+          name="email"
+          defaultValue={email ?? ''}
+          aria-label={`${personLabel} signs in as`}
+          className={`${inputClass} min-w-0 max-w-full flex-1`}
+        >
+          <option value="">Not linked</option>
+          {choices.map((choice) => (
+            <option key={choice} value={choice}>
+              {choice}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={pending} className={submitClass}>
+          {pending ? 'Saving…' : 'Save sign-in'}
+        </button>
+      </div>
+      <p className="text-xs text-slate-500">
+        When this sign-in opens the till, Paid by starts on {personLabel} and Fuel starts on the
+        vehicle {personLabel} owns.
+      </p>
       <FormMessage status={state.status} message={state.message} />
     </form>
   );

@@ -92,7 +92,7 @@ export default async function PurchasesPage({
   const people = listPeople(db);
   const vehicles = listVehicles(db);
   const suppliers = listSuppliersForEntry(db);
-  const entryData = buildEntryData(db, now);
+  const entryData = buildEntryData(db, now, user.email);
   const categoryNames = new Map(
     categoryTree(db).flatMap((parent) =>
       parent.children.map((child) => [child.id, `${parent.name} / ${child.name}`] as const),

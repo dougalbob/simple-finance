@@ -150,3 +150,88 @@ function assertLabelFree(rows: Person[], label: string, selfId: number | null): 
     throw new DuplicatePersonLabelError(label);
   }
 }
+
+export class InvalidPersonEmailError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidPersonEmailError';
+  }
+}
+
+/** The person a signed-in email belongs to (v0.11.0), or null when nobody is linked. */
+export function findPersonByEmail(db: Db, email: string | null | undefined): Person | null {
+  const wanted = email?.trim().toLowerCase() ?? '';
+  if (wanted === '') return null;
+  return db.select().from(people).where(eq(people.email, wanted)).get() ?? null;
+}
+
+export interface SetPersonEmailInput {
+  id: number;
+  /** An allowlisted email, or null to unlink. */
+  email: string | null;
+  /** The emails that may be chosen (the sign-in allowlist). */
+  allowedEmails: readonly string[];
+  actor: string;
+  now?: Date;
+}
+
+/**
+ * "Signs in as" (SPEC §15.2, decision 146): link one allowlisted Google
+ * sign-in to a person, so the till defaults Paid by and the vehicle to
+ * whoever is holding the phone. One email belongs to at most one person —
+ * choosing an email already linked elsewhere moves it (both changes audited).
+ */
+export function setPersonEmail(db: Db, input: SetPersonEmailInput): Person {
+  const now = input.now ?? new Date();
+  const email = input.email?.trim().toLowerCase() || null;
+  if (email !== null && !input.allowedEmails.map((e) => e.toLowerCase()).includes(email)) {
+    throw new InvalidPersonEmailError('Choose one of the sign-ins allowed into the app.');
+  }
+  return db.transaction((tx) => {
+    const current = tx.select().from(people).where(eq(people.id, input.id)).get();
+    if (current === undefined) throw new PersonNotFoundError(input.id);
+    if (current.email === email) return current;
+    if (email !== null) {
+      const holder = tx.select().from(people).where(eq(people.email, email)).get();
+      if (holder !== undefined && holder.id !== current.id) {
+        const cleared = tx
+          .update(people)
+          .set({ email: null, updatedAt: now, version: holder.version + 1 })
+          .where(eq(people.id, holder.id))
+          .returning()
+          .get();
+        recordAudit(tx, {
+          actor: input.actor,
+          action: 'person.email',
+          entity: 'person',
+          entityId: holder.id,
+          summary: `“${holder.label}” no longer signs in as ${email} (moved to “${current.label}”)`,
+          before: holder,
+          after: cleared,
+          now,
+        });
+      }
+    }
+    const updated = tx
+      .update(people)
+      .set({ email, updatedAt: now, version: current.version + 1 })
+      .where(eq(people.id, input.id))
+      .returning()
+      .get();
+    if (updated === undefined) throw new Error('update person returned no row');
+    recordAudit(tx, {
+      actor: input.actor,
+      action: 'person.email',
+      entity: 'person',
+      entityId: input.id,
+      summary:
+        email === null
+          ? `“${current.label}” is no longer linked to a sign-in`
+          : `“${current.label}” signs in as ${email}`,
+      before: current,
+      after: updated,
+      now,
+    });
+    return updated;
+  });
+}
