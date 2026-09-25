@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { readMigrationFiles } from 'drizzle-orm/migrator';
 import * as tar from 'tar';
 import { z } from 'zod';
 import { decryptBackupPayload, BackupFormatError, BackupPasswordError } from './crypto';
@@ -12,6 +13,8 @@ import {
   DOCUMENTS_MEMBER_PREFIX,
   type BackupManifest,
 } from './backup';
+import { openDatabase } from '../db/client';
+import { applyMigrations } from '../db/migrate';
 import { isSafeFileKey } from '../records/attachments';
 import { formatInstantLocal } from '../time';
 
@@ -26,7 +29,11 @@ import { formatInstantLocal } from '../time';
  * decrypt + authenticate, strict member allowlist (no traversal, no absolute
  * paths, no surprises), manifest schema, sha256 of every member, the restored
  * database's integrity and expected tables, and — for format 2 — the presence
- * and hash of every document the restored database references.
+ * and hash of every document the restored database references. Then the
+ * schema: an archive from a *newer* version is refused, and one from an
+ * older version has this version's pending migrations applied to the staged
+ * copy (v0.10.0) — so the running app never reopens against a database shaped
+ * for different code, and a failed upgrade leaves the live data untouched.
  *
  * The swap itself is two renames (database, then documents) and is therefore
  * not one atomic transaction. Both previous copies are preserved until the
@@ -103,6 +110,11 @@ export interface RestoreOptions {
    */
   targetDocumentsDir?: string;
   now?: Date;
+  /**
+   * Checked-in migrations the restored database is brought up to. Defaults to
+   * `./drizzle`, which the container image carries (tests may point elsewhere).
+   */
+  migrationsFolder?: string;
 }
 
 export interface RestoreSummary {
@@ -251,6 +263,10 @@ export async function restoreEncryptedBackup(options: RestoreOptions): Promise<R
     // Sanity-open the restored database before it replaces anything.
     verifyRestoredDatabase(path.join(extractDir, DATABASE_MEMBER));
     verifyReferencedDocuments(path.join(extractDir, DATABASE_MEMBER), extractDir);
+    upgradeRestoredDatabase(
+      path.join(extractDir, DATABASE_MEMBER),
+      options.migrationsFolder ?? path.resolve(process.cwd(), 'drizzle'),
+    );
 
     // Swap in, preserving the previous copies until success.
     const stamp = localStamp(now);
@@ -324,6 +340,61 @@ function verifyRestoredDatabase(databasePath: string): void {
   } finally {
     db.close();
   }
+}
+
+/**
+ * SPEC §18.4 "schema compatibility" (v0.10.0). The production database is
+ * migrated by the container entrypoint at start-up only, and a live restore
+ * reopens without restarting — so before v0.10.0 an archive taken on an older
+ * version came back missing the newer columns until the next restart, and one
+ * from a newer version came back with columns this code does not know.
+ *
+ * Runs on the staged copy, before the swap:
+ *   - newer than this build (its newest applied migration is later than the
+ *     newest one shipped here) → refused, nothing touched;
+ *   - older → the pending migrations are applied, exactly as the entrypoint
+ *     would on the next start, and the result is integrity-checked again.
+ */
+function upgradeRestoredDatabase(databasePath: string, migrationsFolder: string): void {
+  const shipped = readMigrationFiles({ migrationsFolder });
+  const newestShipped = Math.max(0, ...shipped.map((migration) => migration.folderMillis));
+
+  const probe = new Database(databasePath, { readonly: true });
+  let newestApplied: number;
+  try {
+    const row = probe.prepare('SELECT max(created_at) AS at FROM __drizzle_migrations').get() as {
+      at: number | string | null;
+    };
+    newestApplied = row.at === null ? 0 : Number(row.at);
+  } finally {
+    probe.close();
+  }
+  if (newestApplied > newestShipped) {
+    throw new RestoreError(
+      'This backup was made by a newer version of Simple Finance than the one running. Update the app, then restore it.',
+    );
+  }
+
+  const handle = openDatabase(databasePath);
+  try {
+    applyMigrations(handle.db, migrationsFolder);
+    const foreignKeyProblems = handle.raw.pragma('foreign_key_check') as unknown[];
+    if (foreignKeyProblems.length > 0) {
+      throw new RestoreError('Restored database failed its foreign key check after upgrading');
+    }
+    // Fold the WAL back into the file: only the file itself is moved into place.
+    handle.raw.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    if (err instanceof RestoreError) throw err;
+    throw new RestoreError(
+      `The backup's database could not be brought up to this version: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  } finally {
+    handle.raw.close();
+  }
+  verifyRestoredDatabase(databasePath);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { waitForTill } from './support';
+import { addDaysIso, londonToday, waitForTill } from './support';
 
 /**
  * Desktop review paths (blueprint §12): the dense overview, the purchases table
@@ -263,9 +263,7 @@ test.describe('desktop review', () => {
       .locator('form')
       .filter({ has: page.getByRole('button', { name: 'Add renewal' }) });
     await renewalForm.locator('input[name="label"]').fill('Electricity contract renewal');
-    const nextYear = new Date();
-    nextYear.setUTCDate(nextYear.getUTCDate() + 40);
-    const nextDate = nextYear.toISOString().slice(0, 10);
+    const nextDate = addDaysIso(londonToday(), 40);
     await renewalForm.locator('input[name="nextRenewalDate"]').fill(nextDate);
     await renewalForm.locator('select[name="supplierId"]').selectOption({ label: supplierName });
     await renewalForm.getByRole('button', { name: 'Add renewal' }).click();

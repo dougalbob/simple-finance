@@ -14,6 +14,7 @@ import { formatPence } from '../money';
 import { isValidLocalDate } from '../time';
 import { CategoryLevelError, CategoryNotFoundError, CategoryRetiredError } from './categories';
 import { AlreadyVoidError, RecordVoidedError, VersionConflictError } from './errors';
+import { checkFuelDetails, type FuelDetails } from './fuel-economy';
 import { resolveOccurred } from './occurred';
 import { PersonNotFoundError } from './people';
 import { PotNotFoundError } from './pots';
@@ -117,6 +118,13 @@ export interface CreatePurchaseInput {
    * instance (SPEC §11.2 "from schedule" tag). null for manual entry.
    */
   scheduleInstanceId?: number | null;
+  /**
+   * v0.10.0: odometer, litres and "filled to full" for a fuel purchase
+   * (decision 139). Every part optional; omitted means none recorded and a
+   * full tank. Only the fuel entry sets it — later changes go through
+   * `editFuelDetails` in `fuel.ts`.
+   */
+  fuelDetails?: FuelDetails;
   actor: string;
   now?: Date;
 }
@@ -149,6 +157,9 @@ export function createPurchase(db: Db, input: CreatePurchaseInput): CreatePurcha
     occurredDate: input.occurredDate,
     now,
   });
+  const fuelDetails = checkFuelDetails(
+    input.fuelDetails ?? { odometerMiles: null, fuelMillilitres: null, fullTank: true },
+  );
 
   return db.transaction((tx) => {
     assertPotExists(tx, input.potId);
@@ -179,6 +190,9 @@ export function createPurchase(db: Db, input: CreatePurchaseInput): CreatePurcha
         note,
         refundOfPurchaseId: input.refundOfPurchaseId ?? null,
         scheduleInstanceId: input.scheduleInstanceId ?? null,
+        odometerMiles: fuelDetails.odometerMiles,
+        fuelMillilitres: fuelDetails.fuelMillilitres,
+        fuelFullTank: fuelDetails.fullTank,
         createdAt: now,
         updatedAt: now,
       })

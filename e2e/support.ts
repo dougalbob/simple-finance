@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { toLocalDateString } from '../src/lib/time';
 
 /**
  * Wait until the Quick Entry till is listening (SPEC §15.1).
@@ -16,4 +17,23 @@ import { expect, type Page } from '@playwright/test';
  */
 export async function waitForTill(page: Page): Promise<void> {
   await expect(page.locator('[data-till-ready="true"]')).toBeAttached();
+}
+
+/**
+ * Today's date as the app sees it — the household's calendar in
+ * Europe/London, not the test runner's. CI runs in UTC, so for an hour every
+ * summer night (23:00–00:00 UTC is already tomorrow in London) a spec that
+ * took its "today" from UTC disagreed with the server by a day. Every date a
+ * spec computes starts here (decision 134).
+ */
+export function londonToday(now: Date = new Date()): string {
+  return toLocalDateString(now);
+}
+
+/** An ISO local date `days` after (or, negative, before) another, calendar-exact. */
+export function addDaysIso(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + days))
+    .toISOString()
+    .slice(0, 10);
 }

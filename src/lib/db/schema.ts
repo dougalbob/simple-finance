@@ -177,6 +177,18 @@ export const purchases = sqliteTable(
      * instance (SPEC §11.2 "from schedule" tag). null for manual entry.
      */
     scheduleInstanceId: integer('schedule_instance_id'),
+    /**
+     * v0.10.0 fuel details (SPEC §15.1, decisions 139–141), meaningful only on
+     * a fuel purchase (a Vehicle Running > Fuel line targeted at one vehicle).
+     * Both figures are optional — a household in a rush adds them later — and
+     * positive when present (column CHECKs in migration 0009). Litres are held
+     * as whole millilitres, the way money is held as whole pence.
+     * `fuelFullTank` marks a fill to the brim: mpg is measured between two of
+     * those (SPEC §16.6). Non-fuel purchases carry the default and ignore it.
+     */
+    odometerMiles: integer('odometer_miles'),
+    fuelMillilitres: integer('fuel_millilitres'),
+    fuelFullTank: integer('fuel_full_tank', { mode: 'boolean' }).notNull().default(true),
     voidedAt: integer('voided_at', { mode: 'timestamp_ms' }),
     voidedBy: text('voided_by'),
     voidReason: text('void_reason'),
@@ -492,20 +504,37 @@ export const supplierInteractions = sqliteTable('supplier_interactions', {
   createdBy: text('created_by').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
-export const attachments = sqliteTable('attachments', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  purchaseId: integer('purchase_id')
-    .notNull()
-    .references(() => purchases.id),
-  fileKey: text('file_key').notNull().unique(),
-  originalName: text('original_name').notNull(),
-  mime: text('mime').notNull(),
-  sizeBytes: integer('size_bytes').notNull(),
-  sha256: text('sha256').notNull(),
-  state: text('state').notNull().default('stored'),
-  createdBy: text('created_by').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-});
+/**
+ * Documents attached to a record (SPEC §23): receipts and invoices on a
+ * purchase, and since v0.10.0 payslips and similar on an income record
+ * (a `receipts` row — decision 138). Exactly one owner per row, enforced by
+ * a CHECK (migration 0009). One table keeps one pipeline: the serving route,
+ * the backup manifest and the restore check never need to know the owner.
+ */
+export const attachments = sqliteTable(
+  'attachments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    purchaseId: integer('purchase_id').references(() => purchases.id),
+    receiptId: integer('receipt_id').references(() => receipts.id),
+    fileKey: text('file_key').notNull().unique(),
+    originalName: text('original_name').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    state: text('state').notNull().default('stored'),
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    check(
+      'attachments_one_owner',
+      sql`(${table.purchaseId} IS NULL) != (${table.receiptId} IS NULL)`,
+    ),
+    index('attachments_purchase_idx').on(table.purchaseId),
+    index('attachments_receipt_idx').on(table.receiptId),
+  ],
+);
 
 /**
  * Phase 6: informal debts — money the household owes someone outside it, or

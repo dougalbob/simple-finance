@@ -19,8 +19,28 @@ function formatSize(bytes: number): string {
 }
 
 /**
- * Receipts already attached to a purchase, plus the capture/upload control
- * (SPEC §23.1, §23.4). Viewing, attaching and removing are authenticated; the
+ * Wording for the two kinds of owner (decision 138): a purchase carries
+ * receipts and invoices, an income record carries payslips and similar.
+ */
+const OWNER_WORDS = {
+  purchase: {
+    field: 'purchaseId',
+    fileLabel: 'Receipt or invoice file',
+    attach: 'Attach receipt',
+    noun: 'receipt',
+  },
+  receipt: {
+    field: 'receiptId',
+    fileLabel: 'Payslip or document file',
+    attach: 'Attach payslip',
+    noun: 'document',
+  },
+} as const;
+
+/**
+ * Documents already attached to a record, plus the capture/upload control
+ * (SPEC §23.1, §23.4). A purchase's receipts, or since v0.10.0 an income
+ * record's payslips (pass `receiptId` instead of `purchaseId`). Viewing, attaching and removing are authenticated; the
  * attachment lifecycle is independent of the purchase save, so this form never
  * blocks entry and a receipt can be added or removed later.
  *
@@ -30,12 +50,21 @@ function formatSize(bytes: number): string {
  */
 export function AttachmentForm({
   purchaseId,
+  receiptId,
   attachments,
+  allowUpload = true,
 }: {
-  purchaseId: number;
+  purchaseId?: number;
+  receiptId?: number;
   attachments: readonly AttachmentSummary[];
+  /** False hides the upload control (a voided income record keeps its documents, gains none). */
+  allowUpload?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(uploadAttachmentAction, initialActionState);
+  const kind = receiptId !== undefined ? 'receipt' : 'purchase';
+  const words = OWNER_WORDS[kind];
+  const ownerId = (receiptId ?? purchaseId) as number;
+  const inputId = `attachment-file-${kind}-${ownerId}`;
   return (
     <div className="mt-2 space-y-1 text-xs">
       {attachments.length > 0 ? (
@@ -57,41 +86,48 @@ export function AttachmentForm({
               <RemoveReceiptControl
                 attachmentId={attachment.id}
                 originalName={attachment.originalName}
+                noun={words.noun}
               />
             </li>
           ))}
         </ul>
       ) : null}
-      <form action={formAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="purchaseId" value={purchaseId} />
-        <label className="sr-only" htmlFor={`attachment-file-${purchaseId}`}>
-          Receipt or invoice file
-        </label>
-        <input
-          id={`attachment-file-${purchaseId}`}
-          name="file"
-          type="file"
-          accept="image/png,image/jpeg,application/pdf"
-          capture="environment"
-          required
-          className="max-w-[190px] text-xs"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded bg-slate-800 px-2 py-1 text-white disabled:opacity-60"
-        >
-          {pending ? 'Attaching…' : 'Attach receipt'}
-        </button>
-        {state.message !== null ? (
-          <span
-            role="status"
-            className={state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}
+      {allowUpload ? (
+        <form action={formAction} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name={words.field} value={ownerId} />
+          <label className="sr-only" htmlFor={inputId}>
+            {words.fileLabel}
+          </label>
+          <input
+            id={inputId}
+            name="file"
+            type="file"
+            accept="image/png,image/jpeg,application/pdf"
+            // A till receipt is photographed on the spot, so purchases open the
+            // camera. A payslip is as often a PDF from the employer's portal as a
+            // sheet of paper, so income leaves the phone's own choice (files,
+            // photos or camera) alone.
+            capture={kind === 'purchase' ? 'environment' : undefined}
+            required
+            className="max-w-[190px] text-xs"
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded bg-slate-800 px-2 py-1 text-white disabled:opacity-60"
           >
-            {state.message}
-          </span>
-        ) : null}
-      </form>
+            {pending ? 'Attaching…' : words.attach}
+          </button>
+          {state.message !== null ? (
+            <span
+              role="status"
+              className={state.status === 'error' ? 'text-red-700' : 'text-emerald-700'}
+            >
+              {state.message}
+            </span>
+          ) : null}
+        </form>
+      ) : null}
     </div>
   );
 }
@@ -99,14 +135,16 @@ export function AttachmentForm({
 function RemoveReceiptControl({
   attachmentId,
   originalName,
+  noun,
 }: {
   attachmentId: number;
   originalName: string;
+  noun: string;
 }) {
   const [state, formAction, pending] = useActionState(deleteAttachmentAction, initialActionState);
   const [armed, setArmed] = useState(false);
-  const removeName = `Remove receipt ${originalName}`;
-  const confirmName = `Confirm remove receipt ${originalName}`;
+  const removeName = `Remove ${noun} ${originalName}`;
+  const confirmName = `Confirm remove ${noun} ${originalName}`;
   return (
     <form action={formAction} className="inline-flex flex-wrap items-center gap-1">
       <input type="hidden" name="attachmentId" value={attachmentId} />

@@ -67,8 +67,9 @@ with its inputs inspectable.
   bank credentials ever requested.
 - Credit cards (the household does not use them; the pot model could accommodate them later, but no
   card-specific behaviour is built).
-- Investments, asset tracking, vehicle **valuation**, fuel-economy/mpg logs, mileage logs, maintenance
-  reminders. (Vehicles are tracked as **running-cost targets**, nothing more.)
+- Investments, asset tracking, vehicle **valuation**, trip/business mileage logs, maintenance reminders.
+  (Vehicles are tracked as **running-cost targets**; since v0.10.0 a fuel purchase may also carry litres
+  and an odometer reading so the app can show mpg — §13, §16.6 — and nothing more.)
 - Offline operation or offline caching of financial data (see §14).
 - Notifications, reminders, emails (see §14; deferred, not forgotten).
 - Drag-and-drop calendar scheduling; the calendar is a read-only view (§13).
@@ -606,7 +607,10 @@ query instead of a duplicated tree per car.
   this week". A vehicle has an owner for reporting roll-ups (owner totals = their personal totals + their
   vehicle totals, shown separately, never merged silently). Shared use needs no special handling: costs stay
   with the vehicle regardless of who paid or drove.
-- Out of scope: valuation, depreciation, mpg, mileage logs, maintenance reminders.
+- **Fuel economy (v0.10.0, household request).** A fuel purchase may carry the odometer reading, the litres
+  bought and whether the tank was filled to full. Both numbers are optional when the fuel is recorded and can
+  be added later; from them the app works out the price per litre, mpg and fuel cost per mile (§15.1, §16.6).
+- Out of scope: valuation, depreciation, trip or business mileage logs, maintenance reminders.
 
 ## 14. Connectivity, PWA, notifications
 
@@ -661,6 +665,14 @@ Home = four big actions:
      auto-wait, keystrokes do not.
 2. **Add Fuel** — prefills payer (signed-in user), pot default, category Fuel, target = the payer's own
    vehicle (one-tap flip to the other vehicle). The **amount is the only required typing**.
+   - **Litres and odometer (v0.10.0), both optional.** Two more boxes — litres from the pump or receipt,
+     miles from the dashboard — and a **Filled to full** tick, on by default (untick for a part fill). The
+     price per litre is shown as the litres are typed (amount ÷ litres; never stored). Anything left blank
+     can be added later from the purchase's row on Purchases or Overview ("Fuel details — add odometer &
+     litres"); that edit is versioned and audited like any other.
+   - **The save answers with the mpg:** one sentence under the form — e.g. "Vehicle A: 41.2 mpg over 312
+     miles since the last full tank. 40.12 L at 142.9p/L." — or, when mpg cannot be worked out yet, why
+     (part fill: worked out at the next full tank; first full tank noted; a reading or litres missing).
 3. **Update Balance** — pick pot (defaults to least-recently-updated), enter figure, save. Optional effective
    date. Two fields in the common case.
 4. **Move Money** — between the household's own pots (a cash handover included), borrowing and
@@ -675,6 +687,11 @@ browser's native `<datalist>` popup is fiddly on a phone and different on every 
 Layout rule at the till (v0.9.0): a phone screen with the keyboard open is roughly half a screen, so the
 critical fields and Save fit in it; inputs and buttons are at least 44px tall, and nothing overflows a
 320px-wide viewport (the panels scroll sideways, never the page).
+
+Till details fixed in v0.10.0: **one tap on Save saves** even with the supplier suggestions open (the list
+no longer collapses under the finger); **every** control inside Quick Entry — tabs, chips, toggles, split
+controls — is at least 44px tall, and a mobile test measures them; and the purchase form really does open
+with the cursor in **Supplier**, once the till is ready to listen.
 
 ### 15.2 Desktop — the "sit down and review" tool
 
@@ -815,6 +832,24 @@ edit or void anything.
    recent actuals (last 4–8 weeks), so drift is visible and fixable.
 5. **To-payday projection strip** — lives on Overview (§15.2) with the two warning tiers and the pot-level
    transfer watch.
+6. **Fuel economy (v0.10.0, §16.6)** — per vehicle mpg and fuel cost per mile from the litres and odometer
+   readings recorded with fuel purchases.
+
+### 16.6 Fuel economy — how mpg is worked out (v0.10.0)
+
+- **Full tank to full tank, UK gallons.** A stretch starts at a full tank with an odometer reading and ends
+  at the next full tank. Part fills in between add their litres and cost to the stretch. mpg = miles ÷
+  (litres ÷ 4.54609); fuel cost per mile = the stretch's fuel cost ÷ its miles.
+- **Honest gaps.** A stretch is not measured — and the app says why — when its closing full tank has no
+  odometer reading, when any fill in it has no litres, or when the odometer did not go up. A result below
+  8 or above 150 mpg is shown with "worth checking the readings", not hidden.
+- **Only fuel counts.** A fuel purchase is one whose Fuel lines all go to a single vehicle; its fuel cost is
+  those lines only, so a split with a shop item does not distort the price per litre. Refunds and voided
+  purchases are ignored.
+- **Insights shows, per vehicle:** the latest measured stretch; the last 12 months (total miles ÷ total
+  gallons — a ratio of totals, never an average of averages); fuel cost per mile; the latest price per litre;
+  recent fills missing litres (or, on a full tank, the odometer), each linked to its Purchases row; and the
+  recent fills.
 
 Later candidates (explicitly **not** v1): supplier top-N, category trends over many months, cash-vs-card
 mix, seasonal comparisons.
@@ -841,6 +876,10 @@ household Groceries; £21.49 to **Sam's** personal Clothing total — not Alex's
 Alex fills **Vehicle A**, £58.20. Home → Add Fuel: payer Alex, target *Vehicle A*, category Vehicle
 Running/Fuel, pot Main — all prefilled as visible chips; Alex types 58.20 and saves. Two taps plus digits.
 (If Alex had filled Sam's Vehicle B, one tap flips the vehicle chip — the cost still belongs to Vehicle B.)
+Since v0.10.0 Alex may also type **40.12** litres and the odometer **52,622**, tick left on "Filled to full";
+the last full tank was at 52,310 miles, so the save answers "Vehicle A: 35.4 mpg over 312 miles since the
+last full tank. 40.12 L at 145.1p/L." Left blank, the purchase saves exactly as before and the numbers can
+be added from Purchases later.
 
 ### E3 — Direct debit lifecycle: counted exactly once
 
@@ -1080,6 +1119,13 @@ is not one atomic transaction, so rollback and crash recovery are implemented an
 application against restored data, refresh the UI, and never delete the only recoverable copy on an error
 path.
 
+**Schema compatibility, as built (v0.10.0).** The live app is migrated by the container at start-up and a
+live restore does not restart it, so the restore settles the schema itself, on the staged copy, before the
+swap: a backup made by a **newer** version (it has a migration this version does not ship) is refused with
+"update the app, then restore it"; a backup from an **older** version has the pending migrations applied
+exactly as a container start would, then its integrity and foreign keys are checked again. Either way a
+failure leaves the live data as it was.
+
 ### 18.5 Rehearsal requirement
 
 Before real household data is entrusted to an installation, a backup must be restored into a **clean isolated
@@ -1170,6 +1216,13 @@ plus context; where the renewal is also a payment (annual premium), that is a sc
 
 Any purchase can carry **attachments** — receipt or invoice photos/scans. v1 formats: PNG, JPEG, PDF;
 multiple per purchase; per-file size limit (10 MB, plan OQ12). A household can remove one receipt later (§23.4); that is not automatic pruning.
+
+**Income records too (v0.10.0).** Every entry in "Income received" on the Income page can carry documents —
+typically a one-page payslip, and as many as needed. They go through exactly the same pipeline (sniffed
+PNG/JPEG/PDF, 10 MB, private serving, audit, backup and restore, removal as §23.4). The file picker does not
+force the camera there: a payslip is as often a PDF from the employer's portal as a sheet of paper. A voided
+income record keeps its documents viewable but takes no new ones. Each attachment belongs to exactly one
+purchase or one income record, never both.
 
 ### 23.1 Capture flows
 

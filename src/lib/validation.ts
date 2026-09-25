@@ -134,6 +134,20 @@ export const fuelEntrySchema = z.object({
   amountPence: positivePenceSchema,
   occurredDate: localDateSchema.nullable().default(null),
   note: nullableText(280, 'Note'),
+  // v0.10.0 (decision 139): optional at the pump, addable later. Parsed from
+  // the typed text by `parseOdometer`/`parseLitres` before they get here.
+  odometerMiles: z.number().int().positive().nullable().default(null),
+  fuelMillilitres: z.number().int().positive().nullable().default(null),
+  fullTank: z.boolean().default(true),
+});
+
+/** Parsed, server-authoritative shape for adding fuel details later (v0.10.0). */
+export const fuelDetailsEntrySchema = z.object({
+  purchaseId: positiveIdSchema,
+  expectedVersion: positiveIdSchema,
+  odometerMiles: z.number().int().positive().nullable().default(null),
+  fuelMillilitres: z.number().int().positive().nullable().default(null),
+  fullTank: z.boolean().default(true),
 });
 
 /** Parsed, server-authoritative shape for Update Balance. */

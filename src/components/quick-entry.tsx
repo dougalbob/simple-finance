@@ -16,6 +16,7 @@ import {
   type PurchaseActionState,
 } from '@/lib/action-state';
 import { formatPence, parsePence, penceInput } from '@/lib/money';
+import { formatPencePerLitre, parseLitres } from '@/lib/records/fuel-economy';
 import {
   followedLineAmount,
   nearestSupplierName,
@@ -156,7 +157,7 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
     <section
       aria-labelledby="quick-entry-heading"
       data-till-ready={ready ? 'true' : 'false'}
-      className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm sm:p-6"
+      className="till-touch rounded-2xl bg-slate-900 p-4 text-white shadow-sm sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -193,7 +194,7 @@ export function QuickEntry({ data }: { data: QuickEntryData }) {
       </div>
 
       <div inert={!ready} className="mt-5">
-        {mode === 'purchase' ? <PurchaseForm data={data} /> : null}
+        {mode === 'purchase' ? <PurchaseForm data={data} ready={ready} /> : null}
         {mode === 'fuel' ? <FuelForm data={data} /> : null}
         {mode === 'balance' ? <BalanceForm data={data} /> : null}
         {mode === 'move' ? <MoveForm data={data} /> : null}
@@ -317,7 +318,7 @@ function MoveTabButton({
  * completable from Panel 1 alone. On a laptop the panels are the original two
  * columns and the snap container stops scrolling.
  */
-function PurchaseForm({ data }: { data: QuickEntryData }) {
+function PurchaseForm({ data, ready }: { data: QuickEntryData; ready: boolean }) {
   const [state, formAction, pending] = useActionState<PurchaseActionState, FormData>(
     addPurchaseAction,
     initialPurchaseActionState,
@@ -354,10 +355,15 @@ function PurchaseForm({ data }: { data: QuickEntryData }) {
    * Focus order at the till (SPEC §15.1): who you paid → how much → save.
    * The form lands on the supplier; picking a remembered supplier moves the
    * caret to the amount. Nothing here re-grabs focus later.
+   *
+   * It waits for `ready` (decision 137): until the till has hydrated, its
+   * wrapper is `inert`, and focusing an element inside an inert subtree
+   * silently does nothing. v0.9.0 focused on mount — which runs before the
+   * parent's ready effect — so the form never actually started on the supplier.
    */
   useEffect(() => {
-    supplierRef.current?.focus();
-  }, []);
+    if (ready) supplierRef.current?.focus();
+  }, [ready]);
 
   const totalPence = parsePence(total);
   const linePence = lines.map((line) => parsePence(line.amount));
@@ -965,13 +971,54 @@ function SupplierTypeahead({
   onPick: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  /**
+   * The first-tap fix (decision 135). The list sits in the page flow, under
+   * the field, so it pushes Amount and Save down. When a tap elsewhere blurs
+   * the field, removing the list at once moves everything below it up — and
+   * the browser then delivers the tap's click to whatever is now under the
+   * finger, not the Save button the household aimed at. So a blur that came
+   * from a pointer only *hides* the list (it keeps its space) until that tap's
+   * click has landed; then it collapses. A keyboard blur closes it at once.
+   */
+  const [closing, setClosing] = useState(false);
   const [active, setActive] = useState(-1);
+  const lastPointerDown = useRef(0);
   const matches = rankSupplierMatches(options, value, 6);
   const listId = 'supplier-typeahead-list';
+  const showing = open && !closing && matches.length > 0;
+
+  useEffect(() => {
+    const note = () => {
+      lastPointerDown.current = Date.now();
+    };
+    document.addEventListener('pointerdown', note, true);
+    return () => document.removeEventListener('pointerdown', note, true);
+  }, []);
+
+  useEffect(() => {
+    if (!closing) return;
+    const finish = () => {
+      setClosing(false);
+      setOpen(false);
+      setActive(-1);
+    };
+    // After the click's own handlers (and a form submit) have run.
+    const afterClick = () => window.setTimeout(finish, 0);
+    document.addEventListener('click', afterClick, { once: true });
+    document.addEventListener('keydown', finish, { once: true });
+    // A tap that never becomes a click (a scroll, a cancelled touch).
+    const fallback = window.setTimeout(finish, 2500);
+    return () => {
+      document.removeEventListener('click', afterClick);
+      document.removeEventListener('keydown', finish);
+      window.clearTimeout(fallback);
+    };
+  }, [closing]);
 
   function commit(name: string) {
     onPick(name);
     setOpen(false);
+    setClosing(false);
     setActive(-1);
   }
 
@@ -1015,14 +1062,21 @@ function SupplierTypeahead({
             setOpen(true);
             setActive(-1);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setClosing(false);
+            setOpen(true);
+          }}
           onBlur={() => {
+            if (Date.now() - lastPointerDown.current < 1000) {
+              setClosing(true);
+              return;
+            }
             setOpen(false);
             setActive(-1);
           }}
           onKeyDown={handleKeyDown}
           role="combobox"
-          aria-expanded={open && matches.length > 0}
+          aria-expanded={showing}
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="off"
@@ -1040,7 +1094,8 @@ function SupplierTypeahead({
           id={listId}
           role="listbox"
           aria-label="Supplier suggestions"
-          className="mt-1 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+          aria-hidden={closing ? true : undefined}
+          className={`mt-1 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm ${closing ? 'invisible' : ''}`}
         >
           {matches.map((supplier, index) => (
             <li key={supplier.id}>
@@ -1098,7 +1153,8 @@ function TargetChip({
 /** The phone's "there is a second panel" cue: two dots and a one-line hint. */
 function PanelHint({ panel, onShow }: { panel: number; onShow: (index: number) => void }) {
   return (
-    <div className="mt-3 flex items-center justify-center gap-3 lg:hidden">
+    <div className="mt-1 flex items-center justify-center gap-1 lg:hidden">
+      {/* The dot stays small; the button around it is a full 44px target. */}
       {[0, 1].map((index) => (
         <button
           key={index}
@@ -1106,8 +1162,13 @@ function PanelHint({ panel, onShow }: { panel: number; onShow: (index: number) =
           aria-label={index === 0 ? 'Show the entry panel' : 'Show the details panel'}
           aria-pressed={panel === index}
           onClick={() => onShow(index)}
-          className={`h-2.5 w-2.5 rounded-full ${panel === index ? 'bg-sky-300' : 'bg-slate-600'}`}
-        />
+          className="flex h-11 w-11 items-center justify-center rounded-full"
+        >
+          <span
+            aria-hidden="true"
+            className={`block h-2.5 w-2.5 rounded-full ${panel === index ? 'bg-sky-300' : 'bg-slate-600'}`}
+          />
+        </button>
       ))}
       <span className="text-xs text-slate-300">
         {panel === 0 ? 'Swipe → category & splits' : 'Swipe ← back to the entry'}
@@ -1164,10 +1225,20 @@ function FuelForm({ data }: { data: QuickEntryData }) {
   const [supplierName, setSupplierName] = useState('');
   const [occurredDate, setOccurredDate] = useState('');
   const [note, setNote] = useState('');
+  const [litres, setLitres] = useState('');
+  const [odometer, setOdometer] = useState('');
+  const [fullTank, setFullTank] = useState(true);
   const submitGuard = useRef(false);
   useEffect(() => {
     if (!pending) submitGuard.current = false;
   }, [pending]);
+  // The forecourt price, worked out as soon as both figures are typed.
+  const amountPence = parsePence(amount);
+  const litresParsed = parseLitres(litres);
+  const priceHint =
+    amountPence !== null && amountPence > 0 && litresParsed.ok && litresParsed.value !== null
+      ? `= ${formatPencePerLitre(amountPence, litresParsed.value)}`
+      : null;
   const canSave =
     parsePence(amount) !== null &&
     parsePence(amount)! > 0 &&
@@ -1199,6 +1270,47 @@ function FuelForm({ data }: { data: QuickEntryData }) {
             className={`${inputClass} text-2xl font-semibold tabular-nums`}
           />
         </Field>
+        {/* Decision 139: both optional — a household in a rush adds them later
+            from Purchases, and mpg appears once they are there. */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Litres (optional)" hint={priceHint ?? 'From the pump or receipt.'}>
+            <input
+              name="litres"
+              value={litres}
+              onChange={(event) => setLitres(event.target.value)}
+              inputMode="decimal"
+              placeholder="e.g. 40.12"
+              className={`${inputClass} mt-1 tabular-nums`}
+            />
+          </Field>
+          <Field label="Odometer (optional)" hint="Miles on the dashboard.">
+            <input
+              name="odometer"
+              value={odometer}
+              onChange={(event) => setOdometer(event.target.value)}
+              inputMode="numeric"
+              placeholder="e.g. 52310"
+              className={`${inputClass} mt-1 tabular-nums`}
+            />
+          </Field>
+        </div>
+        <input type="hidden" name="fullTankShown" value="1" />
+        <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">
+          <input
+            type="checkbox"
+            name="fullTank"
+            value="1"
+            checked={fullTank}
+            onChange={(event) => setFullTank(event.target.checked)}
+            className="h-5 w-5 accent-slate-900"
+          />
+          <span>
+            Filled to full
+            <span className="block text-xs font-normal text-slate-500">
+              Untick for a part fill — mpg is measured between full tanks.
+            </span>
+          </span>
+        </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <ChipSelect
             label="Vehicle"
@@ -1261,7 +1373,7 @@ function FuelForm({ data }: { data: QuickEntryData }) {
         <button
           type="submit"
           disabled={pending || !canSave}
-          className="mt-4 rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 min-h-[48px] rounded-lg bg-slate-900 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? 'Saving…' : 'Save fuel'}
         </button>
@@ -1364,7 +1476,10 @@ function DuplicateNotice({ notice }: { notice: DuplicateNoticeState }) {
         {notice.minutesAgo === 0 ? 'just now' : `${notice.minutesAgo} minutes ago`}.
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <a href={`#purchase-${notice.purchaseId}`} className="font-semibold underline">
+        <a
+          href={`#purchase-${notice.purchaseId}`}
+          className="inline-flex min-h-[44px] items-center font-semibold underline"
+        >
           Review entry #{notice.purchaseId}
         </a>
         <input type="hidden" name="version" value={notice.version} />

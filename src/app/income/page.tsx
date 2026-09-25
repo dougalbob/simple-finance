@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { AttachmentForm } from '@/components/attachment-form';
 import { CancelScheduleForm } from '@/components/recurring';
 import {
   IncomeEditForm,
@@ -19,6 +20,7 @@ import {
   listIncomeSchedules,
   type IncomeRecordView,
 } from '@/lib/records/income-view';
+import { listStoredReceiptAttachments, type StoredAttachment } from '@/lib/records/attachments';
 import { ensureScheduleState } from '@/lib/records/money-view';
 import { listPots } from '@/lib/records/pots';
 import { toLocalDateString } from '@/lib/time';
@@ -77,6 +79,12 @@ export default async function IncomePage({
       ? getIncomeRecord(db, linkedId)
       : null;
   const rows = linked === null ? records : [linked, ...records];
+  // Payslips and other documents on each income record (v0.10.0, decision
+  // 138), fetched for the whole list in one query.
+  const documents = listStoredReceiptAttachments(
+    db,
+    rows.map((row) => row.id),
+  );
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
@@ -276,7 +284,8 @@ export default async function IncomePage({
         </h2>
         <p className="mb-3 mt-1 max-w-3xl text-sm text-slate-600">
           Scheduled and one-off income together, newest first. Voided income stays in the list,
-          struck through with its reason — nothing here is ever deleted.
+          struck through with its reason — nothing here is ever deleted. Attach the payslip (a PDF
+          or a photo, up to 10 MB) to any record, now or later.
         </p>
         {linked !== null ? (
           <p className="mb-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
@@ -294,6 +303,7 @@ export default async function IncomePage({
               <IncomeRow
                 key={record.id}
                 record={record}
+                documents={documents.get(record.id) ?? []}
                 pots={pots.map((pot) => ({ id: pot.id, label: pot.label }))}
                 today={today}
               />
@@ -307,10 +317,12 @@ export default async function IncomePage({
 
 function IncomeRow({
   record,
+  documents,
   pots,
   today,
 }: {
   record: IncomeRecordView;
+  documents: StoredAttachment[];
   pots: Array<{ id: number; label: string }>;
   today: string;
 }) {
@@ -334,6 +346,11 @@ function IncomeRow({
           +{formatPence(record.amountPence)}
         </span>
       </div>
+      <AttachmentForm
+        receiptId={record.id}
+        attachments={documents}
+        allowUpload={record.voidedAt === null}
+      />
       {record.voidedAt === null ? (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs font-medium text-slate-600">

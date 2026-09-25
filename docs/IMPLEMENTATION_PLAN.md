@@ -534,7 +534,12 @@ covering attachments).
     `e2e/backup.spec.ts`.
 84. **Supplier references and interactions became domain operations.** They were written straight into the
     tables by the form actions (no validation, no actor on the audit trail). Now
-    `src/lib/records/supplier-details.ts` owns them: trimmed and length-capped text, the five documented
+    `src/lib/records/fuel-economy.ts — v0.10.0 pure fuel maths: litres/odometer parsing, UK-gallon mpg full tank to
+                                full tank, stretches and gaps, totals, the post-save sentence (decisions 139–141)
+src/lib/records/fuel.ts       — v0.10.0 DB side of fuel: fills per vehicle, audited editFuelDetails, the Insights
+                                view, row context for Purchases/Overview
+src/components/fuel-details-form.tsx — v0.10.0 fuel summary + "Fuel details" editor on a fuel purchase row
+src/lib/records/supplier-details.ts` owns them: trimmed and length-capped text, the five documented
     channels, `isValidLocalDate` on follow-up dates, `SupplierNotFoundError` for unknown suppliers, the
     supplier must exist, and `supplier.reference` / `supplier.interaction` audit entries written in the same
     transaction. `upcomingSupplierFollowUps(db, today)` is the query the Contracts page uses. The contact
@@ -983,6 +988,70 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
     throwaway config overlay. Sixteen CI minutes per guess became two local ones, which is how the failures
     above were diagnosed instead of guessed at.
 
+134. **The acceptance suite's "today" is London's (v0.10.0).** Between 23:00 and 00:00 UTC in summer the seed
+    wrote tomorrow's UTC date while the app showed London's today, and the date-sensitive specs failed for an
+    hour a night. The seed now writes `toLocalDateString(now)`, the specs compute dates with
+    `londonToday()`/`addDaysIso()` from `e2e/support.ts`, and the browser runs with
+    `timezoneId: 'Europe/London'` — the one timezone the household lives in (SPEC §2). Re-done in session
+    `arena/01a0d778-simple-finance`: the original post-v0.9.0 commits for 134–137 never reached GitHub
+    (GitHub outage) and their sandbox was lost.
+135. **One tap on Save saves, with the supplier suggestions open.** The typeahead closed on the supplier
+    field's `blur`, so a tap on Save first collapsed the list, the page moved up under the finger, and the
+    `click` landed on nothing — the household had to tap twice. A pointer-initiated blur now hides the list
+    *in place* (`closing`: invisible, still taking its space) until the click has landed, then removes it;
+    keyboard blur closes it at once as before. Mobile spec: one tap with the list open saves.
+136. **Every Quick Entry control is at least 44px tall.** Decision 130 fixed the big ones; tab buttons, the
+    "+ Note" toggle, chips and split-line controls were still 32–36px. One scoped rule (`.till-touch` in
+    `globals.css`) sets `min-height: 44px` on every button, input, select, textarea and summary inside the till, and a
+    mobile spec measures every visible control on every tab so a new small one fails the build.
+137. **The purchase form starts on Supplier — once it can hear.** The `autoFocus` and the focus calls ran
+    while the form was still `inert` (decision 131), so the focus was refused and the phone opened on
+    nothing. Focus now moves to Supplier when `data-till-ready` flips to `true`, and again after "Add
+    another" and a tab switch back to Purchase.
+138. **Documents on income records use the attachments table (SPEC §23, v0.10.0).** The household wants a
+    payslip (usually one page, sometimes several documents) on the income entry it belongs to. Migration
+    `0009_income_documents_fuel_details` rebuilds `attachments` with `purchase_id` nullable, a new nullable
+    `receipt_id` → `receipts`, and `CHECK attachments_one_owner` (exactly one of the two). Everything else is
+    the existing pipeline unchanged — sniffed PNG/JPEG/PDF, 10 MB, opaque keys, soft-delete then unlink,
+    audit (entity `receipt`), backup/restore (the archive stores rows and files, not owners) and the
+    authenticated route. The rebuild keeps every id, key and state (tested on a v0.9.0-shaped database in
+    `tests/migration-0009.test.ts`). The income upload control does not force the camera: a payslip is as
+    often a PDF from a portal as paper. A voided income record keeps its documents viewable and takes no new
+    ones. OQ10's "purchases only" is superseded for income; supplier-level documents stay deferred.
+139. **Fuel details are optional and editable later (SPEC §15.1).** A fuel purchase can carry an odometer
+    reading (whole miles), litres (stored as integer millilitres, so no floats in the database) and "Filled
+    to full" (default on). The household was clear that neither number may be mandatory at the pump, so
+    the till accepts blanks and Purchases/Overview show a "Fuel details — add odometer & litres" editor on
+    every fuel row; the edit is versioned and audited (`purchase.fuel_details`). Cost per litre is never
+    stored — it is `amount ÷ litres`, shown live as the litres are typed. A "fuel purchase" is a live,
+    non-refund purchase whose Fuel-category lines all go to one vehicle; the fuel cost is those lines, so a
+    split with a shop item does not inflate the price per litre.
+140. **mpg is measured full tank to full tank, in UK gallons (SPEC §16.6).** A stretch runs from one full tank
+    with an odometer reading to the next; part fills in between add their litres and their cost. mpg = miles
+    ÷ (litres ÷ 4.54609). A stretch is left unmeasured — and says why — when the closing full tank has no
+    odometer, when any fill in it lacks litres, or when the odometer did not go up; it is flagged (not
+    hidden) when the answer is outside 8–150 mpg. Totals are ratios of sums, never averages of ratios.
+    Insights shows per vehicle: the latest stretch, the last 12 months, fuel cost per mile, the latest price
+    per litre, the fills missing details (linked to their Purchases row) and the recent fills. Pure maths in
+    `records/fuel-economy.ts` (importable by client components), database side in `records/fuel.ts`.
+141. **The save answers with the mpg.** After a fuel save — at the till or from Fuel details — one sentence
+    says what happened: "Vehicle A: 41.2 mpg over 312 miles since the last full tank. 40.12 L at
+    142.9p/L.", or a part fill waiting for the next full tank, or the first full tank noted, or what is
+    missing. The same sentence (short form) sits on the Purchases/Overview row that closed the stretch.
+142. **A restore brings an older backup up to the running schema, and refuses a newer one (SPEC §18.4).**
+    Found while writing the v0.10.0 notes: in production only the container entrypoint runs migrations, at
+    start-up, and a live restore reopens the database without a restart. Restoring an archive taken before
+    a migration therefore came back without the newer columns until the next restart — harmless while
+    migrations only added tables few pages read, but 0009 adds columns to `purchases`, which nearly every
+    page reads. `restoreEncryptedBackup` now, on the staged copy and before the swap: refuses an archive
+    whose newest applied migration is later than the newest one this build ships ("made by a newer
+    version… update the app, then restore it"), otherwise applies the pending migrations exactly as the
+    entrypoint would, re-runs the foreign-key and integrity checks, and folds the WAL into the file. A
+    failure leaves the live data untouched. This is what §18.4's "validate … schema compatibility before
+    touching live data" asked for; the checks before it were table-presence only. Tests: an archive made
+    on the v0.9.0 schema restores as ten migrations with the new columns; one with a future migration is
+    refused and the target keeps its data.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -996,7 +1065,7 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
 | OQ7 | ~~PWA installability~~ | **Resolved v0.8.0 (decisions 122–123): manifest + icons shipped without a service worker; bypass surface equals the files that exist.** |
 | OQ8 | Unraid host port | Pick a free port at first install; template documents it (never inherit 3005). |
 | OQ9 | Phone camera formats: accept HEIC directly, or rely on browser JPEG capture? | v1 accepts PNG/JPEG/PDF; document the iPhone "Most Compatible"/JPEG camera setting; server-side HEIC conversion only if real devices demand it. |
-| OQ10 | Supplier-level document attachments (e.g. a policy PDF not tied to a purchase)? | Defer; v1 attaches to purchases only. Renewals/suppliers hold references + notes meanwhile. |
+| OQ10 | Supplier-level document attachments (e.g. a policy PDF not tied to a purchase)? | Defer; v1 attaches to purchases only. Renewals/suppliers hold references + notes meanwhile. **v0.10.0 (decision 138): income records take documents too (payslips); supplier-level documents stay deferred.** |
 | OQ11 | Interaction follow-up dates surfaced in the key-dates panel — useful? | Include the optional field and panel display (proposed); no notifications either way. |
 | OQ12 | Attachment size limit and retention guidance | 10 MB per file; README guidance on archive growth; no server-side pruning in v1. User-initiated removal of one receipt is decision 89 — still no automatic pruning. |
 | OQ13 | 29 February renewal dates under annual advance | Land on 28 February in non-leap years; visible and editable. |
@@ -1035,6 +1104,20 @@ record still points at — archiving is a tidy-up for empties, never a deletion.
   `v0.9.0` on merge commit `19e878c` (PR #43), publish run `36069116599`, digest
   `sha256:4384d7d2a4bd789580e733889616eb1d92ab8cd27403419bb73b3affd12aa809` on `v0.9.0` / `latest` /
   `sha-19e878c` — one digest, different from v0.8.0's ([`docs/RELEASE_NOTES_v0.9.0.md`](RELEASE_NOTES_v0.9.0.md)).
+- **v0.10.0 — payslips on income, fuel economy, and the lost till fixes (session
+  `arena/01a0d778-simple-finance`, from `main` @ `5cb28e3`)**: re-does decisions **134–137** (their
+  post-v0.9.0 commits never reached GitHub) and adds **138–142**: migration
+  `0009_income_documents_fuel_details` (attachments owned by a purchase *or* an income record; optional
+  `odometer_miles`, `fuel_millilitres`, `fuel_full_tank` on purchases), documents on the Income page,
+  litres/odometer/full-tank at the till and later on Purchases/Overview (`components/fuel-details-form.tsx`),
+  the Insights Fuel economy panel, the post-save mpg sentence. New: `records/fuel-economy.ts`,
+  `records/fuel.ts`, `tests/fuel-economy.test.ts`, `tests/migration-0009.test.ts`, income-document tests in
+  `tests/attachment-pipeline.test.ts`, `e2e/fuel.spec.ts` (own project, before backup), payslip and till
+  specs; the weekend-payday probe now needs a Friday after today; a restore upgrades an older archive to the
+  running schema and refuses a newer one (decision 142). SPEC §15.1/§16.6/§18.4/§23 amended, mpg removed
+  from out-of-scope. `npm test` **378 tests / 95 suites green**, format and typecheck clean, production
+  build green, local Playwright **55 tests green** (SANDBOX entry 8). Publication recorded in
+  [`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md) and `docs/HANDOFF.md`.
 - **v0.8.0 — installable PWA, no offline access (session `arena/01a0d4f9-simple-finance`, from `main` @ `837845a`)**:
   `public/manifest.webmanifest` (static file, not a Next route), `public/icon-192.png` (192×192),
   `public/icon-512.png` (512×512), `public/apple-touch-icon.png` (180×180), all derived from the existing
@@ -1193,6 +1276,8 @@ tests/recurring-calendar.test.ts — Phase 4a exit criterion: calendar/instance 
                                 clamping, grid construction
 tests/settings-domain.test.ts — Phase 4a: pot edit rules (overdraft context, version guard), category tree
                                 operations (retire/assign-block), target renames, warning leads
+tests/fuel-economy.test.ts    — v0.10.0 fuel parsing, stretches/gaps, totals, sentences, audited edit + conflicts
+tests/migration-0009.test.ts  — v0.10.0 upgrade of a v0.9.0-shaped database keeps every attachment and purchase
 tests/household.ts            — isolated household fixture (pots, people, vehicles, category lookup) for Phase 2a+ tests
 .github/workflows/ci.yml      — gates job + docker build/smoke job (PR + push to main)
 ```

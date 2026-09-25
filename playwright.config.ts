@@ -35,6 +35,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     // A phone-ish default; desktop specs override the viewport.
     ...devices['Desktop Chrome'],
+    // The browser keeps the household's calendar, not the CI runner's UTC —
+    // so a date the page computes and a date the server computes agree even
+    // in the summer hour when London is already on tomorrow (decision 134).
+    timezoneId: 'Europe/London',
   },
   projects: [
     {
@@ -99,6 +103,14 @@ export default defineConfig({
       // restore rewinds the installation.
       name: 'horizon',
       testMatch: /horizon\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
+      // Own project (v0.10.0): adds its own vehicle and three fuel fills, so it
+      // runs after the specs that assert Insights and vehicle lists, and before
+      // the backup project's restore rewinds the installation.
+      name: 'fuel',
+      testMatch: /fuel\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },
     },
     {

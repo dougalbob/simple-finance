@@ -335,6 +335,96 @@ test.describe('mobile quick entry', () => {
     await expect(list).toHaveCount(0);
   });
 
+  test('the till lands on the supplier once it is listening', async ({ page }) => {
+    await page.goto('/');
+    await waitForTill(page);
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    // SPEC §15.1 focus order: who you paid → how much → save. The form used to
+    // try to focus the supplier while it was still inert (before hydration
+    // finished), which silently did nothing.
+    await expect(entry.locator('input[name="supplierName"]')).toBeFocused();
+  });
+
+  test('one tap on Save saves, even with the supplier suggestions open', async ({ page }) => {
+    test.slow(); // its own purchase, against the dev server
+    await page.goto('/');
+    await waitForTill(page);
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+    const supplier = entry.locator('input[name="supplierName"]');
+
+    await entry.locator('input[name="amount"]').fill('4.20');
+    await expect(entry.getByText('Matches exactly')).toBeVisible();
+    // A new name that still matches remembered suppliers: the list stays open
+    // under the field, pushing Save down the page.
+    await supplier.tap();
+    await supplier.fill('Corner');
+    const list = entry.getByRole('listbox', { name: 'Supplier suggestions' });
+    await expect(list).toBeVisible();
+
+    // The household taps Save once. Closing the list must not move Save out
+    // from under the finger before the tap lands (the v0.9.0 first-tap bug).
+    await entry.getByRole('button', { name: 'Save purchase' }).first().tap();
+    await expect(entry.getByRole('status')).toContainText(/saved/i, { timeout: 30_000 });
+    await expect(list).toHaveCount(0);
+  });
+
+  test('every control on every till tab is at least 44px tall', async ({ page }) => {
+    await page.goto('/');
+    await waitForTill(page);
+    const entry = page.getByRole('region', { name: /Record it while it is fresh/i });
+
+    const tooSmall = async (label: string): Promise<string[]> =>
+      entry.evaluate((root, where) => {
+        const found: string[] = [];
+        const controls = root.querySelectorAll<HTMLElement>(
+          'button, a[href], input:not([type="hidden"]), select, textarea, summary',
+        );
+        for (const control of controls) {
+          const box = control.getBoundingClientRect();
+          // Only what a thumb can actually reach right now: on screen, on the
+          // visible swipe panel, not hidden by a closed <details>.
+          if (box.width === 0 || box.height === 0) continue;
+          if (box.right <= 0 || box.left >= window.innerWidth) continue;
+          const style = window.getComputedStyle(control);
+          if (style.visibility === 'hidden') continue;
+          // A checkbox or radio is measured by its label, which is the target.
+          const target =
+            control instanceof HTMLInputElement &&
+            (control.type === 'checkbox' || control.type === 'radio') &&
+            control.closest('label') !== null
+              ? (control.closest('label') as HTMLElement).getBoundingClientRect()
+              : box;
+          if (target.height < 44 || target.width < 44) {
+            const name =
+              control.getAttribute('aria-label') ??
+              (control.textContent ?? '').trim().slice(0, 40) ??
+              control.getAttribute('name');
+            found.push(
+              `${where}: <${control.tagName.toLowerCase()}> "${name || control.getAttribute('name')}" ${Math.round(target.width)}x${Math.round(target.height)}`,
+            );
+          }
+        }
+        return found;
+      }, label);
+
+    const problems: string[] = [];
+    problems.push(...(await tooSmall('Purchase panel 1')));
+    await entry.getByRole('button', { name: 'Show the details panel' }).click();
+    await expect(entry.getByText('Swipe ← back to the entry')).toBeVisible();
+    problems.push(...(await tooSmall('Purchase panel 2')));
+    await entry.getByRole('button', { name: 'Show the entry panel' }).click();
+    await expect(entry.getByText(/Swipe → category/)).toBeVisible();
+    for (const tab of ['Fuel', 'Balance', 'Move']) {
+      await entry.getByRole('tab', { name: tab }).click();
+      problems.push(...(await tooSmall(tab)));
+    }
+    for (const moveTab of ['Borrow & repay', 'Swap', 'Other']) {
+      await entry.getByRole('tab', { name: moveTab }).click();
+      problems.push(...(await tooSmall(`Move / ${moveTab}`)));
+    }
+    expect(problems).toEqual([]);
+  });
+
   test('the second panel is one swipe away, and Save is on both', async ({ page }) => {
     await page.goto('/');
     await waitForTill(page);

@@ -1,114 +1,81 @@
-# Handoff — the phone-first till form and the "before income lands" figure (v0.9.0)
+# Handoff — payslips on income, fuel economy, and the lost till fixes (v0.10.0)
 
-Date: 2026-09-24. Branch: `arena/01a0d55f-simple-finance` (from `main` @ `2255607`, post-v0.8.0 and its
-release).
+Date: 2026-09-25. Branch: `arena/01a0d778-simple-finance` (from `main` @ `5cb28e3`, the v0.9.0 merge
+plus its release commit).
 
-**Released as v0.9.0 on 2026-09-24** — annotated tag `v0.9.0` on merge commit `19e878c` (PR #43), digest
-`sha256:4384d7d2…d12aa809` on `v0.9.0` / `latest` / `sha-19e878c`. The household's two steps in Unraid:
-back up, then Force Update. Facts are stamped in
-[`docs/RELEASE_NOTES_v0.9.0.md`](RELEASE_NOTES_v0.9.0.md); the version-badge check is
-`v0.9.0 · pre-release`.
+**Released as v0.10.0** — the tag, merge commit and digest are stamped in
+[`docs/RELEASE_NOTES_v0.10.0.md`](RELEASE_NOTES_v0.10.0.md) once published (this file is written before the
+merge, because the branch cannot be pushed after it). The household's two steps in Unraid: back up, then
+Force Update. The version-badge check is `v0.10.0 · pre-release`.
 
-**This session redesigned the mobile Quick Entry experience and added the second balance figure the
-household asked for.** The household's question was: a "free to spend" figure based only on the last
-checkpoint is dangerous — standing in Tesco with £500 showing and a £600 mortgage leaving three days before
-payday tells you nothing about the bounce. Agreed answer (decisions 124–126): show **two** facts, the last
-reported checkpoint (with its age) **and** what is left before income lands, the latter counting **no
-incoming money at all**. New SPEC §7.7.
+**Why this session started:** the previous session committed four post-v0.9.0 fixes while GitHub was having
+an outage; the push never landed and the sandbox was lost. They were re-done here from their description
+(decisions 134–137), and SANDBOX entry 10 now says to push after every commit. The household then chose to
+ship them in one release together with two new features.
 
 ## What changed
 
-- **SPEC §7.7 (new)** — "What is left before income lands (the till figure)":
-  `free_to_spend = household_available_now − commitments due in (today, next income] − projected day-to-day
-  events in the same window`; per pot it is §7.5's pot watch with that window. §15.1 rewritten for the till
-  redesign; §15.2's Settings row gained the default pot.
-- **`src/lib/records/money-view.ts`** — `getCycleOutlook(db, now, snapshot?)` (+ `CycleOutlook`,
-  `CycleOutlookPot`) and two extracted helpers the projection panel now shares, so the panel and the till
-  read the window through one code path: `nextExpectedIncome` (the §7.2 payday selection) and
-  `windowLines` (commitments/receipts inside a window). `getProjectionView` behaviour is unchanged —
-  340 tests stayed green through the refactor.
-- **`src/lib/records/entry-view.ts`** — `buildEntryData` puts the reported checkpoint (amount, age,
-  absolute time — rendered server-side so hydration cannot disagree), the estimate, the pot's
-  `spendablePence`/`shortfallPence`/`dueBeforeIncome`, and the household `cycle` outlook into
-  `QuickEntryData`.
-- **`src/lib/records/settings.ts`** — `default_purchase_pot_id` with `getDefaultPurchasePotId` /
-  `setDefaultPurchasePotId` (validated against live pots; audited like every other setting).
-- **`src/lib/records/quick-entry.ts`** — the typeahead's pure half: `normalizeSupplierQuery`,
-  `rankSupplierMatches`, `nearestSupplierName` (+ the moved `editDistance`).
-- **`src/lib/time.ts`** — `formatShortLocalDate` ('2026-09-30' → "Wed 30 Sept").
-- **`src/components/quick-entry.tsx`** — the purchase form rebuilt (see the decisions 127–130 list): pot
-  first, both balance figures, inline supplier typeahead, swipe panels with Save on both, focus order
-  supplier → amount → save, "Line 1 amount" label only when there is more than one line, note behind
-  "+ Note", "Add another" resets to panel 1 on the supplier field. Fuel and Balance forms moved onto light
-  cards (**they were dark-on-dark before** — see below), and every input/button is ≥44px tall.
-- **`src/components/pot-outlook.tsx` (new)** — the shared "before income lands" lines for the home page pot
-  cards and the Overview mini-balances.
-- **`src/app/settings/page.tsx` + `settings-forms.tsx` + `actions.ts`** — a "Quick entry" section with the
-  **Default pot for purchases** dropdown and `saveDefaultPurchasePotAction`.
-- **`scripts/e2e-server.mts`** — the fictional seed now sets a default pot, so the specs prove the form
-  honours it.
-- **Tests** — `tests/cycle-outlook.test.ts` (6 tests, including the "the till figure equals the projection
-  panel's low" cross-check), typeahead ranking in `tests/quick-entry.test.ts`, the setting in
-  `tests/settings-domain.test.ts`, `formatShortLocalDate` in `tests/time.test.ts`; Playwright: four new
-  mobile specs in `e2e/home.spec.ts`, a new settings spec, and `.first()` on the now-duplicated Save button
-  in `home`/`desktop`/`attachments`/`backup`.
-- **Decisions 124–133** in `docs/IMPLEMENTATION_PLAN.md`; **v0.9.0** in all five version places (code,
-  lockfile, badge, Unraid template, release notes).
-- **`e2e/support.ts` (new)** — `waitForTill(page)`: every spec that drives the till waits for
-  `[data-till-ready="true"]` first (25 call sites). See the watch-outs below.
+- **Till fixes (decisions 134–137)** — `e2e/support.ts` `londonToday`/`addDaysIso` and
+  `timezoneId: 'Europe/London'` (the suite no longer fails 23:00–00:00 UTC); the supplier typeahead hides
+  in place (`closing`) on a pointer blur so one tap on Save saves; `.till-touch` in `globals.css` makes
+  every Quick Entry control ≥44px and a mobile spec measures them all; the purchase form focuses Supplier
+  once `ready` is true.
+- **Migration `0009_income_documents_fuel_details`** — `attachments` rebuilt: `purchase_id` nullable, new
+  `receipt_id` → `receipts`, `CHECK attachments_one_owner` (exactly one). `purchases` gains
+  `odometer_miles`, `fuel_millilitres` (integer mL) and `fuel_full_tank` (default 1), with positive-value
+  checks. Upgrade of a v0.9.0-shaped database with receipts is tested (`tests/migration-0009.test.ts`).
+- **Income documents (decision 138)** — `records/attachments.ts` takes `purchaseId` *or* `receiptId`
+  (`AttachmentOwner`, `listStoredReceiptAttachments`); audit entity `receipt`. `AttachmentForm` takes
+  `receiptId` and `allowUpload` and words itself for payslips (no forced camera). The Income page's
+  "Income received" rows list and accept documents; voided rows keep theirs but take no new ones.
+- **Fuel (decisions 139–141)** — `records/fuel-economy.ts` (pure: parsing, UK-gallon mpg full tank to full
+  tank, gaps, totals, the post-save sentence; safe in client components), `records/fuel.ts` (DB: fills per
+  vehicle, audited/versioned `editFuelDetails`, the Insights view, row context), Quick Entry Fuel gains
+  Litres/Odometer/Filled to full with a live price per litre, `components/fuel-details-form.tsx` on the
+  Purchases and Overview rows, and the Insights **Fuel economy** panel.
+- **Restore upgrades older archives (decision 142)** — found while writing the notes: a live restore
+  reopened the database without migrating it, so an archive from before 0009 would have broken every page
+  reading `purchases` until a restart. `restoreEncryptedBackup` now refuses a newer archive and migrates an
+  older one on the staged copy, before the swap.
+- **Docs** — SPEC §2 non-goals, §13, §15.1, §16 item 6 and **§16.6**, E2, §18.4, §23; decisions 134–142;
+  SANDBOX entry 10; v0.10.0 in all five version places.
 
 ## Watch out for (learned this session)
 
-- **The two figures must not be conflated.** `free_to_spend` counts **no** income; the projection panel's
-  `projected_low` counts the income but lands on the same dip when nothing else arrives in the window.
-  `tests/cycle-outlook.test.ts` pins that equality — if a future change makes the till figure disagree with
-  the panel, that test is the tripwire, not a coincidence.
-- **Null is not zero.** No income schedule → no window → `freeToSpendPence`/`spendablePence` are `null` and
-  the UI says what is missing. Do not "fix" this by defaulting to the available-now figure; that is the
-  bug the household reported.
-- **The Quick Entry panel used to be dark-on-dark.** `PurchaseForm`/`FuelForm`/`BalanceForm` set
-  `text-slate-900`/`text-slate-800` labels while sitting on `bg-slate-900`, so the field labels were
-  effectively invisible. Every panel is a white card now. If you add a form to Quick Entry, put it on a
-  light card.
-- **Save is deliberately duplicated** (one button per swipe panel), so Playwright locators need `.first()`
-  — `getByRole('button', { name: 'Save purchase' })` alone is a strict-mode violation. The status/duplicate
-  message is rendered once, outside the panels, for the same reason.
-- **The accessible name of the mirrored amount is still "Line 1 amount"** (`aria-label`), even though the
-  visible label hides the "Line 1" when only one line exists. That is intentional: the e2e
-  specs and screen readers keep working while the visible panel stays quiet.
-- **Scroll-snap is enhancement only.** Panel 2 is reachable by tab and by keyboard; Playwright's `fill()`
-  scrolls the container itself, so specs may hop panels without asserting it.
-- **The till must be hydrated before a spec touches it, and it now says so.** The form renders
-  `data-till-ready="false"`, flips it to `true` on mount, and the tab strip and forms are `inert` until
-  then. Locator *actions* do not auto-wait for hydration (assertions do), which is what cost four `browser`
-  job failures: a tab tap that switched nothing, a keystroke wiped by the hydration render, and a save that
-  reached the server with an empty amount (`Invalid input: expected number, received null`). If you add a
-  spec that records anything from Quick Entry, call `waitForTill(page)` after `page.goto('/')`.
-- **A purchase must name a pot.** With the default cleared there is no preselected pot, Save stays off and
-  the panel says why; the server refuses a pot-less purchase. Spec order matters here: the `settings`
-  project ends by clearing the default on purpose, so any spec after it that records a purchase selects its
-  pot itself (`e2e/backup.spec.ts`).
+- **§16.N means item N of the Insights list.** Code already cited "§16.4" for the honesty loop, so the fuel
+  section is **§16.6** (item 6), not a new "16.4". Keep to that when adding panels.
+- **A "fuel purchase" is a definition, not a flag:** live, not a refund, Fuel-category lines all to one
+  vehicle. The fuel cost is the Fuel lines only. `fuelRowDetails` returns `null` for anything else, which is
+  why a split that sends fuel to two vehicles shows no fuel editor. Refunds do not reduce a fill.
+- **Totals are ratios of sums.** "Last 12 months" mpg is total miles ÷ total gallons over measured
+  stretches, never an average of mpg figures. `tests/fuel-economy.test.ts` pins this.
+- **The odometer is only demanded on full tanks.** The "missing details" list flags missing litres on any
+  fill but a missing odometer only on a full tank — a part fill's mileage is never used.
+- **Two nullable owners, one CHECK.** Anything new that creates `attachments` rows must set exactly one of
+  `purchase_id`/`receipt_id`; the database refuses otherwise. Backup/restore and the serving route never
+  look at the owner, which is why they needed no change.
+- **The audit `entity_id` is text.** Compare with `String(id)` in tests.
+- **Restore now runs migrations.** `restoreEncryptedBackup` reads `./drizzle` (or `migrationsFolder`); the
+  container image ships it next to the server. A test that fabricates a database must start from real
+  migrations, or the upgrade step will refuse or fail it.
+- **Date-dependent specs:** the weekend-payday probe picked a weekend day whose Friday was *today*, which
+  the seeded salary had already been received on (the 27th was a Sunday). It now needs a Friday after
+  today. If a spec fails only on certain dates, look for "today" edge cases like this one.
 
 ## Test state
 
-`npm test` — **357 tests, all green, 90 suites** (was 340/85). `npm run format:check`, `npx tsc --noEmit`
-and `npm run build` are clean.
-
-**The browser suite now runs in this sandbox too** — 50 tests, every project, green in ~2 minutes
-(`docs/SANDBOX.md` entry 8: `@sparticuz/chromium` from the npm registry, its AL2023 libs on
-`LD_LIBRARY_PATH`, a throwaway `playwright.local.config.ts` overlay). That is how the four CI failures above
-were diagnosed rather than guessed at; entry 2 is now marked as partly superseded. CI's `browser` job is
-still the acceptance gate — locally the seed, the Playwright version and the emulated phone are ours, not
-the household's.
+`npm test` — **378 tests, all green, 95 suites** (was 357/90). `npm run format:check`, `npx tsc --noEmit`
+and `npm run build` are clean. Local Playwright (SANDBOX entry 8) — **55 tests green** across every project
+(was 50), including the new `fuel` project and the payslip spec; CI's `browser` job remains the gate.
 
 ## Open / deferred (not forgotten)
 
-- **The swipe physics have only been driven by emulation.** The panels, the dots and the scroll-snap
-  behaviour pass under Playwright's Pixel 7 profile (locally and in CI) — but a real thumb on a real phone is
-  still the household's verdict, and emulation cannot tell us how the keyboard covers the form. If the panels
-  feel wrong, the CSS is one class list to change.
-- **Dot indicators** shipped (the handoff's open decision): two dots plus a hint line, mobile only.
-- **"Add another" resets to Panel 1 and focuses the supplier** — implemented as probably-yes.
-- **Home page mobile layout is still untouched** (the money section, projection, due-this-week, schedules,
-  pots, recent entries all as they were) — the household decides later what to hide on a phone.
+- **UK gallons were assumed**, not explicitly confirmed by the household (the UK default; 4.54609 L). If
+  they want US gallons or L/100 km it is one constant and a label.
+- **Supplier-level documents** (a policy PDF not tied to a purchase) stay deferred — OQ10.
+- **The home page's recent-entries table is read-only** and shows no fuel details; Purchases and Overview
+  carry the editor.
+- **Swipe physics and the 44px sizes have only been driven by emulation** (Pixel 7 profile); a real thumb on
+  a real phone is still the household's verdict.
+- **Home page mobile layout is still untouched**; the household decides later what to hide on a phone.
 - **The Cloudflare Access app** still wants its PWA paths intact (v0.8.0 note); nothing here changes that.

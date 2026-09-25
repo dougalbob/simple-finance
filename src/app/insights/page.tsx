@@ -10,6 +10,8 @@ import {
   getVehicleCostsView,
 } from '@/lib/records/insights-view';
 import { addDaysLocal } from '@/lib/records/dates';
+import { getFuelEconomyView, type VehicleFuelEconomyView } from '@/lib/records/fuel';
+import { describeClosure, formatLitres, formatMiles, formatMpg } from '@/lib/records/fuel-economy';
 import { toLocalDateString } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -75,6 +77,7 @@ export default async function InsightsPage({
   const personal = getPersonalMonthView(db, parseMonthParam(params.month, thisMonth), now);
   const vehicles = getVehicleCostsView(db, now);
   const loop = getHonestyLoopView(db, now);
+  const economy = getFuelEconomyView(db, now);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
@@ -276,6 +279,34 @@ export default async function InsightsPage({
         </section>
 
         <section
+          aria-labelledby="panel-mpg-heading"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="panel-mpg-heading" className="text-xl font-semibold">
+              Fuel economy
+            </h2>
+            <span className="text-xs text-slate-500">
+              miles per UK gallon, measured full tank to full tank
+            </span>
+          </div>
+          <p className="mb-3 max-w-3xl text-xs text-slate-500">
+            Record the litres and the odometer reading with a fill — at the pump or later on
+            Purchases. A stretch is measured once both of its full tanks have a mileage and every
+            fill in between has its litres; part fills just add their litres.
+          </p>
+          {economy.length === 0 ? (
+            <p className="text-sm text-slate-500">No vehicles in the household yet.</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {economy.map((vehicle) => (
+                <FuelEconomyCard key={vehicle.vehicleId} vehicle={vehicle} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
           aria-labelledby="panel-honesty-heading"
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
         >
@@ -402,6 +433,98 @@ function HonestyComparison({
                   configuredPence ?? 0,
                 )} you configured. The projection is being pessimistic.`}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** One vehicle's mpg card (SPEC §16.6, v0.10.0 — decision 140). */
+function FuelEconomyCard({ vehicle }: { vehicle: VehicleFuelEconomyView }) {
+  return (
+    <div
+      className="rounded-lg bg-slate-50 p-3"
+      role="group"
+      aria-label={`Fuel economy for ${vehicle.label}`}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold">{vehicle.label}</p>
+        {vehicle.latest !== null ? (
+          <p className="text-lg font-semibold tabular-nums">
+            {formatMpg(vehicle.latest.mpg)}
+            <span className="ml-1 text-xs font-normal text-slate-500">latest</span>
+          </p>
+        ) : (
+          <p className="text-xs text-slate-500">no measured stretch yet</p>
+        )}
+      </div>
+      <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-slate-600">
+        <dt>Last 12 months</dt>
+        <dd className="text-right tabular-nums">
+          {vehicle.lastYear === null
+            ? '—'
+            : `${formatMpg(vehicle.lastYear.mpg)} over ${formatMiles(vehicle.lastYear.miles)} miles`}
+        </dd>
+        <dt>Fuel cost per mile</dt>
+        <dd className="text-right tabular-nums">
+          {vehicle.lastYear === null ? '—' : `${vehicle.lastYear.pencePerMile.toFixed(1)}p`}
+        </dd>
+        <dt>Latest price</dt>
+        <dd className="text-right tabular-nums">
+          {vehicle.latestPrice === null
+            ? '—'
+            : `${vehicle.latestPrice.pencePerLitre.toFixed(1)}p/L (${vehicle.latestPrice.occurredDate})`}
+        </dd>
+      </dl>
+      {vehicle.latest?.suspect ? (
+        <p className="mt-1 text-xs font-semibold text-amber-800">
+          The latest figure looks unusual — worth checking the readings.
+        </p>
+      ) : null}
+      {vehicle.missing.length > 0 ? (
+        <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+          <p className="font-semibold">
+            {vehicle.missing.length === 1
+              ? '1 recent fill is missing details'
+              : `${vehicle.missing.length} recent fills are missing details`}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {vehicle.missing.slice(0, 5).map((entry) => (
+              <li key={entry.purchaseId}>
+                <Link href={`/purchases#purchase-${entry.purchaseId}`} className="underline">
+                  {entry.occurredDate} · {formatPence(entry.fuelPence)}
+                </Link>{' '}
+                — add {entry.missing.join(' & ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {vehicle.recent.length > 0 ? (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs font-medium text-slate-600">
+            Recent fills ({vehicle.recent.length} of {vehicle.fillCount})
+          </summary>
+          <ul className="mt-1 space-y-1 text-xs">
+            {vehicle.recent.map(({ fill, closed, pencePerLitre }) => (
+              <li key={fill.purchaseId} className="text-slate-600">
+                <span className="tabular-nums">
+                  {fill.occurredDate} · {formatPence(fill.fuelPence)}
+                  {fill.fuelMillilitres !== null
+                    ? ` · ${formatLitres(fill.fuelMillilitres)} L`
+                    : ''}
+                  {pencePerLitre !== null ? ` · ${pencePerLitre.toFixed(1)}p/L` : ''}
+                  {fill.odometerMiles !== null ? ` · ${formatMiles(fill.odometerMiles)} mi` : ''}
+                  {fill.fullTank ? '' : ' · part fill'}
+                </span>
+                {closed !== null ? (
+                  <span className="block text-slate-500">{describeClosure(closed)}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : (
+        <p className="mt-2 text-xs text-slate-500">No fuel recorded for this vehicle yet.</p>
       )}
     </div>
   );
