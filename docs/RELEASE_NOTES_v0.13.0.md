@@ -1,9 +1,9 @@
 # Release notes — v0.13.0 (Horizon opens at the next payday window, and date changes apply immediately)
 
-**Published:** 2026-09-25 (tag pushed _TBD UTC_, image verified in the registry _TBD UTC_).
+**Published:** _Pending tag push and Publish workflow completion_.
 **Merge commit:** `8b7c23e77c8f7285d816aefb31bc3693c08c0097` (PR #53; short SHA `8b7c23e`)
 **Image tags:** `ghcr.io/dougalbob/simple-finance:v0.13.0` · `latest` · `sha-<release short SHA>`
-**Digest:** _TBD after Publish run_.
+**Digest:** _Pending Publish workflow completion_.
 **Version badge:** `v0.13.0 · pre-release`
 
 ## What changed
