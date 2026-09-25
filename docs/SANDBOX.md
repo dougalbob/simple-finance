@@ -188,6 +188,15 @@ push, rather than carrying on for several commits.
 git-excluded `playwright.local.config.ts` from entry 8. CI never has that file, so it cannot fail CI, but the
 local check reports it — run `npx prettier --write playwright.local.config.ts` once after creating it.
 
+**Sibling fact (2026-09-25):** `node_modules` and `/tmp` do not survive a workspace re-clone / snapshot
+restore either — the platform excludes them from persisted snapshots. The symptom is baffling: green
+gates minutes earlier, then `prettier: not found` and every test file dying with `Cannot find package
+'tsx'` on an untouched working tree. Re-run `npm ci --ignore-scripts` (and the entry 8 browser setup)
+after any gap before trusting a mysteriously red gate — and never read those load failures as your code
+breaking. The same boundary also rewound `.git` once: two local commits vanished and their content came
+back as uncommitted changes (a push then shipped a branch identical to `main`). Commit **and** push in
+the same turn, then verify with `git ls-remote`.
+
 ---
 
 ## 11. The fuzzy edit tool can quietly mangle a large file — diff after every edit (2026-09-25)
@@ -232,10 +241,68 @@ produce. `cp -r .e2e-data /tmp/low-data`, open it with the repo's own domain fun
 `DATA_DIR=/tmp/low-data`. That is how the below-zero forecast (sub-zero tint, overdraft line, "£1,831.27
 below zero" headline) was checked in a real browser before release without touching the seeded specs.
 
+Related: never start the dev preview with a **relative** `DATA_DIR`/`DATABASE_PATH` — `getDbHandle()`'s
+identity check compared better-sqlite3's `raw.name` (the path **as passed**) with
+`path.resolve(config.databasePath)`, so with a relative path the two never matched and every call closed
+the previous handle and reopened a new one. `/settings` is the only page that calls `getDbHandle()`
+twice, so its first handle died mid-render and the page 500'd with "The database connection is not
+open". Both sides are resolved as of the v0.14.0 stamp (`tests/db-handle.test.ts`), but absolute paths
+(`DATA_DIR=$PWD/.e2e-data …`) remain the safe habit.
+
+---
+
+## 13. The Arena GitHub connector drops mid-session — reconnect windows (2026-09-25)
+
+**Symptom:** mid-session, every GitHub call dies at once: `gh auth status` → `token in GH_TOKEN is no
+longer valid`; `gh api …` → `401 Bad credentials`; `git push` / `git ls-remote` → `could not read
+Username` (terminal prompts are disabled, so it fails instead of asking). It killed the v0.14.0 release
+session minutes after PR #58 merged, and there is no local fallback to find afterwards: no credential
+helper, no `~/.git-credentials`, no `~/.netrc`, no `GIT_ASKPASS`, and `.git/config` holds only a plain
+`https` remote.
+
+**Consequence:** the session cannot touch GitHub at all until a human toggles the connector. Two facts
+keep the diagnosis honest. `GH_TOKEN` is a 24-character opaque Arena handle beginning `aren`, not a
+GitHub token at all — so GitHub token lifetimes, SAML and SSO are red herrings, and there is no local
+credential to refresh or rotate. And `dougalbob` is a USER account, so org SSO and IP-allow-list
+explanations do not apply either. The observed correlation (2026-09-25): the handle went invalid around
+the PR-merge / session-close / workspace re-clone window — PR #58 merged at 18:16:55 UTC, the workspace
+re-cloned at 18:44:44 UTC, and 401s appeared in between — so treat any of those three as a likely
+expiry trigger.
+
+**What works here:** the reconnect window — now standard practice for every release. Batch remote work
+into as few windows as possible and do ALL local work (edits, tests, gates, Playwright) outside them.
+Immediately before each window, ask the household to toggle the GitHub connector off and on in "Add
+files and connections"; only once they reply, verify with `gh auth status` plus one cheap authenticated
+read, then run the remote calls straight away. Waiting on a workflow inside a window is fine (polling is
+a read) — if a poll 401s, ask for a toggle and resume polling. Two quirks of the post-toggle token
+(`arena-ai-coding-agent[bot]`, 2026-09-25): `GET /user` returns `403 Resource not accessible by
+integration` — app-bot tokens cannot call that endpoint — so use a repo-scoped read such as `gh api
+repos/dougalbob/simple-finance --jq .full_name` as the liveness probe, and note `403` is **not** the
+dead-handle signature (that is `401 Bad credentials`). And the token has no `actions: write`: `gh run
+rerun` fails with "cannot be rerun; its workflow file may be broken", which is gh's misleading wrapper
+around a plain 403 from the re-run API — plan CI around one green run per SHA, or document the flake the
+way v0.14.0's release notes do.
+
+**Do not:** never blindly retry a 401 — report exactly which steps completed and which did not, ask for a
+toggle, and resume from the correct step; never re-tag a pushed tag and never force-push. Do not ask the
+household for a PAT — the connector is broker-side and a personal token is not the fix. And do not assume
+a toggle always revives a running sandbox: if `gh auth status` still fails after the toggle, say so at
+once — the sandbox may be stuck with a stale handle, and a brand-new session is the way out.
+
 ---
 
 ## History
 
+- **2026-09-25 (v0.14.0 release, session `arena/01a0d9e9-simple-finance`):** entry 13 added after the
+  GitHub connector dropped mid-release (around the PR #58 merge / session-close / re-clone window) —
+  reconnect windows, the `aren…` handle anatomy and both 403 quirks of the post-toggle token (`GET
+  /user`, `gh run rerun`) are recorded there. Entry 12 gained the relative-`DATA_DIR` line, and
+  `getDbHandle()` now resolves both sides of its identity check (`tests/db-handle.test.ts`). Entry 8
+  re-proved a sixth time in a fresh sandbox (70 tests green in ~3.8 minutes) — the same browser proved
+  the `/purchases` filter-form hydration race with a delayed-JS probe (DOM `vehicle`, React attached,
+  options empty) before it was fixed with the decision-131 `data-filters-ready` + `inert` pattern and
+  `waitForFilters`. Entry 10 gained the sibling fact that `node_modules` and `/tmp` die with a workspace
+  snapshot restore (mysteriously red gates after a gap are an install problem, not a code problem).
 - **2026-09-25 (v0.14.0, session `arena/01a0d991-simple-finance`):** entry 12 added. Entry 8 re-proved a
   fifth time in a fresh sandbox — `@sparticuz/chromium` installed in 3s, `inflate()` wrote `/tmp/al2023`,
   and the full suite (now **70 tests** across every project, including the new `charts` project) went green
