@@ -1195,6 +1195,16 @@ in person / other), summary of what was said or sent, optional outcome, optional
 in the Contracts & renewals panel so promises don't evaporate; no notification — decision 19), optional link
 to a related purchase or renewal. `recorded_by` is audited; both users see and add interactions.
 
+### 21.2a Deep links to a supplier card (v0.12.1)
+
+A schedule on Recurring Payments, a fixed-term contract end and a follow-up row on Contracts & Renewals
+each paint a link that names the supplier it came from — `/suppliers?supplierId=<id>`. The Suppliers page
+opens on that supplier: the card is expanded, the "Filter suppliers" box holds its name, and the card is
+scrolled into view under the sticky header. Clearing the filter leaves the card open and shows the rest of
+the list beside it. `?q=` (a name search) and `#supplier-<id>` / `#<supplier name>` are accepted too, an
+identity the household no longer holds falls back to the plain list rather than naming a wrong card, and a
+plain `/suppliers` visit is unchanged.
+
 ### 21.3 Privacy
 
 Contact details, policy numbers and interaction summaries are real personal data: they live only in the

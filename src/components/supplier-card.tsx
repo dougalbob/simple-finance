@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AttachmentForm } from '@/components/attachment-form';
 import {
   SupplierContactForm,
@@ -9,6 +9,11 @@ import {
 } from '@/components/supplier-forms';
 import { formatPence } from '@/lib/money';
 import { StoredAttachment } from '@/lib/records/attachments';
+import {
+  hasSupplierFocus,
+  resolveSupplierFocus,
+  SupplierFocus,
+} from '@/lib/records/supplier-focus';
 import { SupplierInteraction, SupplierReference } from '@/lib/records/supplier-details';
 import { toLocalDateString } from '@/lib/time';
 
@@ -86,7 +91,7 @@ export function SupplierCard({
   return (
     <article
       id={`supplier-${supplier.id}`}
-      className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+      className="flex scroll-mt-24 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
     >
       <button
         type="button"
@@ -234,23 +239,65 @@ export function SupplierCard({
   );
 }
 
-export function SupplierCardList({ cards }: { cards: SupplierCardData[] }) {
-  const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
-  const [search, setSearch] = useState('');
+/**
+ * Bring a card into view under the sticky header. Smooth, unless the household
+ * has asked the operating system for less motion.
+ */
+function scrollToSupplierCard(id: number): void {
+  const card = document.getElementById(`supplier-${id}`);
+  if (card === null) return;
+  const reduced =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  card.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+}
+
+export function SupplierCardList({
+  cards,
+  focus = null,
+}: {
+  cards: SupplierCardData[];
+  /**
+   * The supplier a "Supplier card" link asked for (decision 149), resolved
+   * from the URL — or null on a plain visit, which behaves exactly as before.
+   */
+  focus?: SupplierFocus | null;
+}) {
+  const identities = useMemo(
+    () => cards.map((card) => ({ id: card.supplier.id, name: card.supplier.name })),
+    [cards],
+  );
+  const focusId = focus?.supplierId ?? null;
+  const focusQuery = focus?.query ?? '';
+
+  const [search, setSearch] = useState(focusQuery);
+  const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>(() =>
+    focusId === null ? {} : { [focusId]: true },
+  );
+  // The focus the list is currently honouring. The server resolves the query
+  // string; the fragment is resolved here on mount, because the browser never
+  // sends it (and the v0.12.0 notes promised `/suppliers#supplier-3` works).
+  const [target, setTarget] = useState<SupplierFocus>({ supplierId: focusId, query: focusQuery });
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hash) {
-      const hash = window.location.hash.slice(1);
-      const targetCard = cards.find(
-        (c) =>
-          `supplier-${c.supplier.id}` === hash ||
-          c.supplier.name.toLowerCase() === decodeURIComponent(hash).toLowerCase(),
-      );
-      if (targetCard) {
-        setExpandedIds((prev) => ({ ...prev, [targetCard.supplier.id]: true }));
-      }
-    }
-  }, [cards]);
+    if (window.location.hash === '') return;
+    setTarget((current) =>
+      hasSupplierFocus(current)
+        ? current
+        : resolveSupplierFocus({ hash: window.location.hash, suppliers: identities }),
+    );
+  }, [identities]);
+
+  useEffect(() => {
+    if (!hasSupplierFocus(target)) return;
+    if (target.query !== '') setSearch(target.query);
+    if (target.supplierId === null) return;
+    const id = target.supplierId;
+    setExpandedIds((prev) => ({ ...prev, [id]: true }));
+    // After paint, so the expanded card is the thing that gets scrolled to.
+    const timer = window.setTimeout(() => scrollToSupplierCard(id), 0);
+    return () => window.clearTimeout(timer);
+  }, [target]);
 
   const toggle = (id: number) => {
     setExpandedIds((prev) => ({

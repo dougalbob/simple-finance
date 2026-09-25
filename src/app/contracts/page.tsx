@@ -8,6 +8,7 @@ import { listPeople } from '@/lib/records/people';
 import { listRenewals } from '@/lib/records/renewals';
 import { daysBetween } from '@/lib/records/dates';
 import { listSchedulesWithContractEnds } from '@/lib/records/schedules';
+import { supplierCardHref } from '@/lib/records/supplier-focus';
 import { upcomingSupplierFollowUps } from '@/lib/records/supplier-details';
 import { listSuppliers } from '@/lib/records/suppliers';
 import { getContractEndWarningLeadDays, getRenewalWarningLeadDays } from '@/lib/records/settings';
@@ -108,9 +109,9 @@ export default async function ContractsPage() {
                         {days === 0 ? 'ends today' : `in ${days} days`}
                       </span>
                     )}
-                    {supplierName !== null ? (
+                    {supplierName !== null && schedule.supplierId !== null ? (
                       <Link
-                        href="/suppliers"
+                        href={supplierCardHref(schedule.supplierId)}
                         className="text-xs font-medium text-sky-700 hover:underline"
                       >
                         {supplierName} card →
@@ -243,7 +244,10 @@ export default async function ContractsPage() {
               {followUps.map((followUp, index) => (
                 <li key={index}>
                   <span className="font-medium tabular-nums">{followUp.followUpDate}</span> ·{' '}
-                  <Link className="text-sky-700 hover:underline" href="/suppliers">
+                  <Link
+                    className="text-sky-700 hover:underline"
+                    href={supplierCardHref(followUp.supplierId)}
+                  >
                     {followUp.supplierName}
                   </Link>{' '}
                   — {followUp.summary}

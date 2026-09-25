@@ -5,6 +5,11 @@ import { getDbHandle } from '@/lib/db/client';
 import { listStoredAttachments } from '@/lib/records/attachments';
 import { listPurchases } from '@/lib/records/purchases';
 import { listSupplierInteractions, listSupplierReferences } from '@/lib/records/supplier-details';
+import {
+  hasSupplierFocus,
+  resolveSupplierFocus,
+  supplierFocusKey,
+} from '@/lib/records/supplier-focus';
 import { listSuppliers } from '@/lib/records/suppliers';
 import { toLocalDateString } from '@/lib/time';
 
@@ -17,13 +22,18 @@ export const dynamic = 'force-dynamic';
  * supplier with their receipts. Desktop-first but fully reachable on mobile,
  * per SPEC §15.
  */
-export default async function SuppliersPage() {
+export default async function SuppliersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ supplierId?: string; id?: string; q?: string }>;
+}) {
   const user = await currentUserFromRequest();
   if (user === null) redirect('/unauthorized');
 
   const { db } = getDbHandle();
   const today = toLocalDateString(new Date());
   const suppliers = listSuppliers(db);
+  const params = await searchParams;
 
   const cards: SupplierCardData[] = suppliers.map((supplier) => {
     const purchases = listPurchases(db, { supplierId: supplier.id, limit: 5 });
@@ -63,6 +73,17 @@ export default async function SuppliersPage() {
     .filter((item) => item.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // "Supplier card" links (Recurring, Contracts & Renewals) name the supplier
+  // they came from: the page opens with that card filtered, expanded and in
+  // view, not as a collapsed list of everyone (decision 149). The fragment is
+  // resolved in the client — a server never sees it.
+  const focus = resolveSupplierFocus({
+    supplierId: params.supplierId,
+    id: params.id,
+    q: params.q,
+    suppliers: suppliers.map(({ id, name }) => ({ id, name })),
+  });
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <header className="mb-6">
@@ -101,7 +122,11 @@ export default async function SuppliersPage() {
           Suppliers appear here after the first purchase, or can be added while entering one.
         </section>
       ) : (
-        <SupplierCardList cards={cards} />
+        <SupplierCardList
+          key={supplierFocusKey(focus)}
+          cards={cards}
+          focus={hasSupplierFocus(focus) ? focus : null}
+        />
       )}
     </main>
   );
