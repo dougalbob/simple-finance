@@ -448,9 +448,10 @@ export default async function PotsPage({
             Swap with someone outside
           </h2>
           <p className="mb-3 mt-1 text-sm text-ink-soft">
-            Cash in one hand, a bank transfer in the other — recorded as one net-zero pair. A
-            same-day pair can read a little low until a checkpoint absorbs it — the safe direction
-            (SPEC §7.1).
+            Cash in one hand, a bank transfer in the other — recorded as one net-zero pair. Recorded
+            after a checkpoint, both legs move the estimates. Recorded before one on the same day,
+            the money in is already in that count and the money out still counts until the next
+            checkpoint (SPEC §7.1).
           </p>
           <SwapForm
             idPrefix="pots-swap"

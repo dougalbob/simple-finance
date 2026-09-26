@@ -1244,16 +1244,16 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
       });
       // The date-only out-leg counts as after the 22nd checkpoint: Main
       // reads £420 (understated if the bank already debited it — the safe
-      // direction), while the cash in-leg is absorbed, never overstated.
+      // direction). A same-day credit recorded before its checkpoint is
+      // absorbed; this swap is recorded before the 12:00 checkpoint below.
       assert.equal(
         estimatePence(fx, main.id, new Date('2026-09-23T10:00:00Z')),
         42000,
         'the same-day debit leg counts (understates, safely)',
       );
-      // Asymmetry, both safe: a same-day CREDIT is absorbed by a same-day
-      // checkpoint (the in-leg case), but a same-day DEBIT keeps counting —
-      // a £420 checkpoint at 12:00 still reads £340 (understated, never
-      // overstated). The debit is absorbed only by a LATER-date checkpoint.
+      // A same-day DEBIT keeps counting even when it was recorded before the
+      // checkpoint — a £420 checkpoint at 12:00 still reads £340 (understated,
+      // never overstated). The debit is absorbed only by a LATER-date checkpoint.
       addCheckpoint(fx.db, {
         potId: main.id,
         amountPence: 42000,
@@ -1283,7 +1283,163 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
     }
   });
 
-  it('receipts, transfer-ins, refunds and loan-ins: every same-day credit path is absorbed', async () => {
+  it('a same-day credit recorded before the checkpoint stays absorbed on every credit path', async () => {
+    const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-23T08:00:00Z'));
+    try {
+      const cash = fx.pots.alexCash;
+      const main = fx.pots.main;
+      const recordedAt = new Date('2026-09-23T09:00:00Z');
+      const onThe23rd = '2026-09-23';
+      // Written down first, then counted. The £50 checkpoint already includes
+      // every credit below; adding them again is the £180 bug.
+      createReceipt(fx.db, {
+        potId: cash.id,
+        amountPence: 3000,
+        occurredDate: onThe23rd,
+        note: 'cash gift',
+        actor: ACTOR,
+        now: recordedAt,
+      });
+      createTransfer(fx.db, {
+        fromPotId: main.id,
+        toPotId: cash.id,
+        amountPence: 2000,
+        occurredDate: onThe23rd,
+        note: 'from the bank',
+        actor: ACTOR,
+        now: recordedAt,
+      });
+      const purchase = createPurchase(fx.db, {
+        potId: cash.id,
+        totalPence: 1000,
+        occurredDate: onThe23rd,
+        paidByPersonId: fx.people.alex.id,
+        supplierName: 'Cafe',
+        actor: ACTOR,
+        lines: [
+          {
+            amountPence: 1000,
+            categoryId: fx.categoryId('Groceries', 'Top-up Shops'),
+            targetKind: 'household',
+          },
+        ],
+        now: recordedAt,
+      });
+      const topUp = fx.categoryId('Groceries', 'Top-up Shops');
+      createRefund(fx.db, {
+        refundOfPurchaseId: purchase.purchase.id,
+        totalPence: -1000,
+        lines: [{ amountPence: -1000, categoryId: topUp, targetKind: 'household' }],
+        occurredDate: onThe23rd,
+        actor: ACTOR,
+        now: recordedAt,
+      });
+      const debt = createDebt(fx.db, {
+        counterparty: 'Mum',
+        direction: 'we_owe',
+        actor: ACTOR,
+        now: recordedAt,
+      });
+      createExternalMovement(fx.db, {
+        potId: cash.id,
+        direction: 'in',
+        kind: 'loan',
+        amountPence: 4000,
+        debtId: debt.id,
+        occurredDate: onThe23rd,
+        actor: ACTOR,
+        now: recordedAt,
+      });
+      const counted = new Date('2026-09-23T12:00:00Z');
+      addCheckpoint(fx.db, {
+        potId: cash.id,
+        amountPence: 5000,
+        effectiveAt: counted,
+        actor: ACTOR,
+        now: counted,
+      });
+      assert.equal(
+        estimatePence(fx, cash.id, counted),
+        4000,
+        'credits recorded before the count are absorbed; the same-day debit still counts',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+});
+
+/**
+ * The other half of the same-day rule (2026-09-26 field report). v0.2.1
+ * absorbed every date-only credit that shared a checkpoint's date, so a
+ * transfer recorded *after* the checkpoint never moved the inbound pot —
+ * Nationwide fell by £1,500 and Natwest stayed on the reported −£443.65.
+ * A credit written down after the count cannot already be inside it.
+ */
+describe('a same-day credit recorded after the checkpoint counts', () => {
+  function estimatePence(
+    fx: Awaited<ReturnType<typeof createHouseholdFixture>>,
+    potId: number,
+    now: Date,
+  ): number {
+    const view = getMoneySnapshot(fx.db, now).pots.find((entry) => entry.pot.id === potId);
+    if (view?.estimatePence === null || view === undefined) {
+      throw new Error(`pot ${potId} has no estimate at this stage`);
+    }
+    return view.estimatePence;
+  }
+
+  it('checkpoint −£443.65, then £1,500 in, reads £1,056.35 on both overview inputs', async () => {
+    const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-20T08:00:00Z'));
+    try {
+      const natwest = fx.pots.main;
+      const nationwide = fx.pots.salary;
+      addCheckpoint(fx.db, {
+        potId: nationwide.id,
+        amountPence: 155244,
+        effectiveAt: new Date('2026-09-20T10:00:00Z'),
+        actor: ACTOR,
+        now: new Date('2026-09-20T10:00:00Z'),
+      });
+      const reported = new Date('2026-09-26T09:00:00Z');
+      addCheckpoint(fx.db, {
+        potId: natwest.id,
+        amountPence: -44365,
+        effectiveAt: reported,
+        actor: ACTOR,
+        now: reported,
+      });
+      const moved = new Date('2026-09-26T11:00:00Z');
+      createTransfer(fx.db, {
+        fromPotId: nationwide.id,
+        toPotId: natwest.id,
+        amountPence: 150000,
+        occurredDate: '2026-09-26',
+        actor: ACTOR,
+        now: moved,
+      });
+      const at = new Date('2026-09-26T12:00:00Z');
+      assert.equal(
+        estimatePence(fx, natwest.id, at),
+        105635,
+        'inbound leg counts after the checkpoint',
+      );
+      assert.equal(estimatePence(fx, nationwide.id, at), 5244, 'outbound leg still counts');
+      const snapshot = getMoneySnapshot(fx.db, at);
+      const household = snapshot.pots
+        .filter((entry) => entry.pot.id === natwest.id || entry.pot.id === nationwide.id)
+        .reduce((sum, entry) => sum + (entry.estimatePence ?? 0), 0);
+      assert.equal(
+        household,
+        105635 + 5244,
+        'both legs count, so the transfer is household-net-zero',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('receipts, transfer-ins, refunds and loan-ins recorded after the checkpoint all count', async () => {
     const fx = await createHouseholdFixture(ACTOR, new Date('2026-09-23T08:00:00Z'));
     try {
       const cash = fx.pots.alexCash;
@@ -1299,9 +1455,6 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
       const at = new Date('2026-09-23T11:00:00Z');
       const onThe23rd = '2026-09-23';
 
-      // All same-day credits below must be ABSORBED by the 09:00 checkpoint;
-      // the one same-day debit (the purchase) stays counted. Pre-v0.2.1 every
-      // credit in this list would have been added again.
       createReceipt(fx.db, {
         potId: cash.id,
         amountPence: 3000,
@@ -1310,7 +1463,11 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
         actor: ACTOR,
         now: at,
       });
-      assert.equal(estimatePence(fx, cash.id, at), 5000, 'same-day receipt absorbed');
+      assert.equal(
+        estimatePence(fx, cash.id, at),
+        8000,
+        'same-day receipt recorded after the count',
+      );
       createTransfer(fx.db, {
         fromPotId: main.id,
         toPotId: cash.id,
@@ -1322,8 +1479,8 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
       });
       assert.equal(
         estimatePence(fx, cash.id, at),
-        5000,
-        'same-day transfer-in leg absorbed (the out leg sits in uncheckpointed Main)',
+        10000,
+        'same-day transfer-in recorded after the count',
       );
       const purchase = createPurchase(fx.db, {
         potId: cash.id,
@@ -1341,7 +1498,7 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
         ],
         now: at,
       });
-      assert.equal(estimatePence(fx, cash.id, at), 4000, 'same-day purchase still counted (debit)');
+      assert.equal(estimatePence(fx, cash.id, at), 9000, 'same-day purchase still counted (debit)');
       const topUp = fx.categoryId('Groceries', 'Top-up Shops');
       createRefund(fx.db, {
         refundOfPurchaseId: purchase.purchase.id,
@@ -1353,8 +1510,8 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
       });
       assert.equal(
         estimatePence(fx, cash.id, at),
-        4000,
-        'the refund (a same-day credit) is absorbed, so it nets to the purchase',
+        10000,
+        'the refund was recorded after the checkpoint, so it adds back',
       );
       const debt = createDebt(fx.db, {
         counterparty: 'Mum',
@@ -1372,10 +1529,14 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
         actor: ACTOR,
         now: at,
       });
-      assert.equal(estimatePence(fx, cash.id, at), 4000, 'same-day loan-in absorbed');
+      assert.equal(
+        estimatePence(fx, cash.id, at),
+        14000,
+        'same-day loan-in recorded after the count',
+      );
 
-      // And a next-day checkpoint of the true figure reads it exactly —
-      // nothing double-counted anywhere along the way.
+      // A next-day checkpoint of a fresh figure absorbs everything dated
+      // before it — nothing is counted twice.
       addCheckpoint(fx.db, {
         potId: cash.id,
         amountPence: 4000,
@@ -1386,7 +1547,7 @@ describe('E13: a same-day credit is absorbed by a same-day checkpoint (v0.2.1 fi
       assert.equal(
         estimatePence(fx, cash.id, new Date('2026-09-24T09:00:00Z')),
         4000,
-        'next-day checkpoint: every movement absorbed exactly once',
+        'next-day checkpoint: every earlier movement absorbed exactly once',
       );
     } finally {
       fx.close();

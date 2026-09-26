@@ -23,20 +23,23 @@ import { isDateOnlyInstant, toLocalDateString } from '../time';
  *
  * Comparison precision (SPEC §7.1): where both record and checkpoint carry
  * real times of day, compare by timestamp. Where a record is date-only and
- * shares the checkpoint's local date, the order within the day is unknown,
- * so the tie-break is SIGN-AWARE and every direction understates (the
- * conservative one): a date-only debit (spending, money out) counts as
- * *after* — subtracting it can only understate; a date-only credit (receipt,
- * money in) counts as *absorbed* — the checkpoint says "I counted the money
- * now", so the counted figure already reflects it, and if the arrival
- * actually post-dated the count, missing it understates too. Both orders
- * self-correct at the next checkpoint. (Pre-v0.2.1 every same-date record
- * counted as after — safe for debits, but it OVERSTATED for credits: a
- * same-day swap-in was double-counted by a later same-day checkpoint. See
- * the E13 scenario, SPEC §17.) A date-only fact is recognised by the
- * end-of-local-date marker (src/lib/time.ts: endOfLocalDate), which cannot
- * collide with a real timed entry (mobile entry stamps whole seconds on a
- * tap).
+ * shares the checkpoint's local date, the date alone does not say which
+ * happened first:
+ *
+ * - a date-only debit (spending, money out) counts as *after* — subtracting
+ *   it can only understate, and the next later-dated checkpoint resets it;
+ * - a date-only credit (receipt, transfer-in, refund, money in) is decided
+ *   by entry order. Written down *before* the checkpoint, it is *absorbed*:
+ *   the count was taken after the movement was recorded, so the reported
+ *   figure already includes it. Counting it again is the v0.2.0 "£180" bug
+ *   (E13). Written down *after* the checkpoint, it is *counted*: a movement
+ *   that did not exist when the figure was reported cannot already be inside
+ *   it (the bank-transfer case — checkpoint, then move money in). Entry time
+ *   unknown → absorb, the safe direction.
+ *
+ * A date-only fact is recognised by the end-of-local-date marker
+ * (src/lib/time.ts: endOfLocalDate), which cannot collide with a real timed
+ * entry (mobile entry stamps whole seconds on a tap).
  */
 
 export interface OccurredFacts {
@@ -47,6 +50,12 @@ export interface OccurredFacts {
 export interface CheckpointFacts {
   amountPence: number;
   effectiveAt: Date;
+  /**
+   * When the checkpoint was written down. Used only for the same-day
+   * date-only credit tie-break (SPEC §7.1). Absent means the order is
+   * unknown — a same-day credit is absorbed, the safe direction.
+   */
+  enteredAt?: Date;
 }
 
 /** True when the record was entered date-only (end-of-local-date marker). */
@@ -56,9 +65,11 @@ export function isRecordDateOnly(record: OccurredFacts): boolean {
 
 /**
  * Does the record count as *after* the checkpoint (i.e. against the
- * reported balance)? The sign-aware conservative rule per SPEC §7.1: the
- * record's sign is needed because a same-day date-only tie-break is safe in
- * only one direction per sign (debit → count, credit → absorb).
+ * reported balance)? SPEC §7.1: a same-day date-only debit always counts
+ * (subtracting can only understate). A same-day date-only credit counts
+ * only when it was written down after the checkpoint — it cannot already
+ * be inside a figure reported before the record existed. A credit written
+ * down earlier, or whose entry time is unknown, is absorbed (E13).
  */
 export function recordIsAfterCheckpoint(
   record: SignedMovement,
@@ -68,13 +79,15 @@ export function recordIsAfterCheckpoint(
     const checkpointDate = toLocalDateString(checkpoint.effectiveAt);
     if (record.occurredDate < checkpointDate) return false; // inside the checkpoint
     if (record.occurredDate > checkpointDate) return true; // after the checkpoint
-    // Same local date, order unknown: tie-break by sign (SPEC §7.1).
-    // Debit → after: subtracting can only understate (safe). Credit →
-    // absorbed: the checkpoint figure already reflects the money counted,
-    // and if the arrival post-dated the count, missing it understates
-    // (safe). Either way the estimate can only understate, and the next
-    // checkpoint resets it.
-    return record.signedPence <= 0;
+    // Same local date. A debit always counts: subtracting can only
+    // understate, and the next later-dated checkpoint resets it.
+    if (record.signedPence <= 0) return true;
+    // A credit written down after the checkpoint cannot already be inside
+    // the reported figure. One written down before it (or with no entry
+    // time to compare) is absorbed, so a later same-day count does not
+    // double-count money already in hand (E13).
+    if (record.enteredAt === undefined || checkpoint.enteredAt === undefined) return false;
+    return record.enteredAt.getTime() > checkpoint.enteredAt.getTime();
   }
   // Timed record: the order is known, so plain instant comparison.
   return record.occurredAt.getTime() > checkpoint.effectiveAt.getTime();
@@ -88,6 +101,12 @@ export function recordIsAfterCheckpoint(
  */
 export interface SignedMovement extends OccurredFacts {
   signedPence: number;
+  /**
+   * When the movement was recorded (`createdAt`). Same role as
+   * `CheckpointFacts.enteredAt`: only the same-day date-only credit
+   * tie-break reads it.
+   */
+  enteredAt?: Date;
 }
 
 export interface PotEstimateInput {

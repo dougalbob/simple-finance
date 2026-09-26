@@ -27,8 +27,18 @@ const CHECKPOINT = new Date('2026-09-22T17:00:00+01:00'); // Sunday the 22nd, 17
 
 const p = (value: number) => Math.round(value * 100);
 
-function movement(pence: number, occurredAt: Date, occurredDate: string): SignedMovement {
-  return { signedPence: pence, occurredAt, occurredDate };
+function movement(
+  pence: number,
+  occurredAt: Date,
+  occurredDate: string,
+  enteredAt?: Date,
+): SignedMovement {
+  return {
+    signedPence: pence,
+    occurredAt,
+    occurredDate,
+    ...(enteredAt === undefined ? {} : { enteredAt }),
+  };
 }
 
 describe('estimate: comparison precision (SPEC §7.1)', () => {
@@ -53,11 +63,10 @@ describe('estimate: comparison precision (SPEC §7.1)', () => {
     assert.equal(recordIsAfterCheckpoint(previousDay, checkpoint), false);
   });
 
-  it('a date-only CREDIT sharing the checkpoint date counts as absorbed (sign-aware, v0.2.1)', () => {
-    // Same-day order is unknown. Absorbing the credit is the only safe
-    // direction: the checkpoint figure already reflects the money counted,
-    // and if the arrival post-dated the count, missing it understates.
-    // Counting it would overstate — the pre-v0.2.1 double-count (E13).
+  it('a date-only CREDIT sharing the checkpoint date is absorbed when entry order is unknown', () => {
+    // No enteredAt: the order within the day is unknown. Absorbing is the
+    // safe direction — counting it would overstate (the pre-v0.2.1
+    // double-count, E13).
     const sameDayCredit = movement(p(80), endOfLocalDate('2026-09-22'), '2026-09-22');
     assert.equal(recordIsAfterCheckpoint(sameDayCredit, checkpoint), false);
     // A credit on a LATER date still counts — the checkpoint cannot include it.
@@ -66,6 +75,34 @@ describe('estimate: comparison precision (SPEC §7.1)', () => {
     // …and a credit on an earlier date is inside the checkpoint.
     const earlierCredit = movement(p(80), endOfLocalDate('2026-09-21'), '2026-09-21');
     assert.equal(recordIsAfterCheckpoint(earlierCredit, checkpoint), false);
+  });
+
+  it('a date-only CREDIT recorded after the checkpoint counts; one recorded before is absorbed', () => {
+    const recordedBefore = movement(
+      p(80),
+      endOfLocalDate('2026-09-22'),
+      '2026-09-22',
+      new Date('2026-09-22T09:00:00+01:00'),
+    );
+    const recordedAfter = movement(
+      p(1500),
+      endOfLocalDate('2026-09-22'),
+      '2026-09-22',
+      new Date('2026-09-22T18:00:00+01:00'),
+    );
+    const reported = { ...checkpoint, enteredAt: new Date('2026-09-22T12:00:00+01:00') };
+    // Written down before the count: already inside the reported figure (E13).
+    assert.equal(recordIsAfterCheckpoint(recordedBefore, reported), false);
+    // Written down after the count: cannot already be inside it.
+    assert.equal(recordIsAfterCheckpoint(recordedAfter, reported), true);
+    // Equal entry instants are not strictly after — treat as already counted.
+    const recordedAtTheSameInstant = movement(
+      p(80),
+      endOfLocalDate('2026-09-22'),
+      '2026-09-22',
+      reported.enteredAt,
+    );
+    assert.equal(recordIsAfterCheckpoint(recordedAtTheSameInstant, reported), false);
   });
 
   it('a timed record on the checkpoint date before the checkpoint time is excluded', () => {
@@ -167,20 +204,20 @@ describe('estimate: per-pot and household totals', () => {
 });
 
 /**
- * E13 — a same-day credit is absorbed by a same-day checkpoint (v0.2.1
- * double-count fix, SPEC §7.1 sign-aware tie-break). The engine-level shape
- * of the £180 repro: a cash pot checkpointed £20 on the 22nd, a date-only
- * swap-in of £80 on the 23rd, then timed checkpoints on the 23rd. Pre-v0.2.1
- * the second and third reads were £180 (10000 + 8000) — the credit counted
- * twice. Now every read is £100: the checkpoint says "I counted the money
- * now", and a same-day credit is already in that counted figure.
+ * E13 — a same-day credit recorded *before* a same-day checkpoint is absorbed
+ * (v0.2.1 double-count fix, refined so a credit recorded *after* the
+ * checkpoint counts — SPEC §7.1). The engine-level shape of the £180 repro:
+ * a cash pot checkpointed £20 on the 22nd, a date-only swap-in of £80 on the
+ * 23rd, then timed checkpoints on the 23rd taken after the swap was written
+ * down. Pre-v0.2.1 the second and third reads were £180 (10000 + 8000).
  */
-describe('estimate: E13 same-day credit double-count (SPEC §7.1 sign-aware tie-break)', () => {
-  const swapIn = movement(p(80), endOfLocalDate('2026-09-23'), '2026-09-23');
+describe('estimate: E13 same-day credit double-count (SPEC §7.1 entry-order tie-break)', () => {
+  const swapEnteredAt = new Date('2026-09-23T10:00:00+01:00');
+  const swapIn = movement(p(80), endOfLocalDate('2026-09-23'), '2026-09-23', swapEnteredAt);
   const run = (effectiveAt: Date) =>
     estimatePot({
       potId: 1,
-      checkpoint: { amountPence: p(100), effectiveAt },
+      checkpoint: { amountPence: p(100), effectiveAt, enteredAt: effectiveAt },
       movements: [swapIn],
     }).estimatePence;
 
@@ -200,8 +237,8 @@ describe('estimate: E13 same-day credit double-count (SPEC §7.1 sign-aware tie-
       movements: [swapIn],
     });
     assert.equal(afterSwap.estimatePence, p(100));
-    // Step 3: timed £100 checkpoint at 23 Sept 12:00 — the swap-in is a
-    // same-day credit → absorbed, not added. Pre-fix this read £180.
+    // Step 3: timed £100 checkpoint at 23 Sept 12:00, written down after the
+    // swap — the same-day credit is absorbed, not added. Pre-fix this read £180.
     assert.equal(run(new Date('2026-09-23T12:00:00+01:00')), p(100));
     // Step 4: a second same-day checkpoint cannot fix it either — pre-fix
     // still £180, because no same-day checkpoint could absorb the credit.
@@ -224,23 +261,54 @@ describe('estimate: E13 same-day credit double-count (SPEC §7.1 sign-aware tie-
     assert.equal(result.countedMovements, 1);
   });
 
-  it('a swap pair: the in-leg credit absorbs, the out-leg debit counts (each pot safe)', () => {
-    const checkpoint = { amountPence: p(100), effectiveAt: new Date('2026-09-23T12:00:00+01:00') };
+  it('a swap recorded before the checkpoint: in-leg absorbs, out-leg still counts', () => {
+    const enteredAt = new Date('2026-09-23T10:00:00+01:00');
+    const checkpoint = {
+      amountPence: p(100),
+      effectiveAt: new Date('2026-09-23T12:00:00+01:00'),
+      enteredAt: new Date('2026-09-23T12:00:00+01:00'),
+    };
     const inLeg = estimatePot({
       potId: 1,
       checkpoint,
-      movements: [movement(p(80), endOfLocalDate('2026-09-23'), '2026-09-23')],
+      movements: [movement(p(80), endOfLocalDate('2026-09-23'), '2026-09-23', enteredAt)],
     });
     const outLeg = estimatePot({
       potId: 2,
       checkpoint,
-      movements: [movement(-p(80), endOfLocalDate('2026-09-23'), '2026-09-23')],
+      movements: [movement(-p(80), endOfLocalDate('2026-09-23'), '2026-09-23', enteredAt)],
     });
-    // In-leg absorbed (no overstatement of the cash pot), out-leg counted
-    // (no overstatement of the bank pot). The household estimate reads £80
-    // LOW until a checkpoint absorbs the pair — a safe, self-correcting
-    // understatement rather than a £160 double-count.
+    // In-leg absorbed (already in the count), out-leg counted (a same-day
+    // debit still understates). The household estimate reads £80 LOW until
+    // the next checkpoint — the accepted cost of recording the swap first.
     assert.equal(inLeg.estimatePence, p(100));
     assert.equal(outLeg.estimatePence, p(20));
+  });
+
+  it('a transfer recorded after the checkpoint moves both pots (2026-09-26 field report)', () => {
+    // Natwest checkpointed at −£443.65, then £1,500 moved in from Nationwide.
+    // The inbound leg is a date-only credit on the checkpoint's own day, but
+    // it was written down afterwards, so it cannot already be in the report.
+    const reportedAt = new Date('2026-09-26T09:00:00+01:00');
+    const movedAt = new Date('2026-09-26T11:00:00+01:00');
+    const natwest = estimatePot({
+      potId: 1,
+      checkpoint: { amountPence: -p(443.65), effectiveAt: reportedAt, enteredAt: reportedAt },
+      movements: [movement(p(1500), endOfLocalDate('2026-09-26'), '2026-09-26', movedAt)],
+    });
+    const nationwide = estimatePot({
+      potId: 2,
+      checkpoint: {
+        amountPence: p(1552.44),
+        effectiveAt: new Date('2026-09-20T10:00:00+01:00'),
+        enteredAt: new Date('2026-09-20T10:00:00+01:00'),
+      },
+      movements: [movement(-p(1500), endOfLocalDate('2026-09-26'), '2026-09-26', movedAt)],
+    });
+    assert.equal(natwest.estimatePence, p(1056.35));
+    assert.equal(natwest.countedMovements, 1);
+    assert.equal(nationwide.estimatePence, p(52.44));
+    // Both legs count, so the household total is unchanged by the transfer.
+    assert.equal(householdEstimatePence([natwest, nationwide]), p(1056.35) + p(52.44));
   });
 });

@@ -1,3 +1,36 @@
+# Handoff: a same-day transfer recorded after a checkpoint now moves the inbound pot
+
+Date: 2026-09-26. Branch: `arena/01a0df10-simple-finance`, from `main` @ `063ff5d` (v0.21.0 merge).
+
+Natwest stayed on its checkpoint (−£443.65) after £1,500 was transferred in from Nationwide the same
+day. Nationwide fell, correctly. Overview and Horizon both read the estimate, so both showed the
+checkpoint. Expected: **£1,056.35**.
+
+Cause: decision 98 absorbed every date-only credit that shared a checkpoint's date. Transfers are
+always date-only (the form date defaults to today), so an inbound leg recorded after the count was
+indistinguishable from one already inside it. Decision **165** refines that rule: a same-day credit
+counts when `createdAt` is strictly after the checkpoint's `createdAt`. Recorded before the checkpoint,
+it is still absorbed — the £180 bug (E13) stays fixed. Same-day debits still always count. No schema
+change.
+
+Wired through `recordIsAfterCheckpoint` (`src/lib/records/estimates.ts`) and `getMoneySnapshot`
+(`src/lib/records/money-view.ts`), which is what Overview, Horizon and the pot watch all read. SPEC
+§7.1, §10.2, §15.3 and E12/E13 updated. The All Transactions footnote and the swap blurb on Accounts
+& Pots match the new rule.
+
+## What a future session should know
+
+- Do not go back to "absorb every same-day credit". That is the bug this sitting fixed.
+- Do not count a same-day credit whose `createdAt` is missing or not after the checkpoint. That
+  reopens E13.
+- If the household counted money and *then* recorded the explaining credit, the estimate adds it.
+  The correction is another checkpoint, or recording the credit before the count. Say so; don't
+  special-case one pot.
+- Releasing as **v0.21.1** in this sitting. v0.21.0 is already published and must not be retagged;
+  Unraid Force Update pulls `latest`, which moves to v0.21.1.
+
+---
+
 # Handoff: Overview panels moved onto the pages that own them — v0.21.0
 
 Date: 2026-09-26. Implementation branch: `arena/01a0de74-simple-finance`, starting at `2578acc`
