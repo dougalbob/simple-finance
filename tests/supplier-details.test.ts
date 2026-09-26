@@ -16,6 +16,12 @@ import {
   updateSupplierContact,
 } from '../src/lib/records/suppliers';
 import { VersionConflictError } from '../src/lib/records/errors';
+import { categoryTree } from '../src/lib/records/categories';
+import { createPerson, listPeople } from '../src/lib/records/people';
+import { createPurchase, listPurchases } from '../src/lib/records/purchases';
+import { purchaseLineSummary, targetLabel, targetNames } from '../src/lib/records/targets';
+import { listVehicles } from '../src/lib/records/vehicles';
+import { formatPence } from '../src/lib/money';
 import { createHouseholdFixture } from './household';
 
 /**
@@ -275,6 +281,154 @@ describe('supplier contact card (SPEC §21.1)', () => {
         .all();
       assert.equal(audit.length, 1);
       assert.equal(audit[0]!.actor, 'sam@example.com');
+    } finally {
+      fx.close();
+    }
+  });
+});
+
+describe('supplier card: recent purchases say who each one was for (SPEC §21.4)', () => {
+  /**
+   * Decision 161. The modelling the household landed on for three mobile
+   * contracts with one carrier is **one supplier, three schedules**, each with
+   * its own target. Every other list already says who a payment was for; the
+   * supplier card showed `date · amount`, so the three contracts were told
+   * apart by amount alone. These tests drive the exact chain `/suppliers`
+   * runs — `listPurchases` → `purchaseLineSummary` — so the card's contract
+   * cannot drift from the page that builds it.
+   */
+  async function withCarrier() {
+    const fx = await createHouseholdFixture(ACTOR);
+    const carrier = createSupplier(fx.db, { name: 'Vodafone', actor: ACTOR });
+    const robin = createPerson(fx.db, { label: 'Robin', actor: ACTOR });
+    const mobile = fx.categoryId('Utilities', 'Mobile Phones');
+    const names = targetNames({ people: listPeople(fx.db), vehicles: listVehicles(fx.db) });
+    const categoryNames = new Map(
+      categoryTree(fx.db).flatMap((parent) =>
+        parent.children.map((child) => [child.id, child.name] as const),
+      ),
+    );
+    /** The page's own mapping, minus the JSX and the attachment lookup. */
+    const cardRows = () =>
+      listPurchases(fx.db, { supplierId: carrier.id, limit: 5 }).map(
+        ({ purchase, allocations }) => {
+          const summary = purchaseLineSummary(allocations, categoryNames, names);
+          return {
+            amount: formatPence(purchase.totalPence),
+            label: summary.label,
+            extraLines: summary.extraLines,
+          };
+        },
+      );
+    return { fx, carrier, robin, mobile, names, categoryNames, cardRows };
+  }
+
+  it('names the person on each of one carrier’s three contracts', async () => {
+    const { fx, carrier, robin, mobile, cardRows } = await withCarrier();
+    try {
+      const contracts: Array<[number, number, string]> = [
+        [2899, fx.people.alex.id, '2026-09-10T09:00:00Z'],
+        [1599, fx.people.sam.id, '2026-09-11T09:00:00Z'],
+        [3450, robin.id, '2026-09-12T09:00:00Z'],
+      ];
+      for (const [amountPence, personId, when] of contracts) {
+        createPurchase(fx.db, {
+          potId: fx.pots.main.id,
+          totalPence: amountPence,
+          occurredAt: new Date(when),
+          paidByPersonId: fx.people.alex.id,
+          supplierId: carrier.id,
+          actor: ACTOR,
+          lines: [{ amountPence, categoryId: mobile, targetKind: 'person', targetId: personId }],
+        });
+      }
+
+      // Newest first, and every row says who it was for — no two rows are
+      // distinguishable only by their amount.
+      assert.deepEqual(
+        cardRows().map((row) => `${row.amount} · ${row.label}`),
+        [
+          '£34.50 · Mobile Phones (Robin)',
+          '£15.99 · Mobile Phones (Sam)',
+          '£28.99 · Mobile Phones (Alex)',
+        ],
+      );
+      const labels = cardRows().map((row) => row.label);
+      assert.equal(new Set(labels).size, labels.length, 'each contract reads distinctly');
+      assert.deepEqual(
+        cardRows().map((row) => row.extraLines),
+        [0, 0, 0],
+        'a one-line purchase never says "+N more"',
+      );
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('shows the first line and counts the rest when a purchase is split', async () => {
+    const { fx, carrier, mobile, cardRows } = await withCarrier();
+    try {
+      createPurchase(fx.db, {
+        potId: fx.pots.main.id,
+        totalPence: 5000,
+        occurredAt: new Date('2026-09-13T09:00:00Z'),
+        paidByPersonId: fx.people.alex.id,
+        supplierId: carrier.id,
+        actor: ACTOR,
+        lines: [
+          {
+            amountPence: 2899,
+            categoryId: mobile,
+            targetKind: 'person',
+            targetId: fx.people.alex.id,
+          },
+          { amountPence: 1101, categoryId: mobile, targetKind: 'household' },
+          {
+            amountPence: 1000,
+            categoryId: mobile,
+            targetKind: 'vehicle',
+            targetId: fx.vehicles.vehicleA.id,
+          },
+        ],
+      });
+
+      assert.deepEqual(cardRows(), [
+        { amount: '£50.00', label: 'Mobile Phones (Alex)', extraLines: 2 },
+      ]);
+    } finally {
+      fx.close();
+    }
+  });
+
+  it('labels household and vehicle targets, and survives a removed person', async () => {
+    const { fx, mobile, categoryNames } = await withCarrier();
+    try {
+      const empty = targetNames({ people: [], vehicles: [] });
+      const full = targetNames({ people: listPeople(fx.db), vehicles: listVehicles(fx.db) });
+      const line = (targetKind: string, targetId: number | null) => ({
+        categoryId: mobile,
+        targetKind,
+        targetId,
+      });
+
+      assert.equal(targetLabel(line('household', null), full), 'household');
+      assert.equal(targetLabel(line('vehicle', fx.vehicles.vehicleB.id), full), 'Vehicle B');
+      // A person the household has since removed degrades to the bare kind
+      // rather than throwing or printing a bare id — history keeps rendering.
+      assert.equal(targetLabel(line('person', fx.people.sam.id), empty), 'person');
+      assert.equal(targetLabel(line('vehicle', 999), empty), 'vehicle');
+
+      // An empty purchase is not a thing the split rules allow, but a list
+      // should not explode if one ever appears.
+      assert.deepEqual(purchaseLineSummary([], categoryNames, full), {
+        label: '',
+        extraLines: 0,
+      });
+      // An unknown category still names the target.
+      assert.equal(
+        purchaseLineSummary([line('household', null)], new Map(), full).label,
+        'Category (household)',
+      );
     } finally {
       fx.close();
     }

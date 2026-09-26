@@ -314,6 +314,23 @@ constant by *not* restarting the seeder between them.
 
 ## History
 
+- **2026-09-26 (v0.18.0 supplier card, session `arena/01a0dcb6-simple-finance`):** entry 10's sibling
+  fact needs widening — `node_modules` can come back **partially** restored, not just absent. This
+  session opened with a `node_modules` directory that looked fine (`ls` listed packages) but had no
+  `tsx`, so `npm test` failed **all 52 suites** at import with
+  `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx'` — which reads like a broken checkout or a
+  bad test runner, not an install problem. `npm ci --ignore-scripts` (12s, 4 moderate advisories, as
+  recorded) restored the documented **478/112 green** baseline. Rule of thumb: if the failure is an
+  import of a *dev tool* rather than of the code under test, reinstall before debugging. Entry 8
+  re-proved an eighth time in a fresh sandbox — `@sparticuz/chromium` installed in ~3s,
+  `build/lambdafs.js` inflated `/tmp/al2023`, `LD_LIBRARY_PATH=/tmp/al2023/lib:/tmp` (with `/tmp`
+  appended, as the v0.17.0 note advises), Chromium 153.0.8010.0, and the **full suite 74 tests green
+  in ~4.0 minutes**. The same browser was driven directly (a plain `playwright-core` script against a
+  `next dev` on a copied throwaway database) to photograph `/suppliers` at 1400px and 320px and read
+  the pictures back — the cheapest way to confirm a new text clause wraps rather than pans on a
+  phone. One repo-level trap worth knowing here: the Playwright projects share one `.e2e-data` with
+  `workers: 1`, so `mobile` runs before `desktop`; a "five most recent" assertion must be checked
+  against the **whole** suite, not just its own project.
 - **2026-09-26 (v0.17.0 themes, session `arena/01a0dad7-simple-finance`):** entry 8 re-proved a seventh
   time in a fresh sandbox — install, `executablePath()`, then the full suite **74 tests green in ~4.5
   minutes** (new `theme` project). Two small notes for next time: the al2023 blob can also be inflated

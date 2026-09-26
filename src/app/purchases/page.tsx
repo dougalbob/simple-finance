@@ -13,6 +13,7 @@ import { listPeople } from '@/lib/records/people';
 import { listPots } from '@/lib/records/pots';
 import { listPurchases, type PurchaseFilters } from '@/lib/records/purchases';
 import { listSuppliersForEntry } from '@/lib/records/suppliers';
+import { targetLabel, targetNames } from '@/lib/records/targets';
 import { listStoredAttachments, type StoredAttachment } from '@/lib/records/attachments';
 import { fuelRowDetails, getFuelRowContext } from '@/lib/records/fuel';
 import { listVehicles } from '@/lib/records/vehicles';
@@ -116,6 +117,7 @@ export default async function PurchasesPage({
   const pots = listPots(db);
   const people = listPeople(db);
   const vehicles = listVehicles(db);
+  const names = targetNames({ people, vehicles });
   const suppliers = listSuppliersForEntry(db);
   const entryData = buildEntryData(db, now, user.email);
   const categoryNames = new Map(
@@ -206,7 +208,7 @@ export default async function PurchasesPage({
                     }
                     lines={allocations.map((line) => ({
                       label: categoryNames.get(line.categoryId) ?? 'Category',
-                      targetLabel: lineTargetLabel(line, people, vehicles),
+                      targetLabel: targetLabel(line, names),
                       amountPence: line.amountPence,
                       categoryId: line.categoryId,
                       targetKind: line.targetKind,
@@ -234,20 +236,6 @@ export default async function PurchasesPage({
       </section>
     </main>
   );
-}
-
-function lineTargetLabel(
-  line: { targetKind: string; targetId: number | null },
-  people: Array<{ id: number; label: string }>,
-  vehicles: Array<{ id: number; label: string }>,
-): string {
-  if (line.targetKind === 'person' && line.targetId !== null) {
-    return people.find((person) => person.id === line.targetId)?.label ?? 'person';
-  }
-  if (line.targetKind === 'vehicle' && line.targetId !== null) {
-    return vehicles.find((vehicle) => vehicle.id === line.targetId)?.label ?? 'vehicle';
-  }
-  return 'household';
 }
 
 interface PurchaseRowProps {

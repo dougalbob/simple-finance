@@ -18,6 +18,7 @@ import { expectedInflowOccurrences, expectedInflowPotId, listDebts } from './deb
 import { listPeople } from './people';
 import { listPotsIncludingArchived } from './pots';
 import { listSuppliers } from './suppliers';
+import { purchaseLineSummary, targetNames } from './targets';
 import { listVehicles } from './vehicles';
 
 /**
@@ -181,8 +182,7 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
       parent.children.map((child) => [child.id, `${parent.name} / ${child.name}`] as const),
     ),
   );
-  const personNames = new Map(listPeople(db).map((person) => [person.id, person.label]));
-  const vehicleNames = new Map(listVehicles(db).map((vehicle) => [vehicle.id, vehicle.label]));
+  const names = targetNames({ people: listPeople(db), vehicles: listVehicles(db) });
 
   const pending: PendingRow[] = [];
 
@@ -240,7 +240,7 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
         : scheduleKind === 'so'
           ? 'SO'
           : 'PUR';
-    const firstLine = lines[0];
+    const lineSummary = purchaseLineSummary(lines, categoryNames, names);
     pending.push({
       sortAt: purchase.occurredAt.getTime(),
       recordId: purchase.id,
@@ -258,16 +258,8 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
               // transfer option), so fall back to the schedule's own name —
               // "Unknown supplier" would be a dead end on a dense list.
               (schedule?.name ?? 'Unknown supplier'),
-        category:
-          firstLine === undefined
-            ? ''
-            : `${categoryNames.get(firstLine.categoryId) ?? 'Category'} (${targetLabel(
-                firstLine.targetKind,
-                firstLine.targetId,
-                personNames,
-                vehicleNames,
-              )})`,
-        extraLines: Math.max(lines.length - 1, 0),
+        category: lineSummary.label,
+        extraLines: lineSummary.extraLines,
         // A refund's total is negative, so money came back in (SPEC §9.5).
         amountPence: Math.abs(purchase.totalPence),
         direction: purchase.totalPence < 0 ? 'in' : 'out',
@@ -585,21 +577,6 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
       expectedInPence,
     },
   };
-}
-
-function targetLabel(
-  targetKind: string,
-  targetId: number | null,
-  personNames: Map<number, string>,
-  vehicleNames: Map<number, string>,
-): string {
-  if (targetKind === 'person' && targetId !== null) {
-    return personNames.get(targetId) ?? 'person';
-  }
-  if (targetKind === 'vehicle' && targetId !== null) {
-    return vehicleNames.get(targetId) ?? 'vehicle';
-  }
-  return 'household';
 }
 
 /** instance id → the schedule it came from, so DD and SO stay distinct. */

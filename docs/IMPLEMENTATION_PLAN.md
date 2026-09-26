@@ -1427,6 +1427,47 @@ the keyboard.
     3 new: choosing repaints without a reload, the server's first response already carries the
     attribute on every page, and a device with no cookie — or a stale one — gets Classic).
 
+161. **The supplier card's recent purchases say who each one was for (SPEC §21.4).** A household
+    case the v0.17.0 release conversation turned up: three mobile contracts with one carrier, one
+    per person. The modelling the app already supports well is **one supplier, three schedules** —
+    "Vodafone — Duncan/Cara/Matthew" — each with its own `For` target, due day and contract end
+    date. Every list says who a payment belongs to except one: the supplier card's **Recent
+    purchases** showed `date · amount`, so on Vodafone's card the three contracts were told apart by
+    **amount alone**. Each row now reads `2026-09-24 · £28.99 · Mobile Phones (Robin)`.
+
+    **It was never a query, only a mapping.** `/suppliers` already called
+    `listPurchases(db, { supplierId, limit: 5 })`, which returns `PurchaseWithLines { purchase,
+    allocations }` — and the `.map(({ purchase }) => …)` threw the allocations away. The page keeps
+    the same single query; it now reads the lines it was already paying for. No schema change, no
+    migration, no new N+1.
+
+    **One helper, not a fifth copy — `src/lib/records/targets.ts`.** Turning `{targetKind, targetId}`
+    into `Alex` / `Vehicle A` / `household` had grown **four** independent implementations:
+    `activity.ts`'s private `targetLabel()`, `purchases/page.tsx`'s `lineTargetLabel()`,
+    `contracts/page.tsx`'s inline closure, and this card would have been the fifth. They are one
+    pure, database-free module now — `targetNames()`, `targetLabel()`, `purchaseLineSummary()` —
+    and all four call sites use it. The refactor is behaviour-preserving: the 478 pre-existing tests
+    stayed green across it before a single new assertion was added.
+
+    **Decisions, stated.** *Split purchases* follow the established answer — **first line, then
+    `+N more`** — because All Transactions has rendered it that way since v0.3.0 and a household
+    reading two lists should not meet two conventions; the full split is one click away on
+    Purchases. *How much to show* — the **child** category, not `Parent / Child`: the target is the
+    point, and the cards sit two-to-a-row on a laptop. `purchaseLineSummary()` takes the category
+    map as an argument precisely so a wide table and a narrow card can differ without forking the
+    rule. *Degradation*: a person or vehicle the household has since removed prints the bare kind
+    (`person`) rather than an id or an exception, so history keeps rendering. Void styling
+    (`line-through`) and the `AttachmentForm` row are untouched.
+
+    **Verification.** `npm test` **481** green (478 + 3: the three-contracts case reading distinctly,
+    the `+N more` rule on a three-line split, and the household/vehicle/removed-target labels), all
+    driving the exact chain the page runs — `listPurchases` → `purchaseLineSummary` — so the card's
+    contract cannot drift from the page that builds it. Playwright **74** green, with
+    `e2e/desktop.spec.ts`'s supplier-card test now asserting `Weekly Shop (household) +1 more` on the
+    seeded split shop and `Weekly Shop (Sam)` on The Corner Cafe — same category, different target,
+    told apart by words. Looked at in a real browser at 1400px and 320px (SANDBOX entry 8): the
+    three-contract card reads correctly and the phone wraps the clause without panning sideways.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -1447,6 +1488,19 @@ the keyboard.
 
 ## Release history
 
+- **v0.18.0 — a supplier card says who each purchase was for (session
+  `arena/01a0dcb6-simple-finance`, from `main` @ `9dc74e4`, the v0.17.0 post-release merge)**: the
+  supplier card's **Recent purchases** list showed `date · amount`, which made one carrier holding a
+  contract per person readable only by price. Each row now carries the child category and the
+  target — `2026-09-24 · £28.99 · Mobile Phones (Robin)` — with `+N more` for a split purchase,
+  matching All Transactions. The page needed no new query (`listPurchases` already returned the
+  allocations the `.map` was discarding), and the four scattered copies of the
+  `{targetKind, targetId}` → name function collapsed into one pure module,
+  `src/lib/records/targets.ts`, now used by All Transactions, Purchases, Contracts & Renewals and
+  the supplier card. Decision **161**, SPEC **§21.4**. No schema change, no migration. `npm test`
+  **481 tests / 113 suites green**, format, typecheck and production build clean, Playwright **74
+  green**. **Published 2026-09-26**: annotated tag `v0.18.0` — merge commit, run and digest stamped
+  in [`docs/RELEASE_NOTES_v0.18.0.md`](RELEASE_NOTES_v0.18.0.md).
 - **v0.17.0 — themes: fourteen palettes, light and dark, chosen per device (session
   `arena/01a0dad7-simple-finance`, from `main` @ `978a9a6`, the v0.16.0 stamp merge)**: decision
   **159**'s claim, cashed. 28 themes — the household's thirteen palettes plus Classic, each in a light
