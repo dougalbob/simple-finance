@@ -123,6 +123,15 @@ export default defineConfig({
       use: { viewport: { width: 1400, height: 950 } },
     },
     {
+      // Own project (v0.17.0): the theme lives in a per-device cookie, so each
+      // test's fresh context is a fresh device. It writes no household data —
+      // it only needs to run before the backup project's restore because the
+      // restore reloads the page mid-flight.
+      name: 'theme',
+      testMatch: /theme\.spec\.ts/,
+      use: { viewport: { width: 1400, height: 950 } },
+    },
+    {
       name: 'backup',
       testMatch: /backup\.spec\.ts/,
       use: { viewport: { width: 1400, height: 950 } },

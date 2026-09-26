@@ -55,7 +55,7 @@ const labelClass = 'text-xs font-medium text-ink-soft';
 const submitClass =
   'rounded bg-till px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60';
 const dangerSubmitClass =
-  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-till-ink disabled:opacity-60';
+  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-fill-ink disabled:opacity-60';
 
 /**
  * Start tracking an informal debt (SPEC §10.2): who the money is owed to or

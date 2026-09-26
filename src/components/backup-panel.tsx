@@ -243,7 +243,7 @@ export function BackupPanel({
               type="submit"
               name="restore-backup"
               disabled={restoring}
-              className="rounded bg-danger-800 px-3 py-1.5 text-sm font-medium text-till-ink disabled:opacity-60"
+              className="rounded bg-danger-800 px-3 py-1.5 text-sm font-medium text-fill-ink disabled:opacity-60"
             >
               {restoring ? 'Restoring…' : 'Replace this installation from the archive'}
             </button>

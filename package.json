@@ -1,6 +1,6 @@
 {
   "name": "simple-finance",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "Private household spending app for two people watching money carefully. See docs/SPEC.md.",
   "engines": {
@@ -12,6 +12,8 @@
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
+    "themes:build": "node --import tsx scripts/themes/cli.mts",
+    "themes:check": "node --import tsx scripts/themes/cli.mts --check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",

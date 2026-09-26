@@ -32,6 +32,16 @@ export async function waitForFilters(page: Page): Promise<void> {
 }
 
 /**
+ * Wait until the Appearance gallery is listening (SPEC §15.4). Same rule as
+ * the till: the radios only turn the page over once React has hydrated them,
+ * and the form is `inert` until it can hear, so a click that lands earlier
+ * would change nothing. It publishes `data-theme-gallery-ready`.
+ */
+export async function waitForThemeGallery(page: Page): Promise<void> {
+  await expect(page.locator('[data-theme-gallery-ready="true"]')).toBeAttached();
+}
+
+/**
  * Today's date as the app sees it — the household's calendar in
  * Europe/London, not the test runner's. CI runs in UTC, so for an hour every
  * summer night (23:00–00:00 UTC is already tomorrow in London) a spec that

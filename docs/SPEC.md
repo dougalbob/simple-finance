@@ -880,34 +880,56 @@ makes even that ambiguous.
 came due today appears. "Read-only" means no user-facing writes: no form on this page can create,
 edit or void anything.
 
-### 15.4 Appearance — colour lives in one place, so a theme is cheap (Phase 1, 2026-09-25)
+### 15.4 Appearance — one token block, fourteen palettes, light and dark (v0.17.0)
 
-The household's standing requirement (recorded as decision **159**): the colour scheme must be
-arranged so that **adding a new theme is a small, single-place change — not an app-wide edit in
-every page**. Phase 1 (this release) delivers the precondition only: it tokenises the existing
-single scheme with **zero visual change**. No theme, no toggle, no `dark:` variants, no
-`prefers-color-scheme` — those are Phase 2.
+The household's standing requirement (decision **159**): the colour scheme must be arranged so that
+**adding a new theme is a small, single-place change — not an app-wide edit in every page**.
+Phase 1 (v0.16.0) built the precondition — every colour became a custom property in one Tailwind v4
+`@theme static` block in `src/app/globals.css`, with zero visual change. Phase 2 (v0.17.0, decision
+**160**) is the proof: **28 themes** — fourteen palettes, each in a light and a dark form — and a
+picker in Settings. Not one page, component or chart changed to make that possible.
 
-- **One block.** Every colour is a custom property in a single Tailwind v4 `@theme` block in
-  `src/app/globals.css` (semantic names for the neutral spine — `canvas`, `surface`, `border`,
-  `ink`, `till` — and ramp numbers for the chromatic families `accent`, `positive`, `warning`,
-  `danger`, `negative`, `note`, `chart-…`). A page or the chart kit never names a palette colour;
-  `tests/colour-tokens.test.ts` fails the build if a raw palette class or a colour literal sneaks
-  back into `src` (the one allowed literal is the PWA `themeColor`, §14).
-- **A theme redefines tokens, nothing else.** Because no component knows what any colour *is*, a
-  Phase-2 theme is one block that re-declares the same `--color-*` names under a selector (e.g.
-  `<html data-theme="dark">`). Nothing else changes. Today's distinctions stay distinct
-  (`ink-muted` ≠ `ink-soft`), so a theme cannot accidentally collapse two greys.
-- **The till is dark by design.** `--color-till` / `--color-till-ink` is the one darkest surface and
-  its ink, shared today by the till, the primary buttons and the active dark pills; a theme may split
-  it later, in the token block, not in the pages.
-- **Charts read tokens** as `var(--color-chart-…)` through inline styles (SPEC §16.7), so every rule
-  there — colour never the only signal, legend plus table twin, hatched in-progress period — is
-  untouched by the token pass and survives any theme.
-- **Known limitation carried to Phase 2:** the PWA `theme_color` / manifest colour (§14) is consumed
-  before any stylesheet is parsed, so it cannot be a CSS variable. Phase 1 pins the three literals to
-  the `--color-till` colour and checks they agree; Phase 2 must decide the chrome colour per theme
-  (e.g. the `media` form of `themeColor`) or accept the light-theme chrome.
+- **One block per theme.** `src/app/themes.generated.css` holds 28 plain `[data-theme='…']` blocks,
+  each re-declaring the same 73 `--color-*` names. Plain CSS, not more `@theme`: Tailwind puts
+  `@theme` inside `@layer theme`, and an unlayered rule beats a layered one whatever the order.
+  Attribute selectors rather than `:root[…]`, so a Settings card can paint a live preview of one
+  theme inside a page wearing another.
+- **A palette is five hex stops.** A theme is not hand-written. `scripts/themes/palettes.ts` holds
+  one row per palette — an id, a label, a sentence and five stops dark → light — and
+  `npm run themes:build` derives both modes from it in OKLCH: the neutral spine, every family ramp,
+  the chart series, and the two `color-mix` tints. Adding a palette is that one row plus the build;
+  `npm run themes:check` fails CI if the checked-in files do not match the generator, so the
+  stylesheet can never drift from its source.
+- **Nothing ships that cannot be read.** The generator measures Classic's own contrast ratios and
+  treats them as floors — ink on surface, every muted grey, the till's ink, each family's text
+  shade, the chart furniture — and pushes lightness in OKLCH until a derived theme meets them, or
+  the build fails. `tests/themes.test.ts` re-measures the shipped stylesheet rather than trusting
+  the generator: all 28 themes, every floor, plus a *distinctness* rule — any two tokens Classic
+  keeps visibly apart must stay apart in every theme, so a theme cannot collapse two greys.
+- **Dark inverts by role, not by number.** `accent-300` is till-eyebrow text and stays light in both
+  modes; the 50/100 steps become dark tints, 700–900 become light text. The till is the one
+  by-design-dark surface in a light theme and becomes the **floor** of a dark one (darker than the
+  canvas), which keeps the same hierarchy rather than inverting the page's furniture. Saturated
+  fills carry `--color-fill-ink` — white on light themes, near-black on dark — so a primary button's
+  label is legible in both without a page knowing which mode it is in.
+- **The choice is per device, in a cookie.** `sf-theme`, one year, `httpOnly`, no database row: the
+  phone at the checkout can run dark while the laptop stays on paper, and nothing about the
+  household's shared records changes. The layout reads the cookie server-side and renders
+  `<html data-theme>`, so the first paint is already correct — there is no inline script and no
+  flash. An unknown or stale value silently falls back to Classic Light.
+- **Settings → Appearance** (near the bottom of the page, after Backup) lists every palette as two
+  cards, light and dark. Each card is a real miniature of the app built from the same components and
+  tokens — not a picture of one — so a theme that renders badly renders badly *there* first.
+  Choosing applies at once and saves in the same gesture; if the save fails the page goes back to
+  what the server last knew.
+- **Colour is never the only signal** (§16.7) holds inside the picker too: each card names its mode
+  in words and the chosen one says **In use**, so the selection does not rest on a coloured ring.
+- **The PWA exception, resolved.** `theme_color` and the manifest are read before any stylesheet
+  exists, so they cannot be variables (§14). `generateViewport()` now emits the *chosen* theme's
+  chrome colour — its till on a light theme, its canvas on a dark one — generated into the theme
+  catalogue beside the stylesheet and checked against that theme's own token by the tests. The
+  installed manifest stays pinned to the default theme, because a manifest is read once at install
+  time and is a property of the installation, not of the current page.
 
 ## 16. Insights (initial scope — small and useful)
 

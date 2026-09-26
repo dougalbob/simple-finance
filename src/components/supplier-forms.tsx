@@ -215,7 +215,7 @@ export function SupplierInteractionForm({ supplierId }: { supplierId: number }) 
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-note px-2 py-1 text-xs text-till-ink disabled:opacity-60"
+          className="rounded bg-note px-2 py-1 text-xs text-fill-ink disabled:opacity-60"
         >
           {pending ? 'Logging…' : 'Log interaction'}
         </button>
