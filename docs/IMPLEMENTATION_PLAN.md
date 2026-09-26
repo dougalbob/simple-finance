@@ -1567,8 +1567,11 @@ the keyboard.
   left an inbound transfer on the checkpoint's own day out of the estimate while the outbound leg still
   counted (Natwest −£443.65 instead of £1,056.35; Horizon read the same figure). A date-only credit now
   counts when `createdAt` is strictly after the checkpoint's. Recorded before the checkpoint, it stays
-  absorbed, so E13 does not return. No schema change. Publication facts are filled into
-  [`docs/RELEASE_NOTES_v0.21.1.md`](RELEASE_NOTES_v0.21.1.md) once the image is in GHCR.
+  absorbed, so E13 does not return. No schema change. **Published 2026-09-26**: annotated tag `v0.21.1` on merge commit `22a9901` (PR #75),
+  publish run `36265962326`, digest
+  `sha256:c9ada52917fed04c28ba828c585a92bcf566d7c3103580842f3d4de02077a506` on `v0.21.1` / `latest` /
+  `sha-22a9901` — one digest, different from v0.21.0's
+  ([`docs/RELEASE_NOTES_v0.21.1.md`](RELEASE_NOTES_v0.21.1.md)).
 - **v0.21.0 — one codebase, two homes: the phone till and the laptop dashboard (panel move session
   `arena/01a0de74-simple-finance`, from `main` @ `2578acc`, the v0.20.0 stamp merge; release session
   `arena/01a0de9d-simple-finance`)**: decision **164**. The phone's first screen and the laptop's first

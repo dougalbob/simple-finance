@@ -1,12 +1,17 @@
 # Release notes — v0.21.1 (a same-day transfer recorded after a checkpoint counts)
 
-**Publication status:** Prepared; awaiting merge, passing main CI and image publication.
-**Merge commit, image digest and published date:** To be recorded after verification.
-**Planned image tags:** `ghcr.io/dougalbob/simple-finance:v0.21.1` · `latest` · `sha-<merge short SHA>`
+**Published:** 2026-09-26 (tag pushed; Publish run `36265962326` passed; image verified in GHCR).
+**Merge commit:** `22a9901d14c522ab65f739d2be604cc85ecbbdbd` (PR #75; short SHA `22a9901`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.21.1` ·
+`ghcr.io/dougalbob/simple-finance:latest` · `ghcr.io/dougalbob/simple-finance:sha-22a9901`
+**Digest:** `sha256:c9ada52917fed04c28ba828c585a92bcf566d7c3103580842f3d4de02077a506`, shared by all
+three tags and different from v0.21.0's `sha256:dec7f9a26eaa914b33f93e52717867fdf417075899bad6aed98966ff36ceb346`
+(verified through `/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.21.1 · pre-release`
 
-v0.21.0 is already published and is not retagged. Unraid Force Update pulls `latest`, which moves to this
-release. If a container is pinned to `v0.21.0`, change the repository to `latest` or to `v0.21.1`.
+v0.21.0 is already published and was not retagged. Unraid Force Update pulls `latest`, which now points
+at this release. If a container is pinned to `v0.21.0`, change the repository to `latest` or to
+`v0.21.1`.
 
 ## What changed
 
@@ -35,8 +40,11 @@ before updating all the same. Rolling back is a plain image change.
 
 ## Verification
 
-Implementation is PR #75. Gates, browser and docker are recorded on that pull request; the merge commit's
-checks and the Publish run are filled in after they pass.
+PR #75 and the main merge commit `22a9901` each passed gates, browser and docker
+([main CI `36265653126`](https://github.com/dougalbob/simple-finance/actions/runs/36265653126)).
+[Publish run `36265962326`](https://github.com/dougalbob/simple-finance/actions/runs/36265962326)
+built and smoke-tested the image before pushing it. GHCR's package-version API groups `v0.21.1`, `latest`
+and `sha-22a9901` under the digest above, which is not v0.21.0's digest.
 
 ## Updating in Unraid
 
