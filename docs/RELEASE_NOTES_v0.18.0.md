@@ -1,9 +1,11 @@
 # Release notes — v0.18.0 (a supplier card says who each purchase was for)
 
-**Published:** _pending — completed at step 11 of `docs/RELEASE_PROCESS.md`._
-**Merge commit:** _pending_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.18.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _pending_
+**Published:** 2026-09-26 (tag pushed, Publish run `36230210060` passed, image verified in the registry).
+**Merge commit:** `ee2308ee21619b7d456e9ff5381a58f6d0070b0c` (PR #66; short SHA `ee2308e`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.18.0` · `latest` · `sha-ee2308e`
+**Digest:** `sha256:8d8b822afe5ac115b605ffa825d43584262a8b5425ddb13f918dd66549977fb5`, one digest for
+all three tags, different from v0.17.0's `sha256:bd5aef91…` (verified through the publish workflow's
+`Verify the registry tags resolve` step and `/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.18.0 · pre-release`
 
 ## What changed

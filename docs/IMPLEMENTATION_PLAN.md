@@ -1499,8 +1499,11 @@ the keyboard.
   `src/lib/records/targets.ts`, now used by All Transactions, Purchases, Contracts & Renewals and
   the supplier card. Decision **161**, SPEC **§21.4**. No schema change, no migration. `npm test`
   **481 tests / 113 suites green**, format, typecheck and production build clean, Playwright **74
-  green**. **Published 2026-09-26**: annotated tag `v0.18.0` — merge commit, run and digest stamped
-  in [`docs/RELEASE_NOTES_v0.18.0.md`](RELEASE_NOTES_v0.18.0.md).
+  green**. **Published 2026-09-26**: annotated tag `v0.18.0` on merge commit `ee2308e` (PR #66),
+  publish run `36230210060`, digest
+  `sha256:8d8b822afe5ac115b605ffa825d43584262a8b5425ddb13f918dd66549977fb5` on `v0.18.0` / `latest` /
+  `sha-ee2308e` — one digest, different from v0.17.0's
+  ([`docs/RELEASE_NOTES_v0.18.0.md`](RELEASE_NOTES_v0.18.0.md)).
 - **v0.17.0 — themes: fourteen palettes, light and dark, chosen per device (session
   `arena/01a0dad7-simple-finance`, from `main` @ `978a9a6`, the v0.16.0 stamp merge)**: decision
   **159**'s claim, cashed. 28 themes — the household's thirteen palettes plus Classic, each in a light

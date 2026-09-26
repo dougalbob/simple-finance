@@ -8,7 +8,8 @@ three mobile contracts with one carrier, one per person, modelled as **one suppl
 schedules**. Every list in the app said who a payment was for except the supplier card's **Recent
 purchases**, which showed `date · amount` — so the three contracts were told apart by amount alone.
 Each row now reads `2026-09-24 · £28.99 · Mobile Phones (Robin)`. Recorded as decision **161** and
-SPEC **§21.4**. Release facts (merge commit, tag, digest) are stamped in
+SPEC **§21.4**. Release facts (merge commit `ee2308e`, tag, digest
+`sha256:8d8b822a…`) are stamped in
 [`docs/RELEASE_NOTES_v0.18.0.md`](RELEASE_NOTES_v0.18.0.md); the version badge reads
 `v0.18.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
