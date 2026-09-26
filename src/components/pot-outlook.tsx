@@ -4,8 +4,8 @@ import { formatShortLocalDate } from '@/lib/time';
 
 /**
  * The "before income lands" figures (SPEC §7.7, v0.9.0), shared by every
- * review surface — the home page's pot cards, the Overview's mini-balances —
- * so the same arithmetic is never rendered two different ways. The number is
+ * review surface — the Overview's mini-balances and the till — so the same
+ * arithmetic is never rendered two different ways. The number is
  * the dip: everything already expected to leave before the next income has
  * left, with nothing coming in counted.
  */

@@ -1,5 +1,14 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { addDaysIso, londonToday, waitForFilters, waitForTill } from './support';
+
+/** The schedule list scrolls inside the calendar-height panel (decision 164). */
+async function scheduleRow(page: Page, name: string): Promise<Locator> {
+  const row = page
+    .locator('section[aria-labelledby="schedules-heading"] li', { hasText: name })
+    .first();
+  await row.scrollIntoViewIfNeeded();
+  return row;
+}
 
 /**
  * Desktop review paths (blueprint §12): the dense overview, the purchases table
@@ -21,6 +30,33 @@ test.describe('desktop review', () => {
     await expect(page.getByText(/Vehicle A insurance renews in \d+ days/i)).toBeVisible();
     // ...and the seeded contract end is inside its own window.
     await expect(page.getByText(/time to shop around/i).first()).toBeVisible();
+    // Purchase review, transfers, pots and checkpoints live on their own pages.
+    await expect(page.getByRole('heading', { name: 'Recent entries' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Transfers between pots' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Add a pot' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Balance checkpoint' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Recent checkpoints' })).toHaveCount(0);
+  });
+
+  test('the desktop bar still lists every page', async ({ page }) => {
+    await page.goto('/overview');
+    const nav = page.getByRole('navigation', { name: 'Desktop navigation' });
+    for (const label of [
+      'Overview',
+      'Purchases',
+      'All Transactions',
+      'Recurring',
+      'Horizon',
+      'Income',
+      'Accounts & Pots',
+      'Insights',
+      'Charts',
+      'Settings',
+      'Suppliers',
+      'Contracts & Renewals',
+    ]) {
+      await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
   });
 
   test('purchases can be filtered and edited inline', async ({ page }) => {
@@ -149,9 +185,7 @@ test.describe('desktop review', () => {
     const calendar = page.locator('section[aria-labelledby="calendar-heading"]');
     const cell = calendar.locator(`[data-date="${dueDate}"]`);
     await expect(cell).toHaveCount(1);
-    await expect(cell.locator('a[href^="#schedule-edit-"]', { hasText: 'Phone plan' })).toHaveCount(
-      1,
-    );
+    await expect(cell.locator('a[href^="#schedule-"]', { hasText: 'Phone plan' })).toHaveCount(1);
 
     // Month navigation keeps working.
     const heading = await calendar.getByRole('heading', { level: 2 }).innerText();
@@ -197,7 +231,7 @@ test.describe('desktop review', () => {
     await addForm.getByRole('button', { name: 'Add schedule' }).click();
     await expect(addForm.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
 
-    const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
+    const scheduleItem = await scheduleRow(page, scheduleName);
     await expect(scheduleItem).toContainText(supplierName, { timeout: 30_000 });
     // The card shows the start date it holds, and the next expectation is still
     // a month away: nothing in the app covers the date that has passed.
@@ -226,9 +260,7 @@ test.describe('desktop review', () => {
     const calendar = page.locator('section[aria-labelledby="calendar-heading"]');
     const cell = calendar.locator(`[data-date="${missedDate}"]`);
     await expect(cell).toHaveCount(1);
-    await expect(cell.locator('a[href^="#schedule-edit-"]', { hasText: scheduleName })).toHaveCount(
-      1,
-    );
+    await expect(cell.locator('a[href^="#schedule-"]', { hasText: scheduleName })).toHaveCount(1);
 
     // The money pass runs on All Transactions (§11.2), and the row it makes is
     // a direct debit — code DD, linked back to its schedule — not a PUR.
@@ -243,9 +275,10 @@ test.describe('desktop review', () => {
 
     // And the start date on the card stayed where the household put it.
     await page.goto('/recurring');
-    await expect(
-      page.locator('section[aria-labelledby="schedules-heading"] li', { hasText: scheduleName }),
-    ).toContainText(`active from ${addDaysIso(today, -12)}`, { timeout: 30_000 });
+    await expect(await scheduleRow(page, scheduleName)).toContainText(
+      `active from ${addDaysIso(today, -12)}`,
+      { timeout: 30_000 },
+    );
   });
 
   test('suppliers carry contact cards, references and the interaction log', async ({ page }) => {
@@ -367,7 +400,7 @@ test.describe('desktop review', () => {
 
     // The new schedule lists the canonical supplier name in its summary line
     // (the edit-form <option> list also contains it, so avoid getByText alone).
-    const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
+    const scheduleItem = await scheduleRow(page, scheduleName);
     await expect(scheduleItem).toContainText(supplierName, { timeout: 30_000 });
     const supplierLink = scheduleItem.locator('a', { hasText: 'Supplier card' });
     await expect(supplierLink).toBeVisible();
@@ -411,11 +444,7 @@ test.describe('desktop review', () => {
 
     const renewalItem = renewals.locator('li', { hasText: 'Electricity contract renewal' }).first();
     await expect(renewalItem).toContainText(supplierName, { timeout: 30_000 });
-    await expect(
-      page
-        .locator('section[aria-labelledby="schedules-heading"]')
-        .locator('li', { hasText: scheduleName }),
-    ).toContainText(supplierName);
+    await expect(await scheduleRow(page, scheduleName)).toContainText(supplierName);
   });
 
   test('a vehicle added in Settings reaches every vehicle picker', async ({ page }) => {
@@ -500,7 +529,7 @@ test('monthly no-payment months use a compact native disclosure and survive save
   await form.getByRole('button', { name: 'Add schedule' }).click();
   await expect(form.getByRole('status')).toContainText(/added/i);
   await page.reload();
-  const card = schedules.locator('li', { hasText: 'Playwright ten-month payment' }).first();
+  const card = await scheduleRow(page, 'Playwright ten-month payment');
   await card.locator('summary', { hasText: 'Edit schedule' }).click();
   const editSummary = card.locator('summary', { hasText: 'Select any months with no payment:' });
   await expect(editSummary).toHaveText('Select any months with no payment: February, March');

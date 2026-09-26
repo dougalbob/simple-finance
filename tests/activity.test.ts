@@ -420,10 +420,7 @@ describe('All Transactions projection (SPEC §15.3)', () => {
         if (row.family === 'purchase') {
           assert.match(row.link.href, new RegExp(`^/purchases\\?.*#purchase-${row.recordId}$`));
         } else if (row.family === 'transfer') {
-          assert.equal(
-            row.link.href,
-            `/overview?transfer=${row.recordId}#transfer-${row.recordId}`,
-          );
+          assert.equal(row.link.href, `/pots?transfer=${row.recordId}#transfer-${row.recordId}`);
         } else if (row.family === 'receipt') {
           assert.equal(row.link.href, `/income?receipt=${row.recordId}#receipt-${row.recordId}`);
         } else {

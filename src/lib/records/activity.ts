@@ -316,7 +316,7 @@ export function listPotActivity(db: Db, filters: ActivityFilters): ActivityView 
         direction: incoming ? 'in' : 'out',
         note: transfer.note ?? '',
         link: {
-          href: `/overview?transfer=${transfer.id}#transfer-${transfer.id}`,
+          href: `/pots?transfer=${transfer.id}#transfer-${transfer.id}`,
           label: 'Open this transfer',
         },
         secondaryLink: null,

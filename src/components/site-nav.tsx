@@ -22,33 +22,28 @@ const NAV_ITEMS = [
 
 const NAV_GROUPS = [
   {
-    title: 'Daily & Transactions',
+    title: 'Daily',
     items: [
       // Carries the hash so the tap lands on the till itself — even when the
       // drawer was opened from `/` already (decision 158).
       { href: '/#quick-entry', label: 'Quick Entry (Till)' },
-      { href: '/overview', label: 'Overview' },
       { href: '/purchases', label: 'Purchases' },
-      { href: '/transactions', label: 'All Transactions' },
+      { href: '/horizon', label: 'Horizon' },
+      { href: '/charts', label: 'Charts' },
+      { href: '/overview', label: 'Overview' },
+      { href: '/recurring', label: 'Recurring' },
     ],
   },
   {
-    title: 'Planning & Accounts',
+    title: 'More',
     items: [
-      { href: '/recurring', label: 'Recurring' },
-      { href: '/horizon', label: 'Horizon' },
+      { href: '/transactions', label: 'All Transactions' },
       { href: '/income', label: 'Income' },
       { href: '/pots', label: 'Accounts & Pots' },
-    ],
-  },
-  {
-    title: 'Reference & System',
-    items: [
+      { href: '/insights', label: 'Insights' },
+      { href: '/settings', label: 'Settings' },
       { href: '/suppliers', label: 'Suppliers' },
       { href: '/contracts', label: 'Contracts & Renewals' },
-      { href: '/insights', label: 'Insights' },
-      { href: '/charts', label: 'Charts' },
-      { href: '/settings', label: 'Settings' },
     ],
   },
 ];

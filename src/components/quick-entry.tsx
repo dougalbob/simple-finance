@@ -172,12 +172,11 @@ export function QuickEntry({
   }, []);
   /**
    * Decision 158: on a phone the home page opens at the till — the household
-   * is standing at the checkout, and the card sits ~1300px down the page
-   * behind the household total and the projection. This is a scroll, never a
-   * `focus()`: nothing takes focus, so the keyboard stays down and every
-   * decision-151 focus rule holds. `scroll-mt-16` on the section clears the
-   * 56px sticky header. Gated on the phone layout (`< lg`, the compact
-   * header's own breakpoint); a laptop still opens at the top.
+   * is standing at the checkout. This is a scroll, never a `focus()`: nothing
+   * takes focus, so the keyboard stays down and every decision-151 focus rule
+   * holds. `scroll-mt-16` on the section clears the 56px sticky header. Gated
+   * on the phone layout (`< lg`, the compact header's own breakpoint); a
+   * laptop still opens at the top.
    */
   useEffect(() => {
     if (!openAtTillOnMobile) return;

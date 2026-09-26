@@ -1,17 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { AttachmentForm } from '@/components/attachment-form';
-import { FuelDetailsForm } from '@/components/fuel-details-form';
 import { PotOutlookLine } from '@/components/pot-outlook';
 import { QuickEntry } from '@/components/quick-entry';
-import { AddCheckpointForm, CreatePotForm } from '@/components/pot-forms';
-import { RecentEntryActions, VoidForm, TransferForm } from '@/components/record-forms';
 import { formatPence } from '@/lib/money';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
-import type { Db } from '@/lib/db/client';
 import { getMonthComparisonView, getVehicleCostsView } from '@/lib/records/insights-view';
-import { categoryTree } from '@/lib/records/categories';
 import { addDaysLocal } from '@/lib/records/dates';
 import { buildEntryData } from '@/lib/records/entry-view';
 import {
@@ -22,43 +16,26 @@ import {
   getKeyDateAlerts,
 } from '@/lib/records/money-view';
 import { keyDateMessage } from '@/lib/records/keydates';
-import { listStoredAttachments } from '@/lib/records/attachments';
-import { listPeople } from '@/lib/records/people';
-import { listPots, recentCheckpoints } from '@/lib/records/pots';
-import { listPurchases } from '@/lib/records/purchases';
-import { listSuppliersForEntry } from '@/lib/records/suppliers';
-import {
-  listTransfers,
-  getTransfer,
-  TransferNotFoundError,
-  type Transfer,
-} from '@/lib/records/transfers';
-import { fuelRowDetails, getFuelRowContext } from '@/lib/records/fuel';
-import { listVehicles } from '@/lib/records/vehicles';
-import { formatInstantLocal, formatRelativeAge, toLocalDateString } from '@/lib/time';
+import { toLocalDateString } from '@/lib/time';
 import { ProjectionSection } from './projection-panel';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Dense overview (SPEC §15.2, decision 74): money + tier banner, projection
- * with the “what's in this forecast” breakdown, due this week, key dates,
- * this month's spending by parent, vehicles rolling 12, and the review list
- * with inline edit/void/refund actions. Quick entry is embedded here so the
- * mobile home and this page share the same entry code path.
+ * Dense overview (SPEC §15.2, decisions 74 and 164): money + tier banner,
+ * projection with the “what's in this forecast” breakdown, due this week,
+ * key dates, this month's spending by parent, and vehicles rolling 12.
+ * Purchase review, transfer void, adding a pot and checkpoint history live
+ * on their own pages. Quick entry is embedded here so the mobile home and
+ * this page share the same entry code path.
  */
-export default async function OverviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ transfer?: string }>;
-}) {
+export default async function OverviewPage() {
   const user = await currentUserFromRequest();
   if (user === null) redirect('/unauthorized');
 
   const { db } = getDbHandle();
   const now = new Date();
   const today = toLocalDateString(now);
-  const params = await searchParams;
 
   const money = getMoneySnapshot(db, now);
   const projection = getProjectionView(db, now);
@@ -72,35 +49,7 @@ export default async function OverviewPage({
   }));
   const monthView = getMonthComparisonView(db, now);
   const vehicleView = getVehicleCostsView(db, now);
-
-  const pots = listPots(db);
-  const people = listPeople(db);
-  const vehicles = listVehicles(db);
   const entryData = buildEntryData(db, now, user.email);
-  const categoryNames = new Map(
-    categoryTree(db).flatMap((parent) =>
-      parent.children.map((child) => [child.id, `${parent.name} / ${child.name}`] as const),
-    ),
-  );
-
-  const recentPurchases = listPurchases(db, { limit: 12, includeVoided: true });
-  const fuelContext = getFuelRowContext(db);
-  const recentTransfers = listTransfers(db, { limit: 5 });
-  // A deep link from All Transactions (SPEC §15.3) must land on the record it
-  // names, even after that transfer has fallen out of the recent five.
-  const linkedTransferId = Number(params.transfer);
-  const linkedTransfer =
-    Number.isInteger(linkedTransferId) &&
-    linkedTransferId > 0 &&
-    recentTransfers.every((transfer) => transfer.id !== linkedTransferId)
-      ? findTransfer(db, linkedTransferId)
-      : null;
-  const transferRows =
-    linkedTransfer === null ? recentTransfers : [linkedTransfer, ...recentTransfers];
-  const potNames = new Map(pots.map((pot) => [pot.id, pot.label]));
-  const supplierNames = new Map(
-    listSuppliersForEntry(db).map((supplier) => [supplier.id, supplier.name]),
-  );
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
@@ -108,7 +57,10 @@ export default async function OverviewPage({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Overview</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Everything in one place</h1>
         <p className="mt-1 text-sm text-ink-soft">
-          Estimates are your reported figures plus recorded activity — never a bank balance.
+          Estimates are your reported figures plus recorded activity — never a bank balance.{' '}
+          <Link href="/purchases" className="font-medium text-accent hover:underline">
+            All purchases →
+          </Link>
         </p>
       </header>
 
@@ -127,8 +79,8 @@ export default async function OverviewPage({
               </h2>
               <p className="mt-1 text-sm text-ink-soft">
                 The projection appears once the household has a balance checkpoint and an expected
-                income schedule (for example a monthly salary). Record a checkpoint in Accounts
-                &amp; Pots, then add the income schedule in Recurring.
+                income schedule (for example a monthly salary). Record a checkpoint in Quick Entry →
+                Balance or on Accounts &amp; Pots, then add the income schedule in Recurring.
               </p>
             </section>
           )}
@@ -162,233 +114,6 @@ export default async function OverviewPage({
             </ul>
           </SectionShell>
         </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section
-            aria-labelledby="recent-purchases-heading"
-            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-          >
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h2 id="recent-purchases-heading" className="text-lg font-semibold">
-                Recent entries
-              </h2>
-              <Link href="/purchases" className="text-sm font-medium text-accent hover:underline">
-                All purchases →
-              </Link>
-            </div>
-            {recentPurchases.length === 0 ? (
-              <p className="text-sm text-ink-muted">
-                Saved purchases will appear here with inline edit, void and refund actions.
-              </p>
-            ) : (
-              <ul className="divide-y divide-border-hairline">
-                {recentPurchases.map(({ purchase, allocations }) => (
-                  <li key={purchase.id} className="py-2.5">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm">
-                        <span
-                          className={
-                            purchase.voidedAt !== null
-                              ? 'text-ink-faint line-through'
-                              : 'font-medium text-ink-emphasis'
-                          }
-                        >
-                          {purchase.supplierId !== null
-                            ? (supplierNames.get(purchase.supplierId) ?? 'Unknown supplier')
-                            : 'Unknown supplier'}
-                        </span>{' '}
-                        <span className="text-xs text-ink-muted">
-                          {formatInstantLocal(purchase.occurredAt)} ·{' '}
-                          {purchase.scheduleInstanceId !== null
-                            ? 'from schedule'
-                            : purchase.voidedAt !== null
-                              ? `voided (${purchase.voidReason ?? 'no reason'})`
-                              : purchase.refundOfPurchaseId !== null
-                                ? 'refund'
-                                : allocations
-                                    .map((line) => categoryNames.get(line.categoryId) ?? 'Category')
-                                    .join(' · ')}
-                        </span>
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {formatPence(purchase.totalPence)}
-                      </span>
-                    </div>
-                    {purchase.voidedAt === null ? (
-                      <div className="mt-1.5">
-                        <details className="inline-block">
-                          <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
-                            Edit / void / refund
-                          </summary>
-                          <div className="mt-2 max-w-md">
-                            <RecentEntryActions
-                              purchaseId={purchase.id}
-                              expectedVersion={purchase.version}
-                              occurredDate={toLocalDateString(new Date(purchase.occurredAt))}
-                              note={purchase.note ?? ''}
-                              lines={allocations.map((line) => ({
-                                amountPence: line.amountPence,
-                                categoryId: line.categoryId,
-                                targetKind: line.targetKind,
-                                targetId: line.targetId,
-                              }))}
-                              people={people.map(({ id, label }) => ({ id, label }))}
-                              vehicles={vehicles.map(({ id, label }) => ({ id, label }))}
-                              categories={entryData.categories}
-                              today={today}
-                              summary={`${
-                                purchase.supplierId !== null
-                                  ? (supplierNames.get(purchase.supplierId) ?? 'entry')
-                                  : 'entry'
-                              }, ${formatPence(purchase.totalPence)}`}
-                            />
-                          </div>
-                        </details>
-                      </div>
-                    ) : null}
-                    {(() => {
-                      const fuel = fuelRowDetails(fuelContext, purchase, allocations);
-                      return fuel === null ? null : <FuelDetailsForm {...fuel} />;
-                    })()}
-                    <AttachmentForm
-                      purchaseId={purchase.id}
-                      attachments={listStoredAttachments(db, purchase.id)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <div className="space-y-6">
-            <section
-              aria-labelledby="transfers-heading"
-              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-            >
-              <h2 id="transfers-heading" className="mb-2 text-lg font-semibold">
-                Transfers between pots
-              </h2>
-              <p className="mb-3 text-xs text-ink-muted">
-                Money moving between your own pots — transfers never enter Insights (SPEC §10).
-              </p>
-              {linkedTransfer !== null ? (
-                <p className="mb-2 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-900">
-                  Showing the transfer you linked to — it is older than the five most recent.
-                </p>
-              ) : null}
-              {transferRows.length === 0 ? (
-                <p className="mb-3 text-sm text-ink-muted">No transfers recorded yet.</p>
-              ) : (
-                <ul className="mb-3 divide-y divide-border-hairline">
-                  {transferRows.map((transfer) => (
-                    <li key={transfer.id} id={`transfer-${transfer.id}`} className="py-1.5">
-                      <div className="flex items-baseline justify-between gap-2 text-sm">
-                        <span
-                          className={
-                            transfer.voidedAt !== null
-                              ? 'text-ink-faint line-through'
-                              : 'text-ink-body'
-                          }
-                        >
-                          {potNames.get(transfer.fromPotId) ?? 'Pot'} →{' '}
-                          {potNames.get(transfer.toPotId) ?? 'Pot'}
-                          {transfer.voidedAt !== null
-                            ? ` (voided: ${transfer.voidReason ?? '—'})`
-                            : ''}
-                        </span>
-                        <span className="font-semibold tabular-nums">
-                          {formatPence(transfer.amountPence)}
-                        </span>
-                      </div>
-                      {transfer.voidedAt === null ? (
-                        <p className="mt-1">
-                          <details className="inline-block">
-                            <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
-                              Void
-                            </summary>
-                            <div className="mt-2 max-w-md">
-                              <VoidForm
-                                kind="transfer"
-                                recordId={transfer.id}
-                                expectedVersion={transfer.version}
-                                summary={`${potNames.get(transfer.fromPotId) ?? 'a pot'} → ${
-                                  potNames.get(transfer.toPotId) ?? 'a pot'
-                                }, ${formatPence(transfer.amountPence)}`}
-                              />
-                            </div>
-                          </details>
-                        </p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <details>
-                <summary className="cursor-pointer text-sm font-medium text-ink-body">
-                  Record a transfer
-                </summary>
-                <div className="mt-3">
-                  <TransferForm pots={pots.map(({ id, label }) => ({ id, label }))} today={today} />
-                </div>
-              </details>
-            </section>
-
-            <div className="grid gap-6 sm:grid-cols-2">
-              <section
-                aria-labelledby="add-pot-heading"
-                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-              >
-                <h2 id="add-pot-heading" className="mb-3 text-base font-semibold">
-                  Add a pot
-                </h2>
-                <CreatePotForm />
-              </section>
-              <section
-                aria-labelledby="add-checkpoint-heading"
-                className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-              >
-                <h2 id="add-checkpoint-heading" className="mb-3 text-base font-semibold">
-                  Balance checkpoint
-                </h2>
-                <AddCheckpointForm pots={pots.map((pot) => ({ id: pot.id, label: pot.label }))} />
-              </section>
-            </div>
-
-            <section
-              aria-labelledby="recent-checkpoints-heading"
-              className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-            >
-              <h2 id="recent-checkpoints-heading" className="mb-2 text-base font-semibold">
-                Recent checkpoints
-              </h2>
-              <p className="mb-2 text-xs text-ink-muted">
-                Immutable corrections — they never delete what happened.
-              </p>
-              {recentCheckpoints(db).length === 0 ? (
-                <p className="text-sm text-ink-muted">Nothing recorded yet.</p>
-              ) : (
-                <ul className="divide-y divide-border-hairline">
-                  {recentCheckpoints(db)
-                    .slice(0, 6)
-                    .map((checkpoint) => (
-                      <li
-                        key={checkpoint.id}
-                        className="flex items-baseline justify-between gap-2 py-1.5 text-sm"
-                      >
-                        <span>
-                          {checkpoint.potLabel}
-                          <span className="ml-2 text-xs text-ink-muted">
-                            {formatRelativeAge(checkpoint.effectiveAt)}
-                          </span>
-                        </span>
-                        <span className="tabular-nums">{formatPence(checkpoint.amountPence)}</span>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </section>
-          </div>
-        </div>
       </div>
     </main>
   );
@@ -418,8 +143,9 @@ function MoneyRow({
       </div>
       {money.householdAvailablePence === null ? (
         <p className="text-sm text-ink-soft">
-          Record a balance checkpoint for at least one pot and the household estimate appears here.
-          Unreported pots never get an estimate — the app does not guess balances.
+          Record a balance checkpoint in Quick Entry → Balance or on Accounts &amp; Pots and the
+          household estimate appears here. Unreported pots never get an estimate — the app does not
+          guess balances.
         </p>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -638,14 +364,4 @@ function KeyDatesSection({ items }: { items: Array<{ message: string; date: stri
       )}
     </section>
   );
-}
-
-/** The transfer a deep link names, or null when that id is not a transfer. */
-function findTransfer(db: Db, transferId: number): Transfer | null {
-  try {
-    return getTransfer(db, transferId);
-  } catch (error) {
-    if (error instanceof TransferNotFoundError) return null;
-    throw error;
-  }
 }
