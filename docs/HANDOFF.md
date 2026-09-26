@@ -1,9 +1,14 @@
-# Handoff: Monthly schedules can skip selected months — v0.20.0 release preparation
+# Handoff: Monthly schedules can skip selected months — v0.20.0
 
-Date: 2026-09-26. Branch: `arena/01a0ddd0-simple-finance`, starting at `db9e020`
-(current `main` after v0.19.0 and its documentation merge; verified against origin).
+Date: 2026-09-26. Implementation branch: `arena/01a0ddd0-simple-finance`, starting at `db9e020`
+(`main` after v0.19.0 and its documentation merge).
 
-**Prepared for v0.20.0; publication pending.** Monthly schedules can exclude selected calendar months every year.
+**Published as v0.20.0 on 2026-09-26.** Annotated tag `v0.20.0` points to PR #70's merge commit
+`2d4cb81`; GHCR's `v0.20.0`, `latest` and `sha-2d4cb81` tags resolve to
+`sha256:1e0db60a775f85958342420926b327994bf90cd58d7564b85cfaaaf5c0a92de2`. Full release
+facts and Unraid update instructions are in [`RELEASE_NOTES_v0.20.0.md`](RELEASE_NOTES_v0.20.0.md).
+
+Monthly schedules can exclude selected calendar months every year.
 For the ten-payment-year case, select February and March. The shared Add/Edit control is a nested
 native details disclosure, **collapsed by default**, with Horizon's compact summary styling and native
 marker. Only opening it reveals the twelve labelled checkboxes. Recurring and dedicated Income forms
@@ -31,8 +36,8 @@ local-browser config was removed afterwards. No new sandbox workaround was neede
   conversion remain intact. Only moving `activeFrom` earlier backfills (decisions 75/162 unchanged).
 - `nextDueDateAfter` starts its bounded search at the later of the queried date and `activeFrom`, so a
   distant start followed by eleven skipped months still has an honest next-due date.
-- Version metadata is now v0.20.0. Release publication facts will be recorded in
-  `docs/RELEASE_NOTES_v0.20.0.md` after the image is verified.
+- Version metadata is v0.20.0. The published merge commit, tags and digest are recorded in
+  `docs/RELEASE_NOTES_v0.20.0.md`; back up before using Unraid Force Update.
 
 ---
 
