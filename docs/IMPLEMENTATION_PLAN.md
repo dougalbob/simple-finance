@@ -1562,6 +1562,23 @@ the keyboard.
 
 ## Release history
 
+- **v0.19.0 — a schedule can start in the past, so the payments the app missed are recorded properly
+  (session `arena/01a0dcf7-simple-finance`, from `main` @ `1363139`, the v0.18.0 merge)**: a household
+  that started recording five days late had no way to place the direct debits inside that gap — the
+  schedules were set up afterwards, so no instance covered those dates, and typing the money in as a
+  Purchase mislabelled it on every page that reads the money. The schedule card's Edit now carries
+  **Active from**, and moving it earlier **backfills** every due date up to today as ordinary instances
+  that convert into schedule-tagged `DD` / `SO` / income records; moving it later drops upcoming
+  instances only; converted history is never rewritten in either direction. It forced the one real
+  domain change: separating the *generation floor* from the *retention floor* in
+  `syncScheduleInstances`, because the daily pass had been pruning past-dated upcoming rows as stale
+  and would have eaten a backfill before it converted. `editSchedule` returns the backfill count
+  alongside the schedule, `nextDueDateAfter` honours `activeFrom`, and a backdated window is bounded by
+  `MAX_BACKFILL_SPAN_DAYS` (~3 years) with a sentence rather than a materialisation error. Decision
+  **162**, SPEC **§11.1**. No schema change, no migration. `npm test` **494 tests / 115 suites green**,
+  format, typecheck and production build clean, Playwright **75 green**. **Published 2026-09-26**
+  (merge commit, publish run and digest stamped in
+  [`docs/RELEASE_NOTES_v0.19.0.md`](RELEASE_NOTES_v0.19.0.md) by the follow-up docs PR).
 - **v0.18.0 — a supplier card says who each purchase was for (session
   `arena/01a0dcb6-simple-finance`, from `main` @ `9dc74e4`, the v0.17.0 post-release merge)**: the
   supplier card's **Recent purchases** list showed `date · amount`, which made one carrier holding a
