@@ -4,8 +4,11 @@ Date: 2026-09-26. Implementation branch: `arena/01a0de74-simple-finance`, starti
 (`main` after v0.20.0; merged as PR #72). Release preparation on
 `arena/01a0de9d-simple-finance`, branched from that merge.
 
-**Prepared for v0.21.0; publication pending.** The panel move below is the whole release — no product
-code changed while preparing it.
+**Published as v0.21.0 on 2026-09-26.** Annotated tag `v0.21.0` points to PR #73's merge commit
+`4b177a5`; GHCR's `v0.21.0`, `latest` and `sha-4b177a5` tags resolve to
+`sha256:dec7f9a26eaa914b33f93e52717867fdf417075899bad6aed98966ff36ceb346`. Full release facts and
+Unraid update instructions are in [`RELEASE_NOTES_v0.21.0.md`](RELEASE_NOTES_v0.21.0.md). The panel move
+below is the whole release — no product code changed while preparing it.
 
 Decision **164**: one codebase, two homes. Phone `/` is the till home; laptop `/overview` is the
 dense dashboard. Duplicates left Overview and the phone dump; transfers now void on Accounts & Pots.
@@ -34,8 +37,8 @@ SPEC §15.1 / §15.2 / §15.3 / §23.4 updated where the UI was now wrong.
 `npm test`: **506 passed** · TypeScript clean · formatting clean · production build clean ·
 Playwright: **78 passed** (two new specs: phone home is the till, not a dump; desktop bar still
 lists every page). Browser ran using SANDBOX entry 8; the temporary local-browser config was
-removed afterwards. Version metadata is now v0.21.0; the published merge commit, tags and digest will
-be recorded in [`RELEASE_NOTES_v0.21.0.md`](RELEASE_NOTES_v0.21.0.md) once the image is verified.
+removed afterwards. Version metadata is v0.21.0. The published merge commit, tags and digest are recorded
+in [`RELEASE_NOTES_v0.21.0.md`](RELEASE_NOTES_v0.21.0.md); back up before using Unraid Force Update.
 
 ## What a future session should know
 
