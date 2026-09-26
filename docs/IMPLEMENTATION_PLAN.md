@@ -1352,6 +1352,81 @@ the keyboard.
     time caption ("just now"/"N minutes ago") normalised — **0 differing pixels** on every page,
     charts included. A theme is therefore one future block that re-declares these names.
 
+160. **Themes: fourteen palettes × light and dark, generated from five hex stops, chosen per device
+    (SPEC §15.4, Phase 2 of decision 159 — the proof).** Phase 1 tokenised the scheme; the household
+    then supplied thirteen candidate palettes as five hex stops each (dark → light) and asked for
+    **all of them**, in **both modes**, as a gallery **near the bottom of the existing Settings
+    page**, remembered **per device in a cookie** — "so one of us can run dark while the other runs
+    light" — with nothing stored in the database.
+
+    **Shipped:** 28 themes (the 13 supplied palettes plus Classic, each light and dark), 73 tokens
+    apiece, in `src/app/themes.generated.css`; a picker at Settings → Appearance; `sf-theme` cookie;
+    per-theme browser chrome. No page, component or chart was edited to do it — the only `src`
+    change outside the new files is the `text-white` → `text-fill-ink` split described below.
+
+    **Why generated, not hand-written.** 28 × 73 = 2,044 declarations is not a thing to maintain by
+    hand, and a hand-picked dark ramp is where contrast bugs live. `scripts/themes/` (≈1,300 lines,
+    Node + tsx, no new runtime dependency) reads the base `@theme static` block, converts through
+    OKLab/OKLCH, derives both modes of each palette and writes two files: the stylesheet and
+    `src/lib/theme/catalogue.ts`. `npm run themes:build` regenerates; `npm run themes:check` fails
+    if the checked-in output differs, so the shipped CSS cannot drift from its source. **Adding a
+    palette is one row in `scripts/themes/palettes.ts` and a build** — which is decision 159's claim,
+    finally testable.
+
+    **Derivation, in one paragraph.** The five stops give the palette its deep, mid, accent, wash and
+    paper. A light theme puts paper on the canvas and the deep stop on the till; a dark theme puts
+    the deep stop on the canvas and takes the till *below* it — the till is the floor, not the
+    ceiling — which keeps the light theme's hierarchy instead of turning the page inside out. Ramps
+    are built by **role, not by number**: `accent-300` is till-eyebrow text and stays light in both
+    modes, while 50/100 become dark tints and 700–900 become light text in dark mode. Siblings that
+    share a role are spread 0.03 L apart in number order so `-700` and `-800` never merge. Family
+    hues come from the palette, family chroma from a per-family ceiling (a red stays red on a green
+    palette — a warning is not a matter of taste).
+
+    **Contrast is enforced, then re-measured.** Classic's own measured ratios are the floors (ink on
+    surface 17.8, `ink-muted` 4.8, `chart-axis` 2.6, `border/surface` 1.23, …, 26 rules), plus
+    separation rules for the washes. The generator iterates in OKLCH until every rule passes with a
+    1.02 margin for hex rounding, and fails the build otherwise. `tests/themes.test.ts` (12 cases)
+    then re-measures the **shipped stylesheet**, not the generator's memory, and adds a distinctness
+    rule: any pair Classic separates by OKLab Δ ≥ 0.02 must stay ≥ 0.008 apart in every theme — zero
+    violations across 28 themes. Cross-group similarity is allowed on some palettes (a green
+    palette's accent wash sits near its positive wash) because colour is never the only signal
+    (§16.7) — the words, icons and table twins carry the meaning.
+
+    **One token was split.** `--color-fill-ink` (4 call sites that had been `text-white` on a
+    saturated fill) is white in every light theme and near-black in every dark one, so a primary
+    button's label stays legible without a page knowing which mode it is in. `--color-till-ink`
+    stayed as it was. That is the whole of the page-level change, and it lives in the token block
+    exactly as the Phase-1 handoff required.
+
+    **Apply before first paint: cookie, not inline script.** The layout is async, reads `sf-theme`
+    (one year, `httpOnly`, `sameSite=lax`, `secure` in production) with `next/headers` and renders
+    `<html data-theme>` server-side, so the very first byte is already the right theme — no
+    pre-hydration script, no flash, and nothing client-side needs to read the cookie. Unknown or
+    stale values fall back to `classic-light` without throwing. Per device is deliberate and is the
+    household's choice: no database row, no audit entry, no household-wide surprise.
+
+    **PWA chrome (the Phase-1 open question).** `generateViewport()` returns the chosen theme's
+    chrome colour — the till on a light theme, the canvas on a dark one — which the generator writes
+    into the catalogue and `tests/themes.test.ts` checks against that theme's own token. The
+    manifest's `theme_color`/`background_color` stay pinned to the default: a manifest is read once
+    at install time and describes the installation, not the page in front of you.
+
+    **The gallery is the app, not a picture of it.** Each card renders real components inside an
+    element carrying that theme's `data-theme` — till, figure, three status pills, a link — so a
+    theme that renders badly renders badly there first. The radio applies the theme to
+    `document.documentElement` and submits in the same gesture; a failed save puts the attribute
+    back. Every card names its mode in words and the chosen one says "In use", so §16.7 holds inside
+    the picker too.
+
+    **Also fixed:** `src/app/not-found.tsx`. Next's built-in 404 paints its own near-black text,
+    which all but disappeared on a dark theme; it is now an ordinary tokenised page.
+
+    **Verification.** `npm test` **478** green (466 + 12 new theme cases, the grep-gate reworked to
+    allowlist the generated catalogue); `tsc` and `format:check` clean; Playwright **74** green (71 +
+    3 new: choosing repaints without a reload, the server's first response already carries the
+    attribute on every page, and a device with no cookie — or a stale one — gets Classic).
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |

@@ -12,6 +12,7 @@ import {
   TargetRenameForm,
   WarningLeadsForm,
 } from '@/components/settings-forms';
+import { ThemeGallery } from '@/components/theme-gallery';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { signInEmailChoices } from '@/lib/auth/sign-in-choices';
 import { loadAppConfig } from '@/lib/config';
@@ -30,6 +31,8 @@ import {
   getWeeklyGroceriesPence,
 } from '@/lib/records/settings';
 import { listVehicles } from '@/lib/records/vehicles';
+import { currentTheme } from '@/lib/theme/next';
+import { themeFamilies } from '@/lib/theme/theme';
 import { APP_VERSION } from '@/lib/version';
 
 export const dynamic = 'force-dynamic';
@@ -56,6 +59,7 @@ export default async function SettingsPage() {
   const commitmentPicker = getCommitmentCategoryPicker(db);
   const projection = getProjectionView(db, now);
   const documentsStatus = await inspectDocuments(getDbHandle());
+  const theme = await currentTheme();
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
@@ -283,6 +287,25 @@ export default async function SettingsPage() {
             replaces this installation's data.
           </p>
           <BackupPanel appVersion={APP_VERSION} documentsStatus={documentsStatus} />
+        </section>
+
+        <section
+          id="appearance"
+          aria-labelledby="appearance-heading"
+          className="scroll-mt-24 rounded-xl border border-border bg-surface p-4 shadow-sm"
+        >
+          <h2 id="appearance-heading" className="mb-1 text-lg font-semibold">
+            Appearance
+          </h2>
+          <p className="mb-3 max-w-3xl text-xs text-ink-muted">
+            Fourteen palettes, each in a light and a dark form. The choice is remembered{' '}
+            <span className="font-semibold">on this device only</span> — a cookie, not a household
+            setting — so the phone at the checkout can run dark while the laptop stays on paper.
+            Every card below is the real thing: the same components the app is built from, wearing
+            that theme. Nothing else changes — the figures, the wording and the warnings are
+            identical in all of them, and every theme is checked for contrast before it ships.
+          </p>
+          <ThemeGallery current={theme.id} families={themeFamilies()} />
         </section>
 
         <section

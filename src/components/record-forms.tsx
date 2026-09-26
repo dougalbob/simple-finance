@@ -71,11 +71,14 @@ const submitClass =
  * again in the token build, decision 159) — so layering a colour override on
  * top of `submitClass` produced ink-on-ink (and a 1.09:1 label on hover).
  * Danger label on a surface at rest, inverting to a saturated danger
- * background with a till-ink label on hover (6.42:1 — WCAG AA), which also
- * keeps it legible on a touch screen where `:hover` never applies.
+ * background with a `fill-ink` label on hover (6.42:1 — WCAG AA), which also
+ * keeps it legible on a touch screen where `:hover` never applies. `fill-ink`
+ * rather than `till-ink` because a dark theme paints the danger fill bright
+ * and writes on it in near-black; it is white in every light theme, so this
+ * button is unchanged there (decision 160).
  */
 const dangerSubmitClass =
-  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-till-ink disabled:opacity-60';
+  'rounded border border-danger-300 bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:border-danger hover:bg-danger hover:text-fill-ink disabled:opacity-60';
 
 interface LineEditorProps {
   idPrefix: string;

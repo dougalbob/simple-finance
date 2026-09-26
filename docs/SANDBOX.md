@@ -314,6 +314,15 @@ constant by *not* restarting the seeder between them.
 
 ## History
 
+- **2026-09-26 (v0.17.0 themes, session `arena/01a0dad7-simple-finance`):** entry 8 re-proved a seventh
+  time in a fresh sandbox — install, `executablePath()`, then the full suite **74 tests green in ~4.5
+  minutes** (new `theme` project). Two small notes for next time: the al2023 blob can also be inflated
+  without the package's own helper (`zlib.brotliDecompressSync` on
+  `node_modules/@sparticuz/chromium/bin/al2023.tar.br` into a file, then `tar -xf … -C /tmp/al2023`) if
+  the `build/lambdafs.js` path ever moves, and `LD_LIBRARY_PATH=/tmp/al2023/lib:/tmp` (with `/tmp`
+  appended) picks up the swiftshader `.so`s the package drops there. Entry 10's sibling fact held again:
+  `node_modules` was simply absent at session start after the snapshot restore — `npm ci
+  --ignore-scripts` fixed what looked at first like a broken checkout.
 - **2026-09-25 (v0.14.0 release, session `arena/01a0d9e9-simple-finance`):** entry 13 added after the
   GitHub connector dropped mid-release (around the PR #58 merge / session-close / re-clone window) —
   reconnect windows, the `aren…` handle anatomy and both 403 quirks of the post-toggle token (`GET

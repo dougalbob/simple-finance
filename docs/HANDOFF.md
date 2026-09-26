@@ -1,3 +1,80 @@
+# Handoff: Themes — Phase 2 done (v0.17.0), ready to release
+
+Date: 2026-09-26. Branch: `arena/01a0dad7-simple-finance` (from `main` @ `978a9a6`, the v0.16.0 merge).
+
+**Phase 2 is implemented and green; the release has not been published yet.** The household's
+requirement from decision **159** — *adding a new theme must be a small, single-place change* — now
+has its proof: **28 themes** (fourteen palettes × light/dark) picked in **Settings → Appearance**,
+remembered **per device in a cookie**. Recorded as decision **160** and SPEC **§15.4**. Nothing in
+any page, component or chart changed to make it work; the only edit outside new files is the
+`text-white` → `text-fill-ink` split (4 call sites) plus the new tokenised 404 page.
+
+## Gates on this tree
+
+`npm test` **478** green · `npx tsc --noEmit` clean · `npm run format:check` clean ·
+Playwright **74** green locally (SANDBOX entry 8; `playwright.local.config.ts` is gitignored/untracked
+— recreate it from that entry). `npm run themes:check` clean.
+
+## What to do next (in order)
+
+1. **Release v0.17.0** — the five version files are already bumped (`package.json`,
+   `package-lock.json` ×2, `src/lib/version.ts`, `simple-finance.xml`) and
+   [`RELEASE_NOTES_v0.17.0.md`](RELEASE_NOTES_v0.17.0.md) is written with the publish facts left as
+   `_pending_`. Follow [`RELEASE_PROCESS.md`](RELEASE_PROCESS.md) end to end: PR → merge commit (never
+   squash) → annotated lower-case tag on the merge commit → Publish workflow → verify three tags at
+   one digest → stamp the notes → GitHub release → tell the household to back up and Force Update.
+   Then add the v0.17.0 entry to the plan's **Release history**.
+2. **Nothing else is owed on themes.** If the household wants another palette later it is *one row*
+   in `scripts/themes/palettes.ts` and `npm run themes:build` — that is the whole change, and
+   `npm run themes:check` in CI will notice if someone edits the generated files by hand.
+
+## How the theme machinery fits together
+
+| File | What it is |
+|---|---|
+| `scripts/themes/palettes.ts` | The 14 palettes: id, label, one-sentence blurb, five hex stops dark → light. **The only file a new palette touches.** |
+| `scripts/themes/colour.ts` | sRGB ↔ OKLab ↔ OKLCH, gamut fit, WCAG contrast. No dependencies. |
+| `scripts/themes/base-tokens.ts` | Reads and parses the base `@theme static` block out of `globals.css` — Classic is never hand-copied. |
+| `scripts/themes/derive.ts` | Role ramps, light/dark builders, the contrast floors and separation rules, and the iterative enforcement. The interesting file. |
+| `scripts/themes/build.ts` + `cli.mts` | Renders both outputs through Prettier, writes only on change, `--check` for CI. |
+| `src/app/themes.generated.css` | 28 unlayered `[data-theme='…']` blocks, 73 tokens each. Generated. |
+| `src/lib/theme/catalogue.ts` | `ThemeId`, `THEMES`, `DEFAULT_THEME_ID`, per-theme `chrome`. Generated, and the one file allowed to hold colour literals. |
+| `src/lib/theme/theme.ts` / `next.ts` | Cookie name and resolution (pure) / `currentTheme()` + `rememberTheme()` via `next/headers`. |
+| `src/components/theme-gallery.tsx` | The picker. Previews are real components under `data-theme`, not pictures. |
+| `tests/themes.test.ts` | Re-measures the **shipped** CSS: floors, distinctness, catalogue agreement, and that the generated files are up to date. |
+| `e2e/theme.spec.ts` | Own Playwright project: repaint without reload, SSR-first-response, per-device fallback. |
+
+## Watch out for (carried forward, still true)
+
+- **Generated files are generated.** Editing `themes.generated.css` or `catalogue.ts` by hand will be
+  reverted by the next build and caught by `tests/themes.test.ts` / `npm run themes:check`.
+- **The theme blocks must stay unlayered.** Tailwind's `@theme` lands in `@layer theme`; an unlayered
+  rule beats it whatever the order. Do not wrap them in a layer or move the `@import` above
+  `tailwindcss`.
+- **`@theme static` is load-bearing** — the chart kit reads `var(--color-chart-…)` from inline styles,
+  which Tailwind's scanner cannot see. Don't "tidy" it.
+- **`@source not` excludes prose from Tailwind's scan**, and the grep-gate reads prose too: a phrase
+  like "sky-blue" in a `.ts` file trips `PALETTE_CLASS` in `tests/colour-tokens.test.ts`. Both cost a
+  session ten minutes this time.
+- **Tailwind resolves competing colour utilities by stylesheet order**, not class-attribute order (the
+  void button); `e2e/desktop.spec.ts` guards it and it is green with the split `fill-ink`.
+- **Screenshot determinism**: the seed's captions tick with wall-clock time ("just now" → "3 minutes
+  ago") — normalise them before any pixel comparison.
+- SANDBOX entries 8 (local browser — how to run Playwright here), 9 (stale `next dev` SSR), 13 (GitHub
+  connector drops), 14 (Turbopack rejects a symlinked `node_modules`).
+- `next build` flips `next-env.d.ts` — restore before committing. Don't bump the version while
+  Playwright is running (the backup spec reads `APP_VERSION`).
+
+---
+
+> Provenance: the brief below is the Phase-1/Phase-2 handoff this session executed. Phase 1 (v0.16.0)
+> tokenised the scheme; Phase 2 (v0.17.0, above) shipped the themes and the Settings picker, and
+> answered its three open questions — cookie (not an inline script), a per-device gallery in the
+> existing Settings page, and per-theme browser chrome from `generateViewport()` with the manifest
+> pinned to the default. It is kept unchanged for context.
+
+---
+
 # Handoff: Colour tokens — Phase 2 of 2 (add the first theme)
 
 Date: 2026-09-25. Branch: `arena/01a0da84-simple-finance` (from `main` @ `b364f18`, the v0.15.0 merge).
@@ -64,13 +141,6 @@ e.g. `<html data-theme="dark">` — and a Settings toggle. Nothing else may chan
   14 (Turbopack rejects a symlinked `node_modules`).
 - `next build` flips `next-env.d.ts` — restore before committing. Don't bump the version while
   Playwright is running (backup spec reads `APP_VERSION`).
-
----
-
-> Provenance: the Phase-1 brief from the household (2026-09-25) could not be pushed by the previous
-> session; it was reproduced in `arena/01a0da84-simple-finance`, executed as Phase 1, and its
-> requirement recorded as **decision 159** / SPEC **§15.4**. The v0.15.0 handoff that Phase 1 was
-> written against follows below, unchanged.
 
 ---
 

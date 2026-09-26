@@ -1,6 +1,14 @@
 @import 'tailwindcss';
 
 /*
+ * The themes (decision 160, SPEC §15.4). Generated from `scripts/themes/` by
+ * `npm run themes:build`: one `[data-theme='…']` block per theme, each
+ * re-declaring the same `--color-*` names the base block below defines. The
+ * root layout puts the chosen id on <html>; nothing else in the app changes.
+ */
+@import './themes.generated.css';
+
+/*
  * Prose is not a source of class names. Tailwind's scanner reads every
  * un-ignored file in the project — markdown and code comments included — so
  * the decision log's mapping table and the handoffs, which quote the palette
@@ -86,7 +94,13 @@
    * pair today. Split it here (not in the pages) if a theme ever needs the
    * till dark while the buttons lighten. */
   --color-till: oklch(20.8% 0.042 265.755); /* was slate-900 */
-  --color-till-ink: #fff; /* was white — also the ink on any saturated fill */
+  --color-till-ink: #fff; /* was white: the ink on the till and on dark furniture */
+  /* The ink on a *saturated* fill — the hovered void button, the restore
+   * button, the log-interaction button. Identical to `till-ink` in every
+   * light theme (it was one token until Phase 2), separate because a dark
+   * theme must paint those fills bright and write on them in near-black,
+   * while the till's own ink stays white. Decision 160. */
+  --color-fill-ink: #fff;
   --color-till-inset: oklch(
     27.9% 0.041 260.031
   ); /* was slate-800: the till's tab strip, small dark buttons */

@@ -42,6 +42,8 @@ import {
   type PurchaseActionState,
   type DuplicateNoticeState,
 } from '@/lib/action-state';
+import { rememberTheme } from '@/lib/theme/next';
+import { isThemeId, themeById } from '@/lib/theme/theme';
 import {
   addCheckpoint,
   archivePot,
@@ -2362,4 +2364,38 @@ export async function saveCommitmentCategoriesAction(
     }
     return { status: 'error', message: 'The categories could not be saved. Please try again.' };
   }
+}
+
+/**
+ * Appearance — remember a theme on this device (decision 160, SPEC §15.4).
+ *
+ * A cookie, not a row: the theme is a property of the screen you are reading,
+ * so the other person's phone keeps its own, and nothing here belongs in the
+ * audit trail beside the money. The layout reads the cookie server-side, so
+ * the next render already wears the theme — `revalidatePath('/', 'layout')`
+ * is what makes that happen without a reload.
+ */
+export async function saveThemeAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await currentUserFromRequest();
+  if (user === null) return NOT_SIGNED_IN;
+
+  const raw = formData.get('themeId');
+  const id = typeof raw === 'string' ? raw.trim() : '';
+  if (!isThemeId(id)) {
+    return { status: 'error', message: 'That is not a theme this app knows.' };
+  }
+  try {
+    await rememberTheme(id);
+  } catch {
+    return { status: 'error', message: 'The theme could not be saved on this device.' };
+  }
+  revalidatePath('/', 'layout');
+  const theme = themeById(id);
+  return {
+    status: 'ok',
+    message: `Saved — this device now uses ${theme.label} (${theme.mode}).`,
+  };
 }
