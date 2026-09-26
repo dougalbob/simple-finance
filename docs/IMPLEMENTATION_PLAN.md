@@ -1447,6 +1447,25 @@ the keyboard.
 
 ## Release history
 
+- **v0.17.0 — themes: fourteen palettes, light and dark, chosen per device (session
+  `arena/01a0dad7-simple-finance`, from `main` @ `978a9a6`, the v0.16.0 stamp merge)**: decision
+  **159**'s claim, cashed. 28 themes — the household's thirteen palettes plus Classic, each in a light
+  and a dark form — generated from five hex stops apiece by `scripts/themes/*` into one
+  `[data-theme]` block each (`src/app/themes.generated.css`, 73 tokens per theme) plus a generated
+  catalogue; a gallery at **Settings → Appearance** whose cards are real app markup wearing the
+  theme; the choice held in a per-device `sf-theme` cookie and rendered server-side, so the first
+  paint is already right and nothing is stored in the database. Classic's own contrast ratios are the
+  floors the generator enforces and `tests/themes.test.ts` re-measures on the shipped stylesheet,
+  with a distinctness rule so no theme collapses two greys. `--color-fill-ink` split out (4 sites) so
+  bright fills get a legible label in both modes; `generateViewport()` serves per-theme browser
+  chrome while the manifest stays pinned to the default; new tokenised `src/app/not-found.tsx`.
+  Decision **160**, SPEC **§15.4**. No schema change, no migration. `npm test` **478 tests / 112
+  suites green**, format, typecheck and production build clean, Playwright **74 green** (new `theme`
+  project). **Published 2026-09-26**: annotated tag `v0.17.0` on merge commit `cf70dba` (PR #64),
+  publish run `36204626937`, digest
+  `sha256:bd5aef911d64f754b21b80f34a78bc435a95ea10c7e65870961e6e25abdb8e25` on `v0.17.0` / `latest` /
+  `sha-cf70dba` — one digest, different from v0.16.0's
+  ([`docs/RELEASE_NOTES_v0.17.0.md`](RELEASE_NOTES_v0.17.0.md)).
 - **v0.15.0 — the phone opens at the till (session `arena/01a0da35-simple-finance`, from `main` @
   `09cfc80`, the v0.14.0 post-release merge)**: on a phone the home page now opens at the Quick entry
   till — a mount-time `scrollIntoView` (`openAtTillOnMobile`, home page only) parks the card's top
