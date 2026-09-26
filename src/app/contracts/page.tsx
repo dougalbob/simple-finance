@@ -11,6 +11,7 @@ import { listSchedulesWithContractEnds } from '@/lib/records/schedules';
 import { supplierCardHref } from '@/lib/records/supplier-focus';
 import { upcomingSupplierFollowUps } from '@/lib/records/supplier-details';
 import { listSuppliers } from '@/lib/records/suppliers';
+import { targetLabel, targetNames } from '@/lib/records/targets';
 import { getContractEndWarningLeadDays, getRenewalWarningLeadDays } from '@/lib/records/settings';
 import { listVehicles } from '@/lib/records/vehicles';
 import { toLocalDateString } from '@/lib/time';
@@ -43,13 +44,7 @@ export default async function ContractsPage() {
   const contractLead = getContractEndWarningLeadDays(db);
   const followUps = upcomingSupplierFollowUps(db, today);
 
-  const targetLabel = (kind: string, id: number | null): string => {
-    if (kind === 'person' && id !== null)
-      return people.find((person) => person.id === id)?.label ?? 'person';
-    if (kind === 'vehicle' && id !== null)
-      return vehicles.find((vehicle) => vehicle.id === id)?.label ?? 'vehicle';
-    return 'household';
-  };
+  const names = targetNames({ people, vehicles });
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
@@ -173,7 +168,7 @@ export default async function ContractsPage() {
                         </span>
                       ) : null}
                       <span className="text-xs text-ink-muted">
-                        {targetLabel(renewal.targetKind, renewal.targetId)}
+                        {targetLabel(renewal, names)}
                         {renewal.supplierId !== null
                           ? ` · ${supplierNames.get(renewal.supplierId) ?? 'supplier'}`
                           : ''}

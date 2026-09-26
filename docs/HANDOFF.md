@@ -1,71 +1,66 @@
-# Handoff: Themes — shipped as v0.17.0
+# Handoff: The supplier card says who each purchase was for — v0.18.0
 
-Date: 2026-09-26. Branch: `arena/01a0dad7-simple-finance` (from `main` @ `978a9a6`, the v0.16.0 stamp
-merge).
+Date: 2026-09-26. Branch: `arena/01a0dcb6-simple-finance` (from `main` @ `9dc74e4`, the v0.17.0
+post-release merge).
 
-**Released as v0.17.0 on 2026-09-26.** The household's requirement from decision **159** — *adding a
-new theme must be a small, single-place change* — now has its proof: **28 themes** (fourteen palettes
-× light/dark) picked in **Settings → Appearance**, remembered **per device in a cookie**. Recorded as
-decision **160** and SPEC **§15.4**. Nothing in any page, component or chart changed to make it work;
-the only edit outside new files is the `text-white` → `text-fill-ink` split (4 call sites) plus a new
-tokenised 404 page. Release facts (merge commit `cf70dba`, tag, digest) are stamped in
-[`docs/RELEASE_NOTES_v0.17.0.md`](RELEASE_NOTES_v0.17.0.md); the version badge reads
-`v0.17.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
+**Released as v0.18.0 on 2026-09-26.** A household case the v0.17.0 release conversation turned up:
+three mobile contracts with one carrier, one per person, modelled as **one supplier, three
+schedules**. Every list in the app said who a payment was for except the supplier card's **Recent
+purchases**, which showed `date · amount` — so the three contracts were told apart by amount alone.
+Each row now reads `2026-09-24 · £28.99 · Mobile Phones (Robin)`. Recorded as decision **161** and
+SPEC **§21.4**. Release facts (merge commit, tag, digest) are stamped in
+[`docs/RELEASE_NOTES_v0.18.0.md`](RELEASE_NOTES_v0.18.0.md); the version badge reads
+`v0.18.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
 ## Gates at close
 
-`npm test` **478** green · `npx tsc --noEmit` clean · `npm run format:check` clean · `next build`
-clean · `npm run themes:check` clean · Playwright **74** green both locally (SANDBOX entry 8;
-`playwright.local.config.ts` is a throwaway overlay — recreate it from that entry, never commit it)
-and in CI on the merge commit.
+`npm test` **481** green · `npx tsc --noEmit` clean · `npm run format:check` clean · `next build`
+clean · Playwright **74** green locally (SANDBOX entry 8; `playwright.local.config.ts` is a throwaway
+overlay — recreate it from that entry, never commit it) and in CI on the merge commit.
 
 ## What a future session should know
 
-1. **Another palette is one row.** Add it to `scripts/themes/palettes.ts` (id, label, one-sentence
-   blurb, five hex stops dark → light), run `npm run themes:build`, run `npm test`. Both modes, all
-   73 tokens, the contrast enforcement and the Settings card come out of that. `npm run themes:check`
-   is in the gates, so hand-editing the generated files is caught.
-2. **Nothing else is owed on themes.** The three Phase-2 questions the old brief listed are answered
-   in decision 160: cookie (not an inline script), a per-device gallery in the existing Settings
-   page, and per-theme browser chrome from `generateViewport()` with the manifest pinned to the
-   default.
-3. **If a theme ever looks wrong, look at the card first.** The gallery previews are real components
-   under `data-theme`, so a fault shows up there before anyone finds it on a page.
-
-## How the theme machinery fits together
-
-| File | What it is |
-|---|---|
-| `scripts/themes/palettes.ts` | The 14 palettes: id, label, one-sentence blurb, five hex stops dark → light. **The only file a new palette touches.** |
-| `scripts/themes/colour.ts` | sRGB ↔ OKLab ↔ OKLCH, gamut fit, WCAG contrast. No dependencies. |
-| `scripts/themes/base-tokens.ts` | Reads and parses the base `@theme static` block out of `globals.css` — Classic is never hand-copied. |
-| `scripts/themes/derive.ts` | Role ramps, light/dark builders, the contrast floors and separation rules, and the iterative enforcement. The interesting file. |
-| `scripts/themes/build.ts` + `cli.mts` | Renders both outputs through Prettier, writes only on change, `--check` for CI. |
-| `src/app/themes.generated.css` | 28 unlayered `[data-theme='…']` blocks, 73 tokens each. Generated. |
-| `src/lib/theme/catalogue.ts` | `ThemeId`, `THEMES`, `DEFAULT_THEME_ID`, per-theme `chrome`. Generated, and the one file allowed to hold colour literals. |
-| `src/lib/theme/theme.ts` / `next.ts` | Cookie name and resolution (pure) / `currentTheme()` + `rememberTheme()` via `next/headers`. |
-| `src/components/theme-gallery.tsx` | The picker. Previews are real components under `data-theme`, not pictures. |
-| `tests/themes.test.ts` | Re-measures the **shipped** CSS: floors, distinctness, catalogue agreement, and that the generated files are up to date. |
-| `e2e/theme.spec.ts` | Own Playwright project: repaint without reload, SSR-first-response, per-device fallback. |
+1. **There is one target-label helper now — use it.** `src/lib/records/targets.ts` holds
+   `targetNames()`, `targetLabel()` and `purchaseLineSummary()`: pure, no DB, no framework. Turning
+   `{targetKind, targetId}` into `Alex` / `Vehicle A` / `household` had grown **four** copies
+   (`activity.ts`, `purchases/page.tsx`, `contracts/page.tsx`, and the supplier card would have been
+   the fifth). All four call it now. If a new page needs the label, import it — do not write a
+   sixth.
+2. **`purchaseLineSummary()` takes the category map as an argument on purpose.** That is how a wide
+   table shows `Utilities / Mobile Phones (Matthew)` and a narrow card shows `Mobile Phones
+   (Matthew)` without forking the `+N more` rule. Build the map the way the caller needs.
+3. **The split rule is settled: first line, then `+N more`.** All Transactions has rendered it that
+   way since v0.3.0 and the supplier card now matches. Don't introduce a third convention for a
+   fifth list — the full split is always one click away on `/purchases`.
+4. **`listPurchases` already returns the allocations.** The suppliers page had been calling
+   `.map(({ purchase }) => …)` and discarding them. Before adding a query to a page, check whether
+   the data is already in hand.
 
 ## Watch out for (carried forward, still true)
 
-- **Generated files are generated.** Editing `themes.generated.css` or `catalogue.ts` by hand will be
-  reverted by the next build and caught by `tests/themes.test.ts` / `npm run themes:check`.
-- **The theme blocks must stay unlayered.** Tailwind's `@theme` lands in `@layer theme`; an unlayered
-  rule beats it whatever the order. Do not wrap them in a layer or move the `@import` above
-  `tailwindcss`.
-- **`@theme static` is load-bearing** — the chart kit reads `var(--color-chart-…)` from inline styles,
-  which Tailwind's scanner cannot see. Don't "tidy" it.
-- **`@source not` excludes prose from Tailwind's scan**, and the grep-gate reads prose too: a phrase
-  like "sky-blue" in a `.ts` file trips `PALETTE_CLASS` in `tests/colour-tokens.test.ts`. Both cost a
-  session ten minutes this time.
-- **Tailwind resolves competing colour utilities by stylesheet order**, not class-attribute order (the
-  void button); `e2e/desktop.spec.ts` guards it and it is green with the split `fill-ink`.
+- **Generated files are generated.** Editing `src/app/themes.generated.css` or
+  `src/lib/theme/catalogue.ts` by hand will be reverted by the next build and caught by
+  `tests/themes.test.ts` / `npm run themes:check`.
+- **Another palette is one row** in `scripts/themes/palettes.ts`, then `npm run themes:build`.
+- **The theme blocks must stay unlayered**, and **`@theme static` is load-bearing** — the chart kit
+  reads `var(--color-chart-…)` from inline styles, which Tailwind's scanner cannot see.
+- **Tokens only.** `tests/colour-tokens.test.ts` is a grep-gate that reads prose too: a phrase like
+  "sky-blue" in a `.ts` file trips `PALETTE_CLASS`. Colour is never the only signal (§16.7).
+- **`@source not` excludes prose from Tailwind's scan** — keep the directive.
+- **Tailwind resolves competing colour utilities by stylesheet order**, not class-attribute order
+  (the void button); `e2e/desktop.spec.ts` guards it.
 - **Screenshot determinism**: the seed's captions tick with wall-clock time ("just now" → "3 minutes
   ago") — normalise them before any pixel comparison.
-- SANDBOX entries 8 (local browser — how to run Playwright here), 9 (stale `next dev` SSR), 13 (GitHub
-  connector drops), 14 (Turbopack rejects a symlinked `node_modules`).
+- **Project order matters in Playwright** (`workers: 1`, `fullyParallel: false`, one shared
+  `.e2e-data`): `mobile` runs before `desktop`, so a spec that writes a purchase can shift what a
+  later project's "five most recent" list contains. Run the **whole** suite, not just your project,
+  before believing a list assertion.
+- SANDBOX entries 8 (local browser — how to run Playwright here), 9 (stale `next dev` SSR), 13
+  (GitHub connector drops), 14 (Turbopack rejects a symlinked `node_modules`).
+- **`node_modules` can come back *partially* restored** — not just absent. This session started with
+  a `node_modules` directory present but `tsx` missing, so all 52 suites failed at import with
+  `ERR_MODULE_NOT_FOUND` and looked like a broken checkout. `npm ci --ignore-scripts` fixed it
+  (SANDBOX entry 10's sibling note, now widened).
 - `next build` flips `next-env.d.ts` — restore before committing. Don't bump the version while
   Playwright is running (the backup spec reads `APP_VERSION`).
 

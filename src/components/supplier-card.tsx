@@ -73,6 +73,15 @@ export interface SupplierCardData {
     date: string;
     totalPence: number;
     voided: boolean;
+    /**
+     * The first allocation line as `Mobile Phones (Matthew)` — what the
+     * payment was for and who it was for (decision 161). One supplier can hold
+     * a contract per person, so without the target the rows are told apart by
+     * amount alone. Empty only if a purchase somehow has no lines.
+     */
+    lineLabel: string;
+    /** Lines beyond the first, shown as `+N more` exactly as All Transactions does. */
+    extraLines: number;
     attachments: StoredAttachment[];
   }>;
 }
@@ -225,7 +234,11 @@ export function SupplierCard({
                 <li key={purchase.id}>
                   <span className={purchase.voided ? 'text-ink-faint line-through' : ''}>
                     {purchase.date} · {formatPence(purchase.totalPence)}
+                    {purchase.lineLabel === '' ? null : ` · ${purchase.lineLabel}`}
                   </span>
+                  {purchase.extraLines > 0 ? (
+                    <span className="ml-1 text-xs text-ink-muted">+{purchase.extraLines} more</span>
+                  ) : null}
                   <AttachmentForm purchaseId={purchase.id} attachments={purchase.attachments} />
                 </li>
               ))}

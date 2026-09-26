@@ -1361,6 +1361,22 @@ Contact details, policy numbers and interaction summaries are real personal data
 private installation. Repository demos and tests use fictional suppliers ("InsurerCo", "BroadbandCo") with
 invented numbers, and screenshots are reviewed before publishing (§19).
 
+### 21.4 Recent purchases say who each one was for (v0.18.0)
+
+The card's **Recent purchases** list (the five most recent, each with its receipts) names the payment as
+well as dating it: `2026-10-25 · £28.99 · Mobile Phones (Matthew)`. The **target is words** — the person,
+the vehicle or `household` — because one supplier legitimately holds one contract per person, and a list of
+`date · amount` alone forces the household to tell three mobile contracts apart by price. This is the same
+rule the rest of the app already follows: All Transactions renders `Utilities / Mobile Phones (Matthew)`,
+and Insights and Charts split by target. Colour is never the only signal (§16.7), so the target is never a
+tint or an icon on its own.
+
+A purchase **split across several targets** shows its first line and counts the rest — `Weekly Shop
+(household) +1 more` — which is All Transactions' convention, so the two lists read the same way; the full
+split stays one click away on Purchases. The card shows the **child** category only (`Mobile Phones`, not
+`Utilities / Mobile Phones`): the cards sit two-to-a-row on a laptop and full width on a phone, and the
+supplier already implies the parent. Voided purchases keep their struck-through styling.
+
 ## 22. Contract ends, renewals and key-date alerts
 
 Two kinds of dates the household must not miss, united in one Overview panel and one page (§15.2), but

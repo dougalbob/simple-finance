@@ -3,6 +3,8 @@ import { SupplierCardData, SupplierCardList } from '@/components/supplier-card';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
 import { listStoredAttachments } from '@/lib/records/attachments';
+import { categoryTree } from '@/lib/records/categories';
+import { listPeople } from '@/lib/records/people';
 import { listPurchases } from '@/lib/records/purchases';
 import { listSupplierInteractions, listSupplierReferences } from '@/lib/records/supplier-details';
 import {
@@ -11,6 +13,8 @@ import {
   supplierFocusKey,
 } from '@/lib/records/supplier-focus';
 import { listSuppliers } from '@/lib/records/suppliers';
+import { purchaseLineSummary, targetNames } from '@/lib/records/targets';
+import { listVehicles } from '@/lib/records/vehicles';
 import { toLocalDateString } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +39,18 @@ export default async function SuppliersPage({
   const suppliers = listSuppliers(db);
   const params = await searchParams;
 
+  // Who each recent purchase was for (decision 161). One supplier can hold a
+  // contract per person — three mobile contracts with one carrier — and the
+  // card is the only list that used to show `date · amount` alone. The child
+  // category is enough here: the supplier already names the parent in effect,
+  // and the card is half a column wide on a laptop (SPEC §21.4).
+  const names = targetNames({ people: listPeople(db), vehicles: listVehicles(db) });
+  const categoryNames = new Map(
+    categoryTree(db).flatMap((parent) =>
+      parent.children.map((child) => [child.id, child.name] as const),
+    ),
+  );
+
   const cards: SupplierCardData[] = suppliers.map((supplier) => {
     const purchases = listPurchases(db, { supplierId: supplier.id, limit: 5 });
     return {
@@ -50,13 +66,18 @@ export default async function SuppliersPage({
       },
       references: listSupplierReferences(db, supplier.id),
       interactions: listSupplierInteractions(db, supplier.id, 20),
-      recentPurchases: purchases.map(({ purchase }) => ({
-        id: purchase.id,
-        date: toLocalDateString(new Date(purchase.occurredAt)),
-        totalPence: purchase.totalPence,
-        voided: purchase.voidedAt !== null,
-        attachments: listStoredAttachments(db, purchase.id),
-      })),
+      recentPurchases: purchases.map(({ purchase, allocations }) => {
+        const summary = purchaseLineSummary(allocations, categoryNames, names);
+        return {
+          id: purchase.id,
+          date: toLocalDateString(new Date(purchase.occurredAt)),
+          totalPence: purchase.totalPence,
+          voided: purchase.voidedAt !== null,
+          lineLabel: summary.label,
+          extraLines: summary.extraLines,
+          attachments: listStoredAttachments(db, purchase.id),
+        };
+      }),
     };
   });
 

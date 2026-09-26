@@ -169,6 +169,28 @@ test.describe('desktop review', () => {
     await card.getByRole('button', { name: /Corner Foods/i }).click();
     await expect(card.getByRole('link', { name: '01632 960111' })).toBeVisible();
 
+    // "Recent purchases" says who each payment was for, not just date · amount
+    // (decision 161). One supplier can hold a contract per person, so a row
+    // that reads only an amount is the one place the household could not tell
+    // three contracts apart. The seeded shop is split across two targets, so
+    // it names the first line and counts the rest, exactly as All
+    // Transactions does.
+    const shop = card.locator('li', { hasText: '£63.47' }).first();
+    await expect(shop).toContainText('Weekly Shop (household)');
+    await expect(shop).toContainText('+1 more');
+
+    // Same category, different target: the target is what tells them apart,
+    // and it is words — never colour alone (SPEC §16.7).
+    const cafe = page
+      .locator('article', {
+        has: page.getByRole('heading', { name: 'The Corner Cafe', exact: true }),
+      })
+      .first();
+    await cafe.getByRole('button', { name: /The Corner Cafe/i }).click();
+    const cafeRow = cafe.locator('li', { hasText: '£3.49' }).first();
+    await expect(cafeRow).toContainText('Weekly Shop (Sam)');
+    await expect(cafeRow).not.toContainText('more');
+
     // Add a reference pair and see it listed on the same card.
     await card.getByPlaceholder('Label (e.g. Policy number)').fill('Account number');
     await card.getByPlaceholder('Value').fill('ACCT-42');
