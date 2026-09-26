@@ -1950,3 +1950,26 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
   Settings list flagging the children the household's schedules already use, and by the chart naming every
   tracked category underneath itself. A future session could surface "untracked categories your schedules
   now use" as a nudge.
+
+
+163. **Monthly schedules can skip named calendar months, with a deliberately secondary control.**
+    The ten-payment-year household case stays monthly: February and March are excluded, not a bespoke
+    frequency. Migration `0011_schedule_excluded_months` adds a JSON month-number list (1–12), default
+    `[]`, so existing schedules and instances are untouched. Domain and action boundaries reject
+    invalid, duplicate or all-twelve selections, sort valid input, and reject non-empty exclusions for
+    annual schedules. Switching to annual clears the saved list. Full schedule audit snapshots include it.
+
+    Candidate generation and `nextDueDateAfter` both skip the configured month **before** receipt
+    weekend adjustment. No downstream projection gets a parallel cadence implementation: Horizon,
+    calendars, charts, upcoming lists and conversion all continue to consume the same instances.
+    Next-due search begins at the later of the queried date and active start, so a distant start plus
+    eleven exclusions still finds the next payment. Decisions 75/162 stand: edits regenerate today
+    onwards, never rewrite converted history or invent past payments; only an earlier start backfills.
+
+    `ScheduleMonths` is shared by recurring Add/Edit and dedicated income Add/Edit. It uses native
+    details with **no `open` attribute**, Horizon's exact compact summary classes, a calendar-ordered
+    names/“none” summary, and twelve wrapped-label checkboxes in a fieldset with a responsive grid.
+    Annual forms do not mount it. It is an occasional exception, not twelve permanently visible fields.
+    Tests cover persistence, migration, ten-payment years, forward regeneration, history/backfills,
+    validation, income shifts, leap-day clamping, active/cancel bounds, Horizon totals, and browser
+    save/reload, native keyboard disclosure/checkboxes and narrow layout.

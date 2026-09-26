@@ -462,3 +462,64 @@ test.describe('desktop review', () => {
     await expect(page.getByText(newVehicle, { exact: true }).first()).toBeVisible();
   });
 });
+
+test('monthly no-payment months use a compact native disclosure and survive save/reload', async ({
+  page,
+}) => {
+  test.slow();
+  await page.goto('/recurring');
+  const schedules = page.locator('section[aria-labelledby="schedules-heading"]');
+  await schedules.getByText('Add a schedule').click();
+  const form = schedules
+    .locator('form')
+    .filter({ has: page.getByRole('button', { name: 'Add schedule' }) });
+  const summary = form.locator('summary', { hasText: 'Select any months with no payment:' });
+  await expect(summary).toHaveText('Select any months with no payment: none');
+  await expect(summary).toHaveCSS('display', 'list-item');
+  await expect(summary.locator('..')).not.toHaveAttribute('open');
+  await expect(form.getByLabel('February', { exact: true })).toBeHidden();
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(form.getByRole('checkbox')).toHaveCount(12);
+  await form.getByLabel('February', { exact: true }).check();
+  await form.getByLabel('March', { exact: true }).focus();
+  await page.keyboard.press('Space');
+  await summary.click();
+  await expect(summary).toHaveText('Select any months with no payment: February, March');
+  await expect(form.getByLabel('March', { exact: true })).toBeHidden();
+  await form.locator('select[name="frequency"]').selectOption('annual');
+  await expect(summary).toHaveCount(0);
+  await form.locator('select[name="frequency"]').selectOption('monthly');
+  await summary.click();
+  await form.getByLabel('February', { exact: true }).check();
+  await form.getByLabel('March', { exact: true }).check();
+  await form.locator('input[name="name"]').fill('Playwright ten-month payment');
+  await form.locator('input[name="amount"]').fill('150.00');
+  await form.locator('select[name="kind"]').selectOption('so');
+  await form.locator('select[name="categoryId"]').selectOption({ label: 'Utilities / Energy' });
+  await form.getByRole('button', { name: 'Add schedule' }).click();
+  await expect(form.getByRole('status')).toContainText(/added/i);
+  await page.reload();
+  const card = schedules.locator('li', { hasText: 'Playwright ten-month payment' }).first();
+  await card.locator('summary', { hasText: 'Edit schedule' }).click();
+  const editSummary = card.locator('summary', { hasText: 'Select any months with no payment:' });
+  await expect(editSummary).toHaveText('Select any months with no payment: February, March');
+  await expect(editSummary.locator('..')).not.toHaveAttribute('open');
+  await expect(card.getByLabel('February', { exact: true })).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await editSummary.click();
+  await expect(card.getByRole('checkbox')).toHaveCount(12);
+  await expect(card.getByLabel('February', { exact: true })).toBeChecked();
+  await expect(card.getByLabel('December', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await card.getByLabel('February', { exact: true }).uncheck();
+  await card.getByLabel('March', { exact: true }).uncheck();
+  await card.getByRole('button', { name: 'Save changes' }).click();
+  await expect(card.getByRole('status')).toContainText(/saved|updated/i);
+  await page.reload();
+  await card.locator('summary', { hasText: 'Edit schedule' }).click();
+  await expect(editSummary).toHaveText('Select any months with no payment: none');
+  await expect(editSummary.locator('..')).not.toHaveAttribute('open');
+});

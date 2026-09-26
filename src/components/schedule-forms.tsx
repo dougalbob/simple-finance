@@ -1,5 +1,7 @@
 'use client';
 
+import { ScheduleMonths } from './schedule-months';
+
 import { useActionState, useState } from 'react';
 import { editRenewalAction, editScheduleAction } from '@/app/actions';
 import { initialActionState } from '@/lib/action-state';
@@ -110,6 +112,7 @@ export interface ScheduleEditFormProps {
   frequency: 'monthly' | 'annual';
   dueDayOfMonth: number;
   dueMonth: number | null;
+  excludedMonths: number[];
   amountPence: number;
   contractEndsOn: string | null;
   /** The schedule's start date — the one field an edit may move into the past. */
@@ -139,6 +142,7 @@ export interface ScheduleEditFormProps {
  * right kind instead of a hand-entered purchase.
  */
 export function ScheduleEditForm(props: ScheduleEditFormProps) {
+  const [frequency, setFrequency] = useState(props.frequency);
   const [targetKind, setTargetKind] = useState(props.targetKind);
   const [targetId, setTargetId] = useState<number | null>(props.targetId);
   const [supplierMode, setSupplierMode] = useState<string>(
@@ -186,7 +190,8 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
           <select
             id={`schedule-${props.scheduleId}-freq`}
             name="frequency"
-            defaultValue={props.frequency}
+            value={frequency}
+            onChange={(event) => setFrequency(event.target.value as 'monthly' | 'annual')}
             className={inputClass}
           >
             <option value="monthly">Monthly</option>
@@ -200,6 +205,7 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
           <select
             id={`schedule-${props.scheduleId}-month`}
             name="dueMonth"
+            disabled={frequency !== 'annual'}
             defaultValue={props.dueMonth === null ? '' : String(props.dueMonth)}
             className={inputClass}
           >
@@ -212,6 +218,7 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
           </select>
         </div>
       </div>
+      {frequency === 'monthly' ? <ScheduleMonths initialMonths={props.excludedMonths} /> : null}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         <div className="flex flex-col gap-1">
           <label htmlFor={`schedule-${props.scheduleId}-day`} className={labelClass}>

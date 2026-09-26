@@ -373,6 +373,7 @@ export default async function RecurringPage({
                             frequency={schedule.frequency}
                             dueDayOfMonth={schedule.dueDayOfMonth}
                             dueMonth={schedule.dueMonth}
+                            excludedMonths={schedule.excludedMonths}
                             amountPence={schedule.amountPence}
                             contractEndsOn={schedule.contractEndsOn}
                             activeFrom={schedule.activeFrom}

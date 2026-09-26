@@ -41,6 +41,7 @@ export interface IncomeScheduleView {
   frequency: Schedule['frequency'];
   dueDayOfMonth: number;
   dueMonth: number | null;
+  excludedMonths: number[];
   potId: number;
   potLabel: string;
   activeFrom: string;
@@ -133,6 +134,7 @@ export function listIncomeSchedules(db: Db, nowArg?: Date): IncomeScheduleView[]
         frequency: schedule.frequency,
         dueDayOfMonth: schedule.dueDayOfMonth,
         dueMonth: schedule.dueMonth,
+        excludedMonths: schedule.excludedMonths,
         potId: schedule.potId,
         potLabel: potLabels.get(schedule.potId) ?? 'a pot',
         activeFrom: schedule.activeFrom,

@@ -179,8 +179,12 @@ export default async function IncomePage({
                       {schedule.name}{' '}
                       <span className="font-normal text-ink-muted">
                         — {formatPence(schedule.amountPence)}{' '}
-                        {schedule.frequency === 'monthly' ? 'a month' : 'a year'}, due on the{' '}
-                        {ordinal(schedule.dueDayOfMonth)}
+                        {schedule.frequency === 'monthly'
+                          ? schedule.excludedMonths.length > 0
+                            ? 'monthly'
+                            : 'a month'
+                          : 'a year'}
+                        , due on the {ordinal(schedule.dueDayOfMonth)}
                         {schedule.frequency === 'annual' && schedule.dueMonth !== null
                           ? ` of month ${schedule.dueMonth}`
                           : ''}
