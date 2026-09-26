@@ -1,3 +1,62 @@
+# Handoff: Overview panels moved onto the pages that own them (unreleased)
+
+Date: 2026-09-26. Implementation branch: `arena/01a0de74-simple-finance`, starting at `2578acc`
+(`main` after v0.20.0). **Not a versioned release** — do not bump `APP_VERSION` or mix release
+notes into this sitting.
+
+Decision **164**: one codebase, two homes. Phone `/` is the till home; laptop `/overview` is the
+dense dashboard. Duplicates left Overview and the phone dump; transfers now void on Accounts & Pots.
+
+## What landed
+
+- **Transfers:** review list + void + `?transfer=` / `#transfer-{id}` on `/pots` (same pattern as
+  `?external=`). All Transactions links to `/pots?transfer=` (`src/lib/records/activity.ts`).
+  Record remains Quick Entry → Move → Between pots. No void on All Transactions or Quick Entry.
+- **Overview** no longer lists purchases, transfers, add-a-pot, or checkpoints. Money row,
+  projection, Quick Entry, due this week, key dates, this month, vehicles stay.
+- **Phone `/`:** available now → Quick Entry (till scroll unchanged) → payday projection → due this
+  week → links to Charts, Purchases, Horizon. Recurring section, pots dump, recent-purchase table,
+  key dates, add-pot and checkpoint cards are gone.
+- **Phone drawer:** Daily = Quick Entry · Purchases · Horizon · Charts · Overview · Recurring.
+  Everything else is under More. Desktop full bar unchanged. No tab bar.
+- **Recurring `lg+`:** calendar left, compact projection figures under it; schedules panel
+  height-matches the calendar card with an inner-scrolling list and Add a schedule pinned below;
+  renewals under that. Phone stacks unclipped. `#schedule-{id}` scrolls inside the list
+  (`ScrollHashIntoView`).
+
+SPEC §15.1 / §15.2 / §15.3 / §23.4 updated where the UI was now wrong.
+
+## Gates
+
+`npm test`: **506 passed** · TypeScript clean · formatting clean · production build clean ·
+Playwright: **78 passed** (two new specs: phone home is the till, not a dump; desktop bar still
+lists every page). Browser ran using SANDBOX entry 8; the temporary local-browser config was
+removed afterwards. Version metadata is still v0.20.0.
+
+## What a future session should know
+
+1. **Canonical transfer URL is `/pots?transfer={id}#transfer-{id}`.** Mirror `linkedExternal` if
+   you change the recent-list cap. Do not put void back on Overview, All Transactions, or Quick Entry.
+2. **Purchases is the only purchase review surface** — fuel details and attachments live there (and
+   on the supplier card), not on Overview.
+3. **Checkpoints are still immutable.** Create on Quick Entry → Balance or Accounts & Pots; history
+   is the per-pot timeline on `/pots`.
+4. **Phone home is a till, not a dashboard.** Do not CSS-hide leftover laptop panels on `/`; do not
+   add a five-tab app bar unless the household later wants it to feel like a bank app.
+5. **Recurring laptop height-match** uses `lg:h-0 lg:min-h-full` on the schedules card so the grid
+   row is sized by the calendar, then the list `overflow-y-auto`. Phone must not get that clip.
+6. **Release is a separate sitting** if you want v0.x.0 notes, more SPEC polish, and Unraid — not a
+   bolt-on to this branch.
+
+## Still to walk (one panel at a time)
+
+- Recurring: other panels (renewals copy, add forms) if needed after the layout pass
+- Due this week / Key dates (Overview tiles; phone home keeps Due this week)
+- This month so far / Vehicles
+- Payday projection / Quick entry / Money row (stay; they *are* the two homes)
+
+---
+
 # Handoff: Monthly schedules can skip selected months — v0.20.0
 
 Date: 2026-09-26. Implementation branch: `arena/01a0ddd0-simple-finance`, starting at `db9e020`

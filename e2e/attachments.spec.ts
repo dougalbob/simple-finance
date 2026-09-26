@@ -14,9 +14,7 @@ const PNG_BYTES = Buffer.from(
 );
 
 test.describe('removing a receipt', () => {
-  test('removes it from Purchases, Overview and Suppliers, and keeps the audit', async ({
-    page,
-  }) => {
+  test('removes it from Purchases and Suppliers, and keeps the audit', async ({ page }) => {
     test.slow();
     await page.goto('/');
     await waitForTill(page);
@@ -41,12 +39,6 @@ test.describe('removing a receipt', () => {
     await expect(viewLink).toBeVisible({ timeout: 30_000 });
     const href = await viewLink.getAttribute('href');
     expect(href).toMatch(/^\/api\/attachments\/[0-9a-f-]+\.png$/);
-
-    await page.goto('/overview');
-    const overviewRow = page.locator('li', { hasText: 'Playwright Receipt Shop' });
-    await expect(
-      overviewRow.getByRole('button', { name: `Remove receipt ${RECEIPT_NAME}` }),
-    ).toBeVisible();
 
     await page.goto('/suppliers');
     const supplierCard = page.getByRole('article').filter({
@@ -73,12 +65,5 @@ test.describe('removing a receipt', () => {
 
     const gone = await page.request.get(new URL(href!, page.url()).toString());
     expect(gone.status()).toBe(404);
-
-    await page.goto('/overview');
-    await expect(
-      page
-        .locator('li', { hasText: 'Playwright Receipt Shop' })
-        .getByRole('link', { name: new RegExp(RECEIPT_NAME) }),
-    ).toHaveCount(0);
   });
 });

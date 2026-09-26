@@ -100,10 +100,14 @@ test.describe('all transactions', () => {
 
     // The deep link lands on the record itself, not just its section.
     await inRow.getByRole('link', { name: /Open this transfer/ }).click();
-    await expect(page).toHaveURL(/\/overview\?transfer=\d+#transfer-\d+/);
-    await expect(page.locator('section[aria-labelledby="transfers-heading"]')).toContainText(
-      /Main account\s*→\s*Alex's cash/,
-    );
+    await expect(page).toHaveURL(/\/pots\?transfer=\d+#transfer-\d+/);
+    const transfers = page.locator('section[aria-labelledby="transfers-heading"]');
+    await expect(transfers).toContainText(/Main account\s*→\s*Alex's cash/);
+    const row = transfers.locator('li').filter({ hasText: '£7.77' });
+    await row.getByText('Void', { exact: true }).click();
+    await row.getByLabel(/Why are you voiding this/).fill('Typed the wrong pots');
+    await row.getByRole('button', { name: 'Void transfer' }).click();
+    await expect(row).toContainText(/voided/i, { timeout: 30_000 });
   });
 
   test('income renders as BAC and deep-links to the Income page', async ({ page }) => {

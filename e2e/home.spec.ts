@@ -730,18 +730,39 @@ test.describe('mobile quick entry', () => {
       await menuBtn.click();
     }
     const nav = page.getByRole('navigation', { name: 'Pages' });
-    for (const label of [
-      'Overview',
-      'Purchases',
-      'Recurring',
+    const daily = ['Quick Entry (Till)', 'Purchases', 'Horizon', 'Charts', 'Overview', 'Recurring'];
+    const more = [
+      'All Transactions',
+      'Income',
       'Accounts & Pots',
       'Insights',
       'Settings',
       'Suppliers',
       'Contracts & Renewals',
-    ]) {
-      await expect(nav.getByRole('link', { name: label })).toBeVisible();
+    ];
+    for (const label of [...daily, ...more]) {
+      await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
+    const labels = await nav.getByRole('link').allTextContents();
+    expect(labels.slice(0, daily.length)).toEqual(daily);
+  });
+
+  test('the phone home is the till, not a dump of laptop pages', async ({ page }) => {
+    await page.goto('/');
+    await waitForTill(page);
+    await expect(page.getByRole('heading', { name: /Household:/i })).toBeVisible();
+    await expect(page.getByText('Payday projection').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Due this week' })).toBeVisible();
+    const more = page.getByRole('navigation', { name: 'Other pages' });
+    await expect(more.getByRole('link', { name: /Charts/ })).toBeVisible();
+    await expect(more.getByRole('link', { name: /Purchases/ })).toBeVisible();
+    await expect(more.getByRole('link', { name: /Horizon/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add a pot' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Record a balance checkpoint/ })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Recent checkpoints' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Recent entries' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Key dates' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Schedules, renewals/ })).toHaveCount(0);
   });
 
   test('purchase filters start collapsed and stay inside the card', async ({ page }) => {

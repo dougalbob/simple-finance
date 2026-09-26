@@ -1973,3 +1973,25 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
     Tests cover persistence, migration, ten-payment years, forward regeneration, history/backfills,
     validation, income shifts, leap-day clamping, active/cancel bounds, Horizon totals, and browser
     save/reload, native keyboard disclosure/checkboxes and narrow layout.
+
+164. **One codebase, two homes — duplicates leave Overview; transfers live on Accounts & Pots.**
+    Confirmed with the household: the phone's first screen is `/` (till home) and the laptop's is
+    `/overview` (dense dashboard). Do not build a second app or a second Quick Entry. Overview drops
+    Recent entries (Purchases already is the full view), Transfers between pots, Add a pot, Balance
+    checkpoint and Recent checkpoints. Phone `/` keeps only available-now, Quick Entry (still opens
+    at the till, decision 158), payday projection, due this week, and links to Charts, Purchases and
+    Horizon — Recurring is one drawer item, not a home section. The phone drawer leads with Quick
+    Entry · Purchases · Horizon · Charts · Overview · Recurring; the rest sit in a second group.
+    Desktop's full bar is unchanged.
+
+    Transfers are recorded only in Quick Entry → Move → Between pots. Void and the review list live
+    on Accounts & Pots, matching loans/swaps/other, with the same deep-link pattern as `?external=`
+    (`/pots?transfer={id}#transfer-{id}`). All Transactions stays read-only; `activity.ts` retargets
+    the transfer href. Checkpoints stay immutable; create remains Quick Entry → Balance plus the
+    Accounts & Pots form; history is per-pot on that page only.
+
+    Recurring on `lg+`: calendar left, compact projection figures under it; schedules panel height
+    matches the calendar card with an inner-scrolling list, Add a schedule pinned under the list,
+    renewals under that (beside projection). Phone stacks unclipped. `#schedule-{id}` still lands on
+    the row inside the scroller. Decision 74's review-list clause is superseded; the rest of 74
+    (money row, projection, due, key dates, month bars, shared `buildEntryData`) stands.

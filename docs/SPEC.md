@@ -362,7 +362,7 @@ pot_spendable(P) = estimate(P) − Σ commitments due from P in the same window 
   cover the bills due from it, quiet context otherwise. It is the answer to "is *this* account about to
   bounce", beside the household answer to "are we about to bounce".
 - **Shown at the till and on review:** the Quick Entry purchase panel (household headline plus the selected
-  pot's checkpoint and its shortfall when there is one) and the pot cards on the home page and Overview. The
+  pot's checkpoint and its shortfall when there is one) and the pot mini-balances on Overview. The
   projection panel (§7.2) is unchanged; its `projected_low` equals this figure whenever no other receipt
   lands inside the window (pinned by `tests/cycle-outlook.test.ts`), so the two surfaces cannot drift.
 - **No window, no figure.** No income schedule (or no checkpoint) means the figure does not exist, and the
@@ -690,6 +690,13 @@ query instead of a duplicated tree per car.
 Purpose: fast, accurate entry at the till. It does not get into the weeds; review lives on the desktop.
 All pages remain reachable on mobile (nothing hidden) — they are simply not the mobile design focus.
 
+**Two homes, one codebase (decision 164).** The phone's first screen is `/` — a till home: available-now,
+Quick Entry, payday projection, due this week, and links to Charts, Purchases and Horizon. It is not a copy
+of Overview and it does not embed Recurring, the pots dump, recent purchases, checkpoints or key dates.
+Recurring stays a laptop-first chore, reachable from the drawer as one item. The drawer leads with Quick
+Entry, Purchases, Horizon, Charts, Overview and Recurring; everything else sits in a second group. The
+laptop keeps the full navigation bar and opens on Overview when the household sits down.
+
 Home = four big actions:
 
 1. **Add Purchase (redesigned v0.9.0, re-laid out v0.11.0)**. Two cards.
@@ -716,14 +723,13 @@ Home = four big actions:
      type tabs, the pot, the payday shortfall warning and the free-to-spend figure; the keyboard stays
      down.
    - **The phone opens at the till (decision 158, superseding 151's "the page does not scroll itself"
-     clause; 151's focus rule stands unchanged).** The card sits ~1300px down the page behind the
-     household total and the projection, so a phone opened at `/` landed on "Shared household ledger" and
-     the household had to scroll to record a purchase — the one thing the phone is for. Now a mount-time
-     **scroll, never a focus** (`scrollIntoView`, no `focus()` anywhere in the move) parks the card's top
-     just below the sticky header (`scroll-mt-16` clears the 56px bar) so the type tabs are the first
-     thing on screen, keyboard down. It is the phone layout only (`< lg`); a laptop still opens at the
-     top. The mobile drawer's **Quick Entry (Till)** link carries `/#quick-entry`, so tapping it lands on
-     the till even when the page is already open.
+     clause; 151's focus rule stands unchanged).** A phone opened at `/` used to land on "Shared household
+     ledger" with the till below the fold, so the household had to scroll to record a purchase — the one
+     thing the phone is for. Now a mount-time **scroll, never a focus** (`scrollIntoView`, no `focus()`
+     anywhere in the move) parks the card's top just below the sticky header (`scroll-mt-16` clears the
+     56px bar) so the type tabs are the first thing on screen, keyboard down. It is the phone layout only
+     (`< lg`); a laptop still opens at the top. The mobile drawer's **Quick Entry (Till)** link carries
+     `/#quick-entry`, so tapping it lands on the till even when the page is already open.
    - **Focus order once the household is typing:** supplier → amount → Next → category. Focus moves only
      as the answer to something they did: tapping a suggestion moves to Amount, Enter in Supplier moves to
      Amount, Next moves to the category, "+ Note" focuses the note it just opened, and "Add another"
@@ -756,7 +762,7 @@ Home = four big actions:
    - **Litres and odometer (v0.10.0), both optional.** Two more boxes — litres from the pump or receipt,
      miles from the dashboard — and a **Filled to full** tick, **off by default** (v0.11.0; tick it when
      the pump clicked off at full). The price per litre is shown as the litres are typed (amount ÷ litres;
-     never stored). Anything left blank can be added later from the purchase's row on Purchases or Overview
+     never stored). Anything left blank can be added later from the purchase's row on Purchases
      ("Fuel details — add odometer & litres"); that edit is versioned and audited like any other, and shows
      the stored tick.
    - **The save answers with the mpg:** one sentence under the form — e.g. "Vehicle A: 41.2 mpg over 312
@@ -797,10 +803,10 @@ Menu pages:
 
 | Page | Contents |
 |---|---|
-| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, projected day-to-day events, projected low) with "what's in this forecast" expansions including the dated shops/fills list and a debt's expected support when one is in the window (v0.7.0); pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; compact recent-entries list with inline edit and receipt attach/remove (§23.4); month-to-date by parent category with small bars. Quick-add always visible. |
+| **Overview** | The one genuinely dense single screen: household available-now + per-pot mini-balances inline + "last checkpoint" times + the owed/owing figures beside the total; warning banner when a tier is active; to-payday projection panel (payday date, expected receipts, commitments due, projected day-to-day events, projected low) with "what's in this forecast" expansions including the dated shops/fills list and a debt's expected support when one is in the window (v0.7.0); pot-level "plan a transfer" notice (§7.5); due-this-week commitments; **contracts & renewals inside their warning windows (§22.3)**; month-to-date by parent category with small bars; vehicle rolling-12. Quick-add always visible. Purchase review, transfer void, adding a pot and checkpoint history live on their own pages (decision 164) — not here. |
 | **Purchases** | Full history table; filters by date range, supplier, category, target, pot, person, tag (on a phone the filter card collapses behind **Show filters**, starts open if any filter is already applied, and From/To date share a row); inline editing; refund/void/correct with audit trail visible; split editing with the same exact-total rule; **receipt/invoice attachments (§23)** viewed, added and removed from the purchase row, with the audit line (who, when) in that row's History. |
 | **All Transactions** | Read-only activity for one selected pot over a date window: every movement that touched it (purchases, direct debits and standing orders, transfers, borrowing and repayments, swaps, other money, **income**), one signed amount column (green in / red out relative to that pot), the original record's note, checkpoint dividers, a debt's expected support as flagged `EXP<` rows outside the totals (v0.7.0), and a link from every row to that record's canonical form. No add, edit or void on the page (§15.3). |
-| **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances (below). |
+| **Recurring Payments** | The DD/SO/income schedule list (amount, frequency, due day, category, target, pot, next instance, state, contract end date where set); edit/cancel with effective dates; history of converted instances; **read-only month calendar view** of due instances. On a laptop the calendar sits left with compact projection figures under it; the schedules panel matches the calendar card's height and the list scrolls inside it, with Add a schedule pinned below; renewals sit under the schedules (beside projection). On a phone the four stack unclipped. Deep links `#schedule-{id}` still land on the row. |
 | **Horizon** | "How far the money would go" (§7.6): pick a date up to 400 days ahead (opens on the day before the next scheduled income; a date change applies itself, v0.13.0), scope by pot (all selected by default) and toggle day-to-day; the free-to-spend headline, the always-shown lowest point with its date and tier, and detail blocks for the commitments, expected money in (debts' expected support flagged `expected`), the projected day-to-day events (dated shops/fills, v0.6.0) and the day-by-day table. Same engine as the payday projection; laptop-shaped by the household's choice. |
 | **Income** | Money coming in: the scheduled income (salary) that converts itself, editable in place from the next instance onward; one-off income recorded by hand with an optional source; and one list of everything received — scheduled and one-off together, with inline correction, void and the retained history. Income is desktop-shaped by the household's choice: it is not a till-side task, so nothing here is squeezed into the mobile quick-entry panel. |
 | **Suppliers** | Supplier list + detail: contact card (phone, email, website, address, label→value reference pairs such as policy numbers, notes), interaction log with "+ Create Interaction", linked purchases (§21), including removing a receipt from a linked purchase (§23.4). Tap-to-call on mobile. |
@@ -899,7 +905,7 @@ while counting a date-only debit. The page says so rather than implying an equal
 
 **Deep links.** Each row links to its record's canonical form: purchases to
 `/purchases?potId&from&to#purchase-{id}`; `DD`/`SO` rows additionally to `/recurring#schedule-{id}`;
-internal transfers to `/overview?transfer={id}#transfer-{id}`; boundary money (other, loan, swap
+internal transfers to `/pots?transfer={id}#transfer-{id}`; boundary money (other, loan, swap
 legs) to `/pots?external={id}#external-{id}`, swaps also under `/pots#swaps`; income to
 `/income?receipt={id}#receipt-{id}`. Those anchors and the
 `?transfer=` / `?external=` parameters exist so that a linked record lying outside a page's recent
@@ -1492,7 +1498,7 @@ uncached, with `Content-Disposition` using a sanitized display name.
 
 ### 23.4 Removal
 
-A household can remove one receipt from the purchase row on Purchases, Overview and Suppliers. The
+A household can remove one receipt from the purchase row on Purchases and Suppliers. The
 purchase record stays. There is no undelete in the app.
 
 - The control posts an attachment id. The storage key is read from the row, never from the request, and

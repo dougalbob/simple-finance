@@ -7,6 +7,7 @@ import {
   ProjectionSettingsForm,
   type RecurringData,
 } from '@/components/recurring';
+import { ScrollHashIntoView } from '@/components/scroll-hash';
 import { RenewalEditForm, ScheduleEditForm } from '@/components/schedule-forms';
 import { currentUserFromRequest } from '@/lib/auth/next';
 import { getDbHandle } from '@/lib/db/client';
@@ -236,10 +237,10 @@ export default async function RecurringPage({
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section
           aria-labelledby="calendar-heading"
-          className="rounded-xl border border-border bg-surface p-4 shadow-sm"
+          className="order-1 rounded-xl border border-border bg-surface p-4 shadow-sm lg:col-start-1 lg:row-start-1"
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 id="calendar-heading" className="text-xl font-semibold">
@@ -283,250 +284,249 @@ export default async function RecurringPage({
           </div>
         </section>
 
-        <div className="space-y-6">
-          <section
-            aria-labelledby="schedules-heading"
-            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-          >
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h2 id="schedules-heading" className="text-lg font-semibold">
-                Schedules
-              </h2>
-              <span className="text-xs text-ink-muted">
-                edits apply from the next instance — history is never rewritten; a start date moved
-                earlier backfills the dates the app was never told about
-              </span>
-            </div>
-            {schedules.length === 0 ? (
-              <p className="mb-3 text-sm text-ink-muted">
-                No schedules yet. Add one below — each converts into a normal record at local
-                midnight on its due date.
-              </p>
-            ) : (
-              <ul className="mb-3 divide-y divide-border-hairline">
-                {schedules.map(({ schedule, nextDueDate }) => (
-                  <li key={schedule.id} id={`schedule-${schedule.id}`} className="py-2.5">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm">
-                        <span
-                          className={
-                            schedule.cancelledAt !== null
-                              ? 'font-medium text-ink-faint line-through'
-                              : 'font-medium text-ink-emphasis'
-                          }
-                        >
-                          {schedule.name}
-                        </span>{' '}
-                        <span className="text-xs text-ink-muted">
-                          {schedule.kind === 'receipt'
-                            ? 'income'
-                            : schedule.kind === 'dd'
-                              ? 'direct debit'
-                              : 'standing order'}
-                          {schedule.frequency === 'annual'
-                            ? ` · every year, ${MONTH_NAMES[(schedule.dueMonth ?? 1) - 1]}`
-                            : ` · monthly`}{' '}
-                          · {potNames.get(schedule.potId) ?? 'Pot'}
-                          {schedule.supplierId !== null
-                            ? ` · ${suppliers.find((s) => s.id === schedule.supplierId)?.name ?? 'supplier'}`
-                            : ''}
-                        </span>
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {schedule.kind === 'receipt' ? '+' : '−'}
-                        {formatPence(schedule.amountPence)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-ink-muted">
-                      {schedule.cancelledAt !== null ? (
-                        <>Cancelled from {schedule.cancelledEffectiveOn} — history kept</>
-                      ) : (
-                        <>Next due: {nextDueDate ?? '—'}</>
-                      )}
-                      {` · active from ${schedule.activeFrom}`}
-                      {schedule.contractEndsOn !== null
-                        ? ` · contract ends ${schedule.contractEndsOn} (informational)`
-                        : ''}
-                      {schedule.supplierId !== null ? (
-                        <>
-                          {' · '}
-                          <Link
-                            href={supplierCardHref(schedule.supplierId)}
-                            className="text-accent hover:underline"
-                          >
-                            Supplier card
-                          </Link>
-                        </>
-                      ) : null}
-                    </p>
-                    {schedule.cancelledAt === null ? (
-                      <details className="mt-1.5">
-                        <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
-                          Edit schedule
-                        </summary>
-                        <div className="mt-2 max-w-2xl">
-                          <ScheduleEditForm
-                            scheduleId={schedule.id}
-                            version={schedule.version}
-                            name={schedule.name}
-                            kind={schedule.kind}
-                            frequency={schedule.frequency}
-                            dueDayOfMonth={schedule.dueDayOfMonth}
-                            dueMonth={schedule.dueMonth}
-                            excludedMonths={schedule.excludedMonths}
-                            amountPence={schedule.amountPence}
-                            contractEndsOn={schedule.contractEndsOn}
-                            activeFrom={schedule.activeFrom}
-                            activeUntil={schedule.activeUntil}
-                            potId={schedule.potId}
-                            potOptions={pots.map((pot) => ({ id: pot.id, label: pot.label }))}
-                            categoryId={schedule.categoryId}
-                            categoryOptions={categoryOptions}
-                            supplierId={schedule.supplierId}
-                            supplierOptions={suppliers.map((s) => ({ id: s.id, label: s.name }))}
-                            targetKind={schedule.targetKind}
-                            targetId={schedule.targetId}
-                            people={recurringData.people}
-                            vehicles={recurringData.vehicles}
-                          />
-                        </div>
-                      </details>
-                    ) : null}
-                    {schedule.cancelledAt === null ? (
-                      <CancelScheduleForm
-                        schedule={
-                          recurringData.schedules.find((entry) => entry.id === schedule.id) ??
-                          ({
-                            id: schedule.id,
-                            name: schedule.name,
-                            kind: schedule.kind,
-                            frequency: schedule.frequency,
-                            amountPence: schedule.amountPence,
-                            dueDayOfMonth: schedule.dueDayOfMonth,
-                            dueMonth: schedule.dueMonth,
-                            potLabel: potNames.get(schedule.potId) ?? 'Pot',
-                            nextDueDate,
-                            version: schedule.version,
-                            cancelledEffectiveOn: schedule.cancelledEffectiveOn,
-                            contractEndsOn: schedule.contractEndsOn,
-                            supplierId: schedule.supplierId,
-                            supplierName:
-                              schedule.supplierId === null
-                                ? null
-                                : (suppliers.find((s) => s.id === schedule.supplierId)?.name ??
-                                  null),
-                          } as RecurringData['schedules'][number])
-                        }
-                        today={today}
-                      />
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <details>
-              <summary className="cursor-pointer text-sm font-medium text-ink-body">
-                Add a schedule
-              </summary>
-              <div className="mt-3">
-                <AddScheduleForm data={recurringData} />
-              </div>
-            </details>
-          </section>
-
-          <section
-            aria-labelledby="renewals-heading"
-            className="rounded-xl border border-border bg-surface p-4 shadow-sm"
-          >
-            <h2 id="renewals-heading" className="mb-2 text-lg font-semibold">
-              Renewals
+        <section
+          aria-labelledby="schedules-heading"
+          className="order-2 flex flex-col rounded-xl border border-border bg-surface p-4 shadow-sm lg:col-start-2 lg:row-start-1 lg:h-0 lg:min-h-full lg:overflow-hidden"
+        >
+          <ScrollHashIntoView />
+          <div className="mb-3 flex shrink-0 items-baseline justify-between gap-2">
+            <h2 id="schedules-heading" className="text-lg font-semibold">
+              Schedules
             </h2>
-            <p className="mb-3 text-xs text-ink-muted">
-              Alerts with context — if the money also moves (an annual premium), that is a separate
-              annual schedule; the two never double-count.
+            <span className="text-xs text-ink-muted">
+              edits apply from the next instance — history is never rewritten; a start date moved
+              earlier backfills the dates the app was never told about
+            </span>
+          </div>
+          {schedules.length === 0 ? (
+            <p className="mb-3 text-sm text-ink-muted">
+              No schedules yet. Add one below — each converts into a normal record at local midnight
+              on its due date.
             </p>
-            {renewals.length === 0 ? (
-              <p className="mb-3 text-sm text-ink-muted">No renewals tracked yet.</p>
-            ) : (
-              <ul className="mb-3 divide-y divide-border-hairline">
-                {renewals.map((renewal) => (
-                  <li key={renewal.id} id={`renewal-${renewal.id}`} className="py-2.5">
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <span>
-                        <span className="font-medium text-ink-emphasis">{renewal.label}</span>{' '}
-                        <span className="text-xs text-ink-muted">
-                          due {renewal.nextRenewalDate}
-                          {renewal.advancedFrom !== null
-                            ? ` (advanced from ${renewal.advancedFrom})`
-                            : ''}
-                          {renewal.supplierId !== null
-                            ? ` · ${suppliers.find((s) => s.id === renewal.supplierId)?.name ?? 'supplier'}`
-                            : ''}
-                          {renewal.targetKind === 'vehicle' && renewal.targetId !== null
-                            ? ` · ${vehicles.find((v) => v.id === renewal.targetId)?.label ?? 'vehicle'}`
-                            : ''}
-                          {renewal.warnDaysBefore > 0
-                            ? ` · warns ${renewal.warnDaysBefore} days before`
-                            : ''}
-                        </span>
-                      </span>
+          ) : (
+            <ul
+              data-schedule-scroller
+              className="mb-3 divide-y divide-border-hairline lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-y-contain"
+            >
+              {schedules.map(({ schedule, nextDueDate }) => (
+                <li key={schedule.id} id={`schedule-${schedule.id}`} className="py-2.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm">
+                      <span
+                        className={
+                          schedule.cancelledAt !== null
+                            ? 'font-medium text-ink-faint line-through'
+                            : 'font-medium text-ink-emphasis'
+                        }
+                      >
+                        {schedule.name}
+                      </span>{' '}
                       <span className="text-xs text-ink-muted">
-                        {renewal.repeatsAnnually ? 'annual' : 'one-off'}
+                        {schedule.kind === 'receipt'
+                          ? 'income'
+                          : schedule.kind === 'dd'
+                            ? 'direct debit'
+                            : 'standing order'}
+                        {schedule.frequency === 'annual'
+                          ? ` · every year, ${MONTH_NAMES[(schedule.dueMonth ?? 1) - 1]}`
+                          : ` · monthly`}{' '}
+                        · {potNames.get(schedule.potId) ?? 'Pot'}
+                        {schedule.supplierId !== null
+                          ? ` · ${suppliers.find((s) => s.id === schedule.supplierId)?.name ?? 'supplier'}`
+                          : ''}
                       </span>
-                    </div>
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {schedule.kind === 'receipt' ? '+' : '−'}
+                      {formatPence(schedule.amountPence)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {schedule.cancelledAt !== null ? (
+                      <>Cancelled from {schedule.cancelledEffectiveOn} — history kept</>
+                    ) : (
+                      <>Next due: {nextDueDate ?? '—'}</>
+                    )}
+                    {` · active from ${schedule.activeFrom}`}
+                    {schedule.contractEndsOn !== null
+                      ? ` · contract ends ${schedule.contractEndsOn} (informational)`
+                      : ''}
+                    {schedule.supplierId !== null ? (
+                      <>
+                        {' · '}
+                        <Link
+                          href={supplierCardHref(schedule.supplierId)}
+                          className="text-accent hover:underline"
+                        >
+                          Supplier card
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
+                  {schedule.cancelledAt === null ? (
                     <details className="mt-1.5">
                       <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
-                        Edit renewal
+                        Edit schedule
                       </summary>
                       <div className="mt-2 max-w-2xl">
-                        <RenewalEditForm
-                          renewalId={renewal.id}
-                          version={renewal.version}
-                          label={renewal.label}
-                          nextRenewalDate={renewal.nextRenewalDate}
-                          warnDaysBefore={renewal.warnDaysBefore}
-                          repeatsAnnually={renewal.repeatsAnnually}
-                          supplierId={renewal.supplierId}
+                        <ScheduleEditForm
+                          scheduleId={schedule.id}
+                          version={schedule.version}
+                          name={schedule.name}
+                          kind={schedule.kind}
+                          frequency={schedule.frequency}
+                          dueDayOfMonth={schedule.dueDayOfMonth}
+                          dueMonth={schedule.dueMonth}
+                          excludedMonths={schedule.excludedMonths}
+                          amountPence={schedule.amountPence}
+                          contractEndsOn={schedule.contractEndsOn}
+                          activeFrom={schedule.activeFrom}
+                          activeUntil={schedule.activeUntil}
+                          potId={schedule.potId}
+                          potOptions={pots.map((pot) => ({ id: pot.id, label: pot.label }))}
+                          categoryId={schedule.categoryId}
+                          categoryOptions={categoryOptions}
+                          supplierId={schedule.supplierId}
                           supplierOptions={suppliers.map((s) => ({ id: s.id, label: s.name }))}
-                          targetKind={renewal.targetKind}
-                          targetId={renewal.targetId}
+                          targetKind={schedule.targetKind}
+                          targetId={schedule.targetId}
                           people={recurringData.people}
                           vehicles={recurringData.vehicles}
-                          notes={renewal.notes ?? ''}
                         />
                       </div>
                     </details>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <details>
-              <summary className="cursor-pointer text-sm font-medium text-ink-body">
-                Add a renewal
-              </summary>
-              <div className="mt-3">
-                <AddRenewalForm data={recurringData} />
-              </div>
-            </details>
-          </section>
-        </div>
-      </div>
+                  ) : null}
+                  {schedule.cancelledAt === null ? (
+                    <CancelScheduleForm
+                      schedule={
+                        recurringData.schedules.find((entry) => entry.id === schedule.id) ??
+                        ({
+                          id: schedule.id,
+                          name: schedule.name,
+                          kind: schedule.kind,
+                          frequency: schedule.frequency,
+                          amountPence: schedule.amountPence,
+                          dueDayOfMonth: schedule.dueDayOfMonth,
+                          dueMonth: schedule.dueMonth,
+                          potLabel: potNames.get(schedule.potId) ?? 'Pot',
+                          nextDueDate,
+                          version: schedule.version,
+                          cancelledEffectiveOn: schedule.cancelledEffectiveOn,
+                          contractEndsOn: schedule.contractEndsOn,
+                          supplierId: schedule.supplierId,
+                          supplierName:
+                            schedule.supplierId === null
+                              ? null
+                              : (suppliers.find((s) => s.id === schedule.supplierId)?.name ?? null),
+                        } as RecurringData['schedules'][number])
+                      }
+                      today={today}
+                    />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          <details className="shrink-0 lg:max-h-[45%] lg:overflow-y-auto lg:border-t lg:border-border-hairline lg:pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-ink-body">
+              Add a schedule
+            </summary>
+            <div className="mt-3">
+              <AddScheduleForm data={recurringData} />
+            </div>
+          </details>
+        </section>
 
-      <section
-        aria-labelledby="projection-figures-heading"
-        className="mt-6 rounded-xl border border-border bg-surface p-4 shadow-sm"
-      >
-        <h2 id="projection-figures-heading" className="mb-2 text-lg font-semibold">
-          Projection figures
-        </h2>
-        <p className="mb-3 text-xs text-ink-muted">
-          The configured day-to-day numbers the payday projection uses — the Insights honesty loop
-          compares them with recent actuals.
-        </p>
-        <div className="max-w-2xl">
+        <section
+          aria-labelledby="renewals-heading"
+          className="order-3 rounded-xl border border-border bg-surface p-4 shadow-sm lg:order-4 lg:col-start-2 lg:row-start-2"
+        >
+          <h2 id="renewals-heading" className="mb-2 text-lg font-semibold">
+            Renewals
+          </h2>
+          <p className="mb-3 text-xs text-ink-muted">
+            Alerts with context — if the money also moves (an annual premium), that is a separate
+            annual schedule; the two never double-count.
+          </p>
+          {renewals.length === 0 ? (
+            <p className="mb-3 text-sm text-ink-muted">No renewals tracked yet.</p>
+          ) : (
+            <ul className="mb-3 divide-y divide-border-hairline">
+              {renewals.map((renewal) => (
+                <li key={renewal.id} id={`renewal-${renewal.id}`} className="py-2.5">
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span>
+                      <span className="font-medium text-ink-emphasis">{renewal.label}</span>{' '}
+                      <span className="text-xs text-ink-muted">
+                        due {renewal.nextRenewalDate}
+                        {renewal.advancedFrom !== null
+                          ? ` (advanced from ${renewal.advancedFrom})`
+                          : ''}
+                        {renewal.supplierId !== null
+                          ? ` · ${suppliers.find((s) => s.id === renewal.supplierId)?.name ?? 'supplier'}`
+                          : ''}
+                        {renewal.targetKind === 'vehicle' && renewal.targetId !== null
+                          ? ` · ${vehicles.find((v) => v.id === renewal.targetId)?.label ?? 'vehicle'}`
+                          : ''}
+                        {renewal.warnDaysBefore > 0
+                          ? ` · warns ${renewal.warnDaysBefore} days before`
+                          : ''}
+                      </span>
+                    </span>
+                    <span className="text-xs text-ink-muted">
+                      {renewal.repeatsAnnually ? 'annual' : 'one-off'}
+                    </span>
+                  </div>
+                  <details className="mt-1.5">
+                    <summary className="cursor-pointer text-xs font-medium text-ink-soft hover:text-ink">
+                      Edit renewal
+                    </summary>
+                    <div className="mt-2 max-w-2xl">
+                      <RenewalEditForm
+                        renewalId={renewal.id}
+                        version={renewal.version}
+                        label={renewal.label}
+                        nextRenewalDate={renewal.nextRenewalDate}
+                        warnDaysBefore={renewal.warnDaysBefore}
+                        repeatsAnnually={renewal.repeatsAnnually}
+                        supplierId={renewal.supplierId}
+                        supplierOptions={suppliers.map((s) => ({ id: s.id, label: s.name }))}
+                        targetKind={renewal.targetKind}
+                        targetId={renewal.targetId}
+                        people={recurringData.people}
+                        vehicles={recurringData.vehicles}
+                        notes={renewal.notes ?? ''}
+                      />
+                    </div>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+          <details>
+            <summary className="cursor-pointer text-sm font-medium text-ink-body">
+              Add a renewal
+            </summary>
+            <div className="mt-3">
+              <AddRenewalForm data={recurringData} />
+            </div>
+          </details>
+        </section>
+
+        <section
+          aria-labelledby="projection-figures-heading"
+          className="order-4 rounded-xl border border-border bg-surface p-4 shadow-sm lg:order-3 lg:col-start-1 lg:row-start-2"
+        >
+          <h2 id="projection-figures-heading" className="text-base font-semibold">
+            Projection figures
+          </h2>
+          <p className="mb-3 mt-1 text-xs text-ink-muted">
+            Weekly shop and per-vehicle fuel the payday projection uses. Insights compares them with
+            recent actuals.
+          </p>
           <ProjectionSettingsForm data={recurringData.projectionSettings} />
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
@@ -573,7 +573,7 @@ function CalendarGrid({ days }: { days: CalendarDay[] }) {
                   {day.instances.map((instance) => (
                     <li key={instance.instanceId}>
                       <a
-                        href={`#schedule-edit-${instance.scheduleId}`}
+                        href={`#schedule-${instance.scheduleId}`}
                         className={`flex items-start gap-1 rounded px-1 py-0.5 text-xs hover:bg-surface-muted ${
                           instance.kind === 'receipt' ? 'text-positive-800' : 'text-ink-body'
                         }`}
