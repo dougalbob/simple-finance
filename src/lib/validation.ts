@@ -357,6 +357,13 @@ export const editScheduleEntrySchema = z
     targetKind: z.enum(['household', 'person', 'vehicle']).default('household'),
     targetId: positiveIdSchema.nullable().default(null),
     contractEndsOn: localDateSchema.nullable().default(null),
+    /**
+     * The schedule's start date. Unlike every other field here it may be
+     * dated in the past (decision 162): moving it earlier tells the app about
+     * real payments made before the schedule existed, and the instances for
+     * those dates are backfilled. Null = unchanged.
+     */
+    activeFrom: localDateSchema.nullable().default(null),
     activeUntil: localDateSchema.nullable().default(null),
   })
   .superRefine((value, context) => {

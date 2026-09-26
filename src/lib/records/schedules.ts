@@ -50,6 +50,13 @@ import { VehicleNotFoundError } from './vehicles';
  *   back-reference columns;
  * - edits apply from the next instance onward; converted history is never
  *   rewritten (SPEC §11.1);
+ * - the **start date is the one edit that reaches backwards** (decision 162):
+ *   moving `activeFrom` earlier materialises the instances the app had not
+ *   seen — real, already-occurred payments that then convert into ordinary
+ *   records exactly as a backdated *creation* would. Moving it later removes
+ *   only *upcoming* instances. Neither direction rewrites a converted record,
+ *   and a date that already has a row is skipped rather than duplicated
+ *   (UNIQUE(schedule_id, due_date));
  * - cancellation with an effective date: instances from that date stop
  *   existing, instances before it remain history (SPEC §11.2);
  * - a contract end date is informational + alert only — instances never
@@ -71,6 +78,14 @@ export const SCHEDULE_ACTOR = 'system';
 /** How far ahead instances are materialized (a little over a year: annual
  * schedules need next year's instance reachable for the projection). */
 export const MATERIALIZATION_HORIZON_DAYS = 400;
+/**
+ * How far back a schedule may start. Instance generation is bounded by a
+ * single window (`dueDatesBetween` refuses more than 1500 days between the
+ * first and last date it is asked about), so the look-ahead above leaves
+ * roughly three years of history. Naming it here turns "too far back" into a
+ * sentence the household can act on instead of a materialisation error.
+ */
+export const MAX_BACKFILL_SPAN_DAYS = 1500 - MATERIALIZATION_HORIZON_DAYS;
 
 export class ScheduleNotFoundError extends Error {
   constructor(scheduleId: number) {
@@ -119,7 +134,12 @@ export interface CreateScheduleInput {
   targetId?: number | null;
   /** Informational + alert only (SPEC §22.1); instances never auto-stop. */
   contractEndsOn?: string | null;
-  /** Local date; defaults to today. May be backdated or future-dated. */
+  /**
+   * Local date; defaults to today. May be backdated or future-dated —
+   * a backdated start materialises the real, already-occurred instances in
+   * that window (SPEC §11.1, decision 162). The edit path takes the same
+   * field for the same reason.
+   */
   activeFrom?: string;
   activeUntil?: string | null;
   actor: string;
@@ -137,6 +157,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
   const actor = checkedActor(input.actor);
   const today = toLocalDateString(now);
   const activeFrom = input.activeFrom ?? today;
+  checkedBackfillSpan(activeFrom, today);
 
   const inserted = db.transaction((tx) => {
     const supplierId = resolveSupplierForSchedule(tx, {
@@ -199,7 +220,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
   });
 
   const materialized = syncScheduleInstances(db, inserted, now);
-  return { schedule: inserted, materializedInstances: materialized };
+  return { schedule: inserted, materializedInstances: materialized.inserted };
 }
 
 export interface EditSchedulePatch {
@@ -217,6 +238,16 @@ export interface EditSchedulePatch {
   targetKind?: TargetKind;
   targetId?: number | null;
   contractEndsOn?: string | null;
+  /**
+   * The schedule's start date — undefined = unchanged. This is the one field
+   * an edit may move **into the past** (decision 162): the household is
+   * telling the app the arrangement was live earlier than the app knew, and
+   * the missed instances in that window are materialised as expected records
+   * (which then convert, so they arrive as schedule-tagged DD/SO/income
+   * records rather than hand-entered purchases). Moving it forwards drops only
+   * upcoming instances; converted history survives either direction.
+   */
+  activeFrom?: string;
   /** undefined = unchanged; null = remove. */
   activeUntil?: string | null;
 }
@@ -229,16 +260,37 @@ export interface EditScheduleInput {
   patch: EditSchedulePatch;
 }
 
+export interface EditScheduleResult {
+  schedule: Schedule;
+  /** Upcoming instances the edit (re)generated. */
+  materializedInstances: number;
+  /** Of those, the ones dated **before today** — the missed real payments a
+   * backdated start has just told the app about (SPEC §11.1, decision 162). */
+  backfilledInstances: number;
+}
+
 /**
  * Correct a schedule (SPEC §11.1): a changed amount/due day/category
  * applies **from the next instance onward** — converted history is never
  * rewritten. The upcoming instance set is regenerated; converted instances
  * are untouched.
+ *
+ * The start date is the exception that proves the rule (decision 162): moving
+ * `activeFrom` earlier also **backfills** the instances the app had not
+ * materialised, because those dates are not history being rewritten — they are
+ * real payments the household is only now telling the app about. They arrive as
+ * ordinary instances and convert like any other, so a direct debit collected
+ * before the schedule existed lands as a schedule-tagged `DD` record rather
+ * than a hand-entered purchase.
  */
-export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
+export function editSchedule(db: Db, input: EditScheduleInput): EditScheduleResult {
   const now = input.now ?? new Date();
   const actor = checkedActor(input.actor);
   const patch = input.patch;
+  const today = toLocalDateString(now);
+  if (patch.activeFrom !== undefined) checkedBackfillSpan(patch.activeFrom, today);
+  /** Set inside the transaction: the sync below decides whether it may reach behind today. */
+  let startMovedEarlier = false;
 
   const updated = db.transaction((tx) => {
     const current = tx.select().from(schedules).where(eq(schedules.id, input.id)).get();
@@ -262,7 +314,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
       targetId: patch.targetId === undefined ? current.targetId : patch.targetId,
       contractEndsOn:
         patch.contractEndsOn === undefined ? current.contractEndsOn : patch.contractEndsOn,
-      activeFrom: current.activeFrom,
+      activeFrom: patch.activeFrom ?? current.activeFrom,
       activeUntil: patch.activeUntil === undefined ? current.activeUntil : patch.activeUntil,
     });
     const row = tx
@@ -279,6 +331,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
         targetKind: effective.targetKind,
         targetId: effective.targetId,
         contractEndsOn: effective.contractEndsOn,
+        activeFrom: effective.activeFrom,
         activeUntil: effective.activeUntil,
         updatedAt: now,
         version: current.version + 1,
@@ -287,12 +340,20 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
       .returning()
       .get();
     if (row === undefined) throw new Error('update schedule returned no row');
+    startMovedEarlier = effective.activeFrom < current.activeFrom;
     recordAudit(tx, {
       actor,
       action: 'schedule.edit',
       entity: 'schedule',
       entityId: current.id,
-      summary: `Edited schedule “${current.name}” (applies from the next instance)`,
+      summary:
+        effective.activeFrom === current.activeFrom
+          ? `Edited schedule “${current.name}” (applies from the next instance)`
+          : `Edited schedule “${current.name}” — start date moved from ${current.activeFrom} to ${effective.activeFrom}${
+              effective.activeFrom < current.activeFrom
+                ? ' (instances the app had not materialised in that window are now expected, and convert like any other)'
+                : ' (upcoming instances before that date are dropped; converted history kept)'
+            }`,
       before: current,
       after: row,
       now,
@@ -300,8 +361,19 @@ export function editSchedule(db: Db, input: EditScheduleInput): Schedule {
     return row;
   });
 
-  syncScheduleInstances(db, updated, now, { regenerateFromToday: true }); // a cadence change moves the NEXT instance (SPEC §11.1), no backfill
-  return updated;
+  // A cadence change moves the NEXT instance and never invents a past one
+  // (SPEC §11.1, decision 75) — unless the household moved the start date
+  // earlier, which is the one edit that legitimately reaches behind today
+  // (decision 162).
+  const sync = syncScheduleInstances(db, updated, now, {
+    regenerateFromToday: true,
+    backfillBeforeToday: startMovedEarlier,
+  });
+  return {
+    schedule: updated,
+    materializedInstances: sync.inserted,
+    backfilledInstances: sync.backfilled,
+  };
 }
 
 export interface CancelScheduleInput {
@@ -470,16 +542,23 @@ export function listInstances(db: Db, filters: InstanceFilters = {}): InstanceWi
  * The next due date of a schedule strictly after `afterDate`, honouring the
  * active window and cancellation. Pure date arithmetic with plan OQ1/OQ13
  * clamping. Bounded search: 14 months for monthly, 3 years for annual.
+ *
+ * A period whose **configured** date falls before the schedule's start is not
+ * an expectation at all — the same rule `candidateForPeriod` applies when
+ * instances are materialised, and the reason a start date moved into the future
+ * cannot leave the card advertising a "next due" that will never convert.
  */
 export function nextDueDateAfter(schedule: Schedule, afterDate: string): string | null {
   const start = checkedLocalDate(afterDate);
   const upper = scheduleUpperBound(schedule, null);
   if (upper !== null && upper <= afterDate) return null;
+  const started = (configured: string): boolean => configured >= schedule.activeFrom;
 
   if (schedule.frequency === 'monthly') {
     for (let step = 0; step <= 14; step += 1) {
       const year = start.year + Math.floor((start.month - 1 + step) / 12);
       const month = ((start.month - 1 + step) % 12) + 1;
+      if (!started(clampedDueDate(schedule.dueDayOfMonth, year, month))) continue;
       const candidate = dueDateForPeriod(schedule, year, month);
       if (candidate > afterDate && (upper === null || candidate <= upper)) return candidate;
     }
@@ -487,6 +566,7 @@ export function nextDueDateAfter(schedule: Schedule, afterDate: string): string 
   }
   if (schedule.dueMonth === null) return null; // annual without a month: malformed row
   for (let year = start.year; year <= start.year + 3; year += 1) {
+    if (!started(clampedDueDate(schedule.dueDayOfMonth, year, schedule.dueMonth))) continue;
     const candidate = dueDateForPeriod(schedule, year, schedule.dueMonth);
     if (candidate > afterDate && (upper === null || candidate <= upper)) return candidate;
   }
@@ -502,24 +582,42 @@ export function nextDueDateAfter(schedule: Schedule, afterDate: string): string 
  * Rows are derived data (re-derivable from the schedule), so deletion is
  * the honest form of "instances stop existing" (SPEC §11.2); the schedule's
  * own cancel/edit audit entries are the retained record.
- *
- * Returns the number of rows inserted.
  */
-/**
- * @param options.regenerateFromToday When true (schedule EDITS), the
- *   upcoming set is regenerated from the schedule's CURRENT cadence
- *   starting today — so a changed due day moves the next instance
- *   (SPEC §11.1 "applies from the next instance onward") and no past
- *   dates are backfilled under the new cadence. Creation and the daily
- *   pass keep history-based materialization (an activeFrom in the past
- *   still yields its real, already-occurred instances).
- */
+export interface ScheduleSyncResult {
+  /** Upcoming rows this pass inserted. */
+  inserted: number;
+  /** Of those, the ones dated before today: already-happened payments the app
+   * had not been told about, which the due pass converts on the next read. */
+  backfilled: number;
+}
+
+interface SyncScheduleInstancesOptions {
+  /**
+   * When true (schedule EDITS), the upcoming set is regenerated from the
+   * schedule's CURRENT cadence starting today — so a changed due day moves
+   * the next instance (SPEC §11.1 "applies from the next instance onward")
+   * and no past dates are materialised under the new cadence. Creation and
+   * the daily pass keep history-based materialization (an activeFrom in the
+   * past still yields its real, already-occurred instances).
+   */
+  regenerateFromToday?: boolean;
+  /**
+   * When true alongside `regenerateFromToday`, the regenerated window starts
+   * at `activeFrom` instead of at today, so a start date the household moved
+   * **earlier** also fills the dates before today (SPEC §11.1, decision 162).
+   * This never reaches into converted history: it inserts upcoming rows only,
+   * and a date that already carries a row — converted or not — is skipped by
+   * the UNIQUE(schedule_id, due_date) index.
+   */
+  backfillBeforeToday?: boolean;
+}
+
 export function syncScheduleInstances(
   db: Db,
   schedule: Schedule,
   nowArg?: Date,
-  options: { regenerateFromToday?: boolean } = {},
-): number {
+  options: SyncScheduleInstancesOptions = {},
+): ScheduleSyncResult {
   const now = nowArg ?? new Date();
   const today = toLocalDateString(now);
   const upper = scheduleUpperBound(schedule, today);
@@ -555,17 +653,43 @@ export function syncScheduleInstances(
 
   if (options.regenerateFromToday === true) {
     // A cadence change must reach the next instance: generate the whole
-    // remaining window from the CURRENT fields. Dates strictly before
-    // today are never materialised on an edit — the old cadence already
-    // ran (or never ran) there, and backfilling would invent history.
-    const startForNew = today > lower ? today : lower;
+    // remaining window from the CURRENT fields. Dates strictly before today
+    // are materialised on an edit only when the household moved the START DATE
+    // earlier — inventing past instances under a new cadence would be writing
+    // history, whereas a moved start is the household reporting history the
+    // app was never told about (SPEC §11.1, decision 162).
+    const backfilling =
+      options.backfillBeforeToday === true && schedule.activeFrom < today
+        ? schedule.activeFrom
+        : null;
+    const startForNew = backfilling ?? (today > lower ? today : lower);
     const desired =
       upper === null || startForNew > upper ? [] : dueDatesBetween(schedule, startForNew, upper);
     const existingSet = new Set(existing);
     const desiredSet = new Set(desired);
-    const toInsert = desired.filter((date) => !existingSet.has(date));
-    const toDelete = existing.filter((date) => !desiredSet.has(date));
-    if (toInsert.length === 0 && toDelete.length === 0) return 0;
+    // A backfill reaches dates that may already carry a CONVERTED row (a due
+    // date the app had recorded before the start date was moved). Those dates
+    // are occupied: skip them rather than lean on the conflict clause and
+    // count a row that was never inserted.
+    const occupied =
+      backfilling === null
+        ? existingSet
+        : new Set(
+            db
+              .select({ dueDate: scheduleInstances.dueDate })
+              .from(scheduleInstances)
+              .where(eq(scheduleInstances.scheduleId, schedule.id))
+              .all()
+              .map((row) => row.dueDate),
+          );
+    const toInsert = desired.filter((date) => !occupied.has(date));
+    // Only the FORWARD window is ever pruned. A past-dated upcoming row is not
+    // stale: it is a due date waiting for the conversion the app has not run
+    // yet, and deleting one would quietly undo a backfill before it ever
+    // reached the ledger.
+    const toDelete = existing.filter((date) => date >= today && !desiredSet.has(date));
+    const backfilled = toInsert.filter((date) => date < today).length;
+    if (toInsert.length === 0 && toDelete.length === 0) return { inserted: 0, backfilled: 0 };
     return db.transaction((tx) => {
       if (toDelete.length > 0) {
         tx.delete(scheduleInstances)
@@ -588,11 +712,14 @@ export function syncScheduleInstances(
         action: 'schedule.sync',
         entity: 'schedule',
         entityId: schedule.id,
-        summary: `Resynced instances for “${schedule.name}” after edit: +${toInsert.length} upcoming, −${toDelete.length}`,
+        summary:
+          backfilled > 0
+            ? `Backfilled ${backfilled} instance(s) before today for “${schedule.name}” (start date now ${schedule.activeFrom}) and resynced the rest: +${toInsert.length} upcoming, −${toDelete.length}. Converted history untouched.`
+            : `Resynced instances for “${schedule.name}” after edit: +${toInsert.length} upcoming, −${toDelete.length}`,
         after: { toInsert, toDelete },
         now,
       });
-      return toInsert.length;
+      return { inserted: toInsert.length, backfilled };
     });
   }
 
@@ -600,10 +727,14 @@ export function syncScheduleInstances(
   // dates AFTER the last existing instance. Generating only the tail keeps
   // the window bounded by the horizon even when the schedule started far
   // in the past (its history is already materialized).
-  const inWindow =
-    upper === null
-      ? existing.filter((date) => date >= lower)
-      : existing.filter((date) => date >= lower && date <= upper);
+  //
+  // `lower` is the floor for GENERATING dates, never a reason to delete one:
+  // an upcoming row before it is a due date the app has not converted yet —
+  // a backfilled instance from an earlier start date (SPEC §11.1, decision
+  // 162), or simply a day the household did not open the app on. Pruning those
+  // here would let the daily pass undo the edit that made them. Only rows past
+  // the upper bound (a cancellation or an end of the active window) go.
+  const inWindow = upper === null ? existing : existing.filter((date) => date <= upper);
   // Income only: an upcoming instance still sitting on a Saturday or Sunday
   // was materialized before the payday rule, or before a due-day edit moved
   // the configured day onto a weekend. Move it to its Friday here — upcoming
@@ -624,7 +755,8 @@ export function syncScheduleInstances(
   const desiredSet = new Set(desired);
   const toInsert = desired.filter((date) => !existingSet.has(date));
   const toDelete = existing.filter((date) => !desiredSet.has(date));
-  if (toInsert.length === 0 && toDelete.length === 0) return 0;
+  const backfilled = toInsert.filter((date) => date < today).length;
+  if (toInsert.length === 0 && toDelete.length === 0) return { inserted: 0, backfilled: 0 };
 
   return db.transaction((tx) => {
     if (toDelete.length > 0) {
@@ -652,7 +784,7 @@ export function syncScheduleInstances(
       after: { toInsert, toDelete },
       now,
     });
-    return toInsert.length;
+    return { inserted: toInsert.length, backfilled };
   });
 }
 
@@ -1125,6 +1257,23 @@ function checkedDate(raw: string, label: string): string {
     throw new InvalidScheduleInputError(`The ${label} must be a date like 2026-09-20.`);
   }
   return raw;
+}
+
+/**
+ * How far back a schedule may start, stated before anything is written.
+ * Instances are materialised as one bounded window (see
+ * `MAX_BACKFILL_SPAN_DAYS`), so a start date beyond it cannot be generated at
+ * all — better to say so in the household's terms than to fail inside the sync
+ * with a word like "materialize".
+ */
+function checkedBackfillSpan(activeFrom: string, today: string): void {
+  if (!isValidLocalDate(activeFrom)) return; // checkedScheduleFields reports it
+  if (activeFrom >= today) return; // a future start has no history to reach
+  if (daysBetween(activeFrom, today) > MAX_BACKFILL_SPAN_DAYS) {
+    throw new InvalidScheduleInputError(
+      `A schedule can start at most ${MAX_BACKFILL_SPAN_DAYS} days back — the earliest is ${addDaysLocal(today, -MAX_BACKFILL_SPAN_DAYS)}. Anything older than that is beyond the history the app keeps instances for.`,
+    );
+  }
 }
 
 function checkedActor(raw: string): string {

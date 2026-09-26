@@ -1468,6 +1468,80 @@ the keyboard.
     told apart by words. Looked at in a real browser at 1400px and 320px (SANDBOX entry 8): the
     three-contract card reads correctly and the phone wraps the clause without panning sideways.
 
+162. **The schedule card's Edit can move the start date, and a backdated start backfills what the app was
+    never told about (SPEC §11.1).** A household case with a sharp edge: they filled up the car five days
+    before the app was stable enough to record in, and the direct debits inside that window belonged to
+    schedules set up *after* the fact — so no instance covered those dates. Their choices were a hole in the
+    history or a hand-typed Purchase, and a Purchase is a lie the size of a month: All Transactions codes it
+    `PUR` not `DD` (§15.3), the commitment chart stops seeing it as a fixed commitment (§16.7), and the
+    projected figures the household was reconciling in the first place read the wrong history. They had
+    already proved the other half themselves: **creating** a schedule with an `activeFrom` in the past
+    materialises and converts the real instances. The gap was that `activeFrom` was write-once.
+
+    **One field, one rule.** `activeFrom` joins `EditSchedulePatch`, the edit boundary schema, the schedule
+    card's form and `editSchedule`. It is the only field an edit may date in the past, and the rule the form
+    states in words: earlier backfills every due date between the new start and today, later drops upcoming
+    instances before that date, and **neither direction rewrites a converted record**. All three kinds take
+    it (dd, so, expected receipt) — the domain edit path is one path, and a backdated payday deserves to be a
+    `BAC` from its schedule as much as a backdated premium deserves to be a `DD`.
+
+    **Two rules in `syncScheduleInstances` had to be separated for this to work at all**, and this is the
+    part a form-only change would have missed. The function had one bound, `lower` — the later of
+    `activeFrom` and `lastConverted + 1` — doing double duty as *where to start generating* and *what is
+    allowed to exist*. Backfilling needed the first loosened and the second removed:
+    `backfillBeforeToday` (set only when the start genuinely moved earlier) starts the regenerated window at
+    `activeFrom` instead of at today, and the delete side of both branches now never prunes a **past-dated
+    upcoming row** — the daily pass, which had been treating anything below `lower` as stale, was quietly
+    deleting a backfilled instance before it could convert. A past-dated upcoming row is a due date awaiting
+    its conversion (decision 162's backfill, or simply a day nobody opened the app on); only rows past the
+    upper bound — a cancellation, an end of the active window — are stale. Retention is floored at today for
+    the edit path and at the horizon for the pass; generation stays floored at `lower`.
+
+    **Occupied dates are counted honestly, not optimistically.** A backfill can reach dates that already
+    carry a *converted* row (the app had one instance and the household fills the months around it), so the
+    insert set is filtered against every row of the schedule rather than only the upcoming ones — the UNIQUE
+    index was already preventing a duplicate, but `onConflictDoNothing` would have reported a row that was
+    never written. So `backfilledInstances` means what the household hears it to mean.
+
+    **Decision 75 is untouched, deliberately.** Every edit that does not move the start date still regenerates
+    from today and invents no past instance; the form always posts `activeFrom`, so "saved unchanged" takes the
+    same path as before. The two `recurring-calendar` regression specs for 75 stayed green across all of this.
+    The one case where a backfill *does* apply a new cadence to past dates is when the household moves the
+    start date earlier **and** changes the cadence in the same save: they have just told the app "this has run
+    like this since that date", so the window follows what was saved — including the amount, which is said in
+    the form's copy rather than discovered afterwards.
+
+    **Two honesty extras.** `nextDueDateAfter` now honours `activeFrom` (a period whose configured date
+    precedes the start is not an expectation — the same membership rule `candidateForPeriod` uses), so moving
+    a start into the future cannot leave the card advertising a "next due" that will never convert; this was
+    already reachable by creating a future-dated schedule. And the backfill window is bounded before anything
+    is written: `MAX_BACKFILL_SPAN_DAYS` (`1500 − MATERIALIZATION_HORIZON_DAYS`, ~3 years) is checked on edit
+    *and* create, naming the earliest usable date instead of failing inside materialisation with a word like
+    "materialize".
+
+    **Shape and surface.** `editSchedule` returns `{ schedule, materializedInstances, backfilledInstances }`,
+    mirroring `createSchedule`, so the action can report the outcome in the domain's own numbers instead of
+    guessing from a query; three test call sites destructure `schedule` now. The submit button reads **Save
+    changes**, not "Save from next instance" — it could no longer promise that, and the semantics belong in
+    the section note ("a start date moved earlier backfills the dates the app was never told about") and next
+    to the field. The card's meta line prints `active from <date>`, so the household can see the value they
+    are about to change. No conversion is forced inside the action: SPEC §11.2's lazy due pass stays the only
+    writer of records, `/transactions` runs it, and the record is there the moment it is looked for. No
+    migration — `active_from` has been a column since 0002.
+
+    **Verification.** `npm test` **494** green (481 + 10 new in `tests/schedule-start-date.test.ts` + 3
+    boundary-schema cases): the missed direct debit becoming a `DD` row and a schedule-linked purchase; the
+    whole window filled **before** a converted record with that record left intact and unvoided; an unchanged
+    start date backfilling nothing; a start date plus a due-day change following the saved cadence; the start
+    moved later dropping October's upcoming instance and keeping the summer's history; an income schedule
+    backdating into a `BAC` receipt and never a purchase; a re-save adding nothing twice (idempotence);
+    a backfilled record older than the checkpoint leaving the estimate exactly where it was (E6, so the fix
+    cannot double-count); and the too-far-back refusal on both paths. Playwright **75** green, the new
+    `desktop` spec walking the household's whole story in a browser — add a schedule starting today, watch its
+    next due date sit a month away, edit the start back, read "one payment the app had not been told about is
+    now expected", find the instance on the calendar, then the `DD` row on All Transactions linked to its
+    schedule.
+
 ## Open questions (none block Phases 0–1; proposed defaults given)
 
 | # | Question | Proposed default |
@@ -1488,6 +1562,23 @@ the keyboard.
 
 ## Release history
 
+- **v0.19.0 — a schedule can start in the past, so the payments the app missed are recorded properly
+  (session `arena/01a0dcf7-simple-finance`, from `main` @ `1363139`, the v0.18.0 merge)**: a household
+  that started recording five days late had no way to place the direct debits inside that gap — the
+  schedules were set up afterwards, so no instance covered those dates, and typing the money in as a
+  Purchase mislabelled it on every page that reads the money. The schedule card's Edit now carries
+  **Active from**, and moving it earlier **backfills** every due date up to today as ordinary instances
+  that convert into schedule-tagged `DD` / `SO` / income records; moving it later drops upcoming
+  instances only; converted history is never rewritten in either direction. It forced the one real
+  domain change: separating the *generation floor* from the *retention floor* in
+  `syncScheduleInstances`, because the daily pass had been pruning past-dated upcoming rows as stale
+  and would have eaten a backfill before it converted. `editSchedule` returns the backfill count
+  alongside the schedule, `nextDueDateAfter` honours `activeFrom`, and a backdated window is bounded by
+  `MAX_BACKFILL_SPAN_DAYS` (~3 years) with a sentence rather than a materialisation error. Decision
+  **162**, SPEC **§11.1**. No schema change, no migration. `npm test` **494 tests / 115 suites green**,
+  format, typecheck and production build clean, Playwright **75 green**. **Published 2026-09-26**
+  (merge commit, publish run and digest stamped in
+  [`docs/RELEASE_NOTES_v0.19.0.md`](RELEASE_NOTES_v0.19.0.md) by the follow-up docs PR).
 - **v0.18.0 — a supplier card says who each purchase was for (session
   `arena/01a0dcb6-simple-finance`, from `main` @ `9dc74e4`, the v0.17.0 post-release merge)**: the
   supplier card's **Recent purchases** list showed `date · amount`, which made one carrier holding a

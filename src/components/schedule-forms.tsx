@@ -112,6 +112,8 @@ export interface ScheduleEditFormProps {
   dueMonth: number | null;
   amountPence: number;
   contractEndsOn: string | null;
+  /** The schedule's start date — the one field an edit may move into the past. */
+  activeFrom: string;
   activeUntil: string | null;
   potId: number;
   potOptions: TargetOption[];
@@ -129,6 +131,12 @@ export interface ScheduleEditFormProps {
  * Edit an active schedule (blueprint: edits apply from the next instance;
  * converted history is never rewritten). The kind is fixed at creation —
  * the domain layer has no kind change on purpose.
+ *
+ * The start date is the exception, and the reason this form exists at all
+ * (decision 162): a direct debit that predates the schedule — set up after the
+ * fact, or started the day the household began using the app — is backfilled by
+ * moving `activeFrom` earlier, so it lands as a schedule-tagged record of the
+ * right kind instead of a hand-entered purchase.
  */
 export function ScheduleEditForm(props: ScheduleEditFormProps) {
   const [targetKind, setTargetKind] = useState(props.targetKind);
@@ -324,6 +332,36 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
         people={props.people}
         vehicles={props.vehicles}
       />
+      <div className="flex flex-col gap-1 rounded-lg bg-canvas p-2">
+        <label htmlFor={`schedule-${props.scheduleId}-activefrom`} className={labelClass}>
+          Active from — the day this arrangement actually started
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            id={`schedule-${props.scheduleId}-activefrom`}
+            name="activeFrom"
+            type="date"
+            required
+            defaultValue={props.activeFrom}
+            className={inputClass}
+          />
+          <span className="text-xs text-ink-muted">
+            Currently {props.activeFrom}. Saved as-is, nothing here changes.
+          </span>
+        </div>
+        <p className="text-xs text-ink-muted">
+          Moving it <span className="font-medium text-ink-body">earlier</span> backfills every due
+          date between that date and today as an ordinary “from schedule” record — a real direct
+          debit / standing order / receipt entry rather than a hand-typed purchase — each taking the
+          amount saved here. Converted history is never rewritten and dates the app already holds
+          are left alone. Moving it <span className="font-medium text-ink-body">later</span> drops
+          upcoming instances before that date (their records stay). If you already typed one of
+          these payments in as a purchase,{' '}
+          <span className="font-medium text-ink-body">void that purchase first</span> — the backfill
+          adds its own record, it never merges with yours. This changes the app’s expectation only —
+          never a bank instruction.
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
           <label htmlFor={`schedule-${props.scheduleId}-contract`} className={labelClass}>
@@ -351,7 +389,7 @@ export function ScheduleEditForm(props: ScheduleEditFormProps) {
         </div>
       </div>
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
-        {pending ? 'Saving…' : 'Save from next instance'}
+        {pending ? 'Saving…' : 'Save changes'}
       </button>
       <FormMessage status={state.status} message={state.message} />
     </form>

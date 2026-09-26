@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   checkpointEntrySchema,
   debtEntrySchema,
+  editScheduleEntrySchema,
   editExternalMovementEntrySchema,
   externalMovementEntrySchema,
   fuelEntrySchema,
@@ -224,5 +225,57 @@ describe('external money boundary schemas (SPEC §10.2)', () => {
       }).success,
       false,
     );
+  });
+});
+
+/**
+ * The schedule edit boundary (SPEC §11.1, decision 162). Every field here is
+ * forward-looking, so the form posts them all; `activeFrom` is the one the
+ * household may date in the past, and a form that does not post it (the Income
+ * page's own editor) must leave the stored start untouched rather than clear it.
+ */
+describe('schedule edit boundary schema', () => {
+  const base = {
+    scheduleId: 4,
+    expectedVersion: 2,
+    name: 'Car insurance — InsurerCo',
+    frequency: 'monthly',
+    dueDayOfMonth: 19,
+    dueMonth: null,
+    amountPence: 4120,
+    potId: 1,
+    categoryId: 12,
+    supplierId: 3,
+    supplierName: null,
+    targetKind: 'household',
+    targetId: null,
+    contractEndsOn: null,
+    activeUntil: null,
+  } as const;
+
+  it('accepts a start date in the past — that is the backfill', () => {
+    const parsed = editScheduleEntrySchema.safeParse({ ...base, activeFrom: '2026-09-01' });
+    assert.equal(parsed.success, true);
+    assert.equal(parsed.success && parsed.data.activeFrom, '2026-09-01');
+  });
+
+  it('treats a missing start date as "unchanged", never as a clear', () => {
+    const omitted = editScheduleEntrySchema.safeParse({ ...base });
+    assert.equal(omitted.success, true);
+    assert.equal(omitted.success && omitted.data.activeFrom, null);
+    // A blank date input is normalised to null by the action (`textOrNull`)
+    // before the schema sees it, exactly as `contractEndsOn` and
+    // `activeUntil` are — the schema itself accepts no half-written dates.
+    assert.equal(editScheduleEntrySchema.safeParse({ ...base, activeFrom: '' }).success, false);
+  });
+
+  it('still refuses a start date that is not a real local date', () => {
+    for (const activeFrom of ['2026-09-31', 'yesterday', '2026-09-1', '2026-02-30']) {
+      assert.equal(
+        editScheduleEntrySchema.safeParse({ ...base, activeFrom }).success,
+        false,
+        activeFrom,
+      );
+    }
   });
 });

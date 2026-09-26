@@ -177,7 +177,7 @@ describe('schedules: canonical supplier link', () => {
       VersionConflictError,
     );
 
-    const edited = editSchedule(db, {
+    const { schedule: edited } = editSchedule(db, {
       id: created.schedule.id,
       expectedVersion: created.schedule.version,
       actor: ACTOR,
