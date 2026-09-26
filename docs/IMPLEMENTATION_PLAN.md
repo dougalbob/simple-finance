@@ -1562,6 +1562,28 @@ the keyboard.
 
 ## Release history
 
+- **v0.21.0 — one codebase, two homes: the phone till and the laptop dashboard (panel move session
+  `arena/01a0de74-simple-finance`, from `main` @ `2578acc`, the v0.20.0 stamp merge; release session
+  `arena/01a0de9d-simple-finance`)**: decision **164**. The phone's first screen and the laptop's first
+  screen stop being copies of each other. Phone `/` is a till home — available now, Quick Entry (still
+  parked at the till on mount, decision 158), payday projection, due this week and three links (Charts,
+  Purchases, Horizon); the recurring dump, pot dump, recent purchases, key dates, Add a pot and
+  checkpoint cards are gone from it. Laptop `/overview` keeps the dense dashboard — money row,
+  projection, quick entry, due this week, key dates, this month so far, vehicles — and stops repeating
+  purchase review, transfers, Add a pot and checkpoints. Transfers gained a review list with void and the
+  canonical `/pots?transfer={id}#transfer-{id}` deep link, mirroring `?external=`; All Transactions links
+  there (`src/lib/records/activity.ts`) and still finds one older than the recent-twenty cap. **Purchases**
+  is the only purchase-review surface, receipts included, and SPEC §23.4 now says so. The phone drawer
+  leads with Quick Entry · Purchases · Horizon · Charts · Overview · Recurring and moves everything else
+  under More; the desktop bar is unchanged. Recurring on `lg+` height-matches the schedules panel to the
+  calendar card, scrolls the list inside it with Add a schedule pinned and renewals below, and keeps
+  `#schedule-{id}` scrolling to the row (`ScrollHashIntoView`). No schema change, no migration. `npm test`
+  **506 tests / 116 suites green**, format, typecheck and production build clean, Playwright **78 green**
+  (two new specs: the phone home is the till; the desktop bar lists every page). **Published 2026-09-26**:
+  annotated tag `v0.21.0` on merge commit `4b177a5` (PR #73), publish run `36257538054`, digest
+  `sha256:dec7f9a26eaa914b33f93e52717867fdf417075899bad6aed98966ff36ceb346` on `v0.21.0` / `latest` /
+  `sha-4b177a5` — one digest, different from v0.20.0's
+  ([`docs/RELEASE_NOTES_v0.21.0.md`](RELEASE_NOTES_v0.21.0.md)).
 - **v0.19.0 — a schedule can start in the past, so the payments the app missed are recorded properly
   (session `arena/01a0dcf7-simple-finance`, from `main` @ `1363139`, the v0.18.0 merge)**: a household
   that started recording five days late had no way to place the direct debits inside that gap — the

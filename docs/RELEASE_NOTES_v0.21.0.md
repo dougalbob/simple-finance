@@ -1,8 +1,12 @@
 # Release notes — v0.21.0 (one codebase, two homes: the phone till and the laptop dashboard)
 
-**Publication status:** Prepared; awaiting merge, passing main CI and image publication.
-**Merge commit, image digest and published date:** To be recorded after verification.
-**Planned image tags:** `ghcr.io/dougalbob/simple-finance:v0.21.0` · `latest` · `sha-<merge short SHA>`
+**Published:** 2026-09-26 (tag pushed; Publish run `36257538054` passed; image verified in GHCR).
+**Merge commit:** `4b177a5db2b756aa99d6188fd223199128f8c4c2` (PR #73; short SHA `4b177a5`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.21.0` ·
+`ghcr.io/dougalbob/simple-finance:latest` · `ghcr.io/dougalbob/simple-finance:sha-4b177a5`
+**Digest:** `sha256:dec7f9a26eaa914b33f93e52717867fdf417075899bad6aed98966ff36ceb346`, shared by all
+three tags and different from v0.20.0's `sha256:1e0db60a775f85958342420926b327994bf90cd58d7564b85cfaaaf5c0a92de2`
+(verified through `/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.21.0 · pre-release`
 
 ## What changed
@@ -53,8 +57,10 @@ startup is unchanged and rolling back is a plain image change. Take a backup bef
 
 Implementation gates (PR #72, merge commit `f598ead`): **506 automated tests** and **78 browser tests**
 passed; TypeScript, formatting and the production build passed; that PR's CI passed all three jobs (gates,
-browser, docker). This release PR changes only version metadata and documentation; its CI result, the
-main-CI result on its merge commit, the publish run and the image digest are recorded here after publication.
+browser, docker). This release PR (#73, merge commit `4b177a5`), changing only version metadata and
+documentation, passed the same three jobs. [Publish run `36257538054`](https://github.com/dougalbob/simple-finance/actions/runs/36257538054)
+built and smoke-tested the image before pushing it; GHCR's package-version API groups all three tags
+under the digest above.
 
 ## Updating in Unraid
 
