@@ -1576,9 +1576,11 @@ the keyboard.
   alongside the schedule, `nextDueDateAfter` honours `activeFrom`, and a backdated window is bounded by
   `MAX_BACKFILL_SPAN_DAYS` (~3 years) with a sentence rather than a materialisation error. Decision
   **162**, SPEC **§11.1**. No schema change, no migration. `npm test` **494 tests / 115 suites green**,
-  format, typecheck and production build clean, Playwright **75 green**. **Published 2026-09-26**
-  (merge commit, publish run and digest stamped in
-  [`docs/RELEASE_NOTES_v0.19.0.md`](RELEASE_NOTES_v0.19.0.md) by the follow-up docs PR).
+  format, typecheck and production build clean, Playwright **75 green**. **Published 2026-09-26**:
+  annotated tag `v0.19.0` on merge commit `db74572` (PR #68), publish run `36234993565`, digest
+  `sha256:596a0f8f9da86f9bc7b0f1f5674ce1ef6100dfa20ae8996dca48e24af8cc8937` on `v0.19.0` / `latest` /
+  `sha-db74572` — one digest, different from v0.18.0's
+  ([`docs/RELEASE_NOTES_v0.19.0.md`](RELEASE_NOTES_v0.19.0.md)).
 - **v0.18.0 — a supplier card says who each purchase was for (session
   `arena/01a0dcb6-simple-finance`, from `main` @ `9dc74e4`, the v0.17.0 post-release merge)**: the
   supplier card's **Recent purchases** list showed `date · amount`, which made one carrier holding a

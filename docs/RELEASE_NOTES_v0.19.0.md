@@ -1,9 +1,11 @@
 # Release notes — v0.19.0 (a schedule can start in the past, so the payments the app missed get recorded properly)
 
-**Published:** 2026-09-26 (tag pushed, Publish run passed, image verified in the registry).
-**Merge commit:** _to be stamped after the merge_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.19.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _to be stamped after publish_
+**Published:** 2026-09-26 (tag pushed, Publish run `36234993565` passed, image verified in the registry).
+**Merge commit:** `db7457201b012fd0eb55fac57cac4b2d25cc2620` (PR #68; short SHA `db74572`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.19.0` · `latest` · `sha-db74572`
+**Digest:** `sha256:596a0f8f9da86f9bc7b0f1f5674ce1ef6100dfa20ae8996dca48e24af8cc8937`, one digest for
+all three tags, different from v0.18.0's `sha256:8d8b822afe5ac115b605ffa825d43584262a8b5425ddb13f918dd66549977fb5` (verified through the publish workflow's
+`Verify the registry tags resolve` step and `/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.19.0 · pre-release`
 
 ## Why this release exists
