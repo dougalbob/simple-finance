@@ -538,6 +538,26 @@ it), active from/until.
 The users' direct debits are fixed amounts; when one changes, they update the schedule and it applies **from
 the next instance onward** — historical instances are never rewritten.
 
+**The start date is the one field an edit may move into the past** (decision 162). `active from` sits on the
+schedule card's edit form, and changing it re-derives which dates the app expects money on:
+
+- Moved **earlier**, it backfills every due date between the new start and today — including dates before a
+  record that has already converted. Each becomes an ordinary instance, so it converts like any other and lands
+  as a schedule-tagged `DD` / `SO` / income record dated the day the money moved. That is the point: a payment
+  collected before the household created the schedule in the app (a direct debit set up after the fact, the
+  first few days after the app was adopted) would otherwise be a hole in the history, or a hand-typed Purchase
+  that every insight, projection and vehicle clock then reads wrongly (§15.3, §16).
+- Moved **later**, it drops the upcoming instances before that date. Records already converted stay, and are
+  corrected the normal way — edited or voided, never silently deleted.
+- Either direction never rewrites a converted record, and a date the app already holds is skipped rather than
+  duplicated. Backfilled instances carry the amount saved alongside them, which the form says in words. A
+  payment the household had **already typed in by hand** is not merged or removed — the form tells them to
+  void that purchase first, so a day cannot end up carrying both.
+- Any *other* edit still never invents a past instance (decision 75): saving an amount or due-day change with
+  the start date left alone changes the next instance and nothing before it.
+- How far back is bounded by the window the app materialises instances for (~3 years); a start date beyond it
+  is refused with a sentence naming the earliest usable date, not a crash.
+
 ### 11.2 Lifecycle — auto-conversion, no double counting
 
 Each schedule instance exists in **exactly one state at any moment**, enforced in code and covered by tests:

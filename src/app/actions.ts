@@ -2023,13 +2023,14 @@ export async function editScheduleAction(
     supplierName: textOrNull(formData.get('supplierName')),
     ...parseCompositeTarget(formData.get('target')),
     contractEndsOn: textOrNull(formData.get('contractEndsOn')),
+    activeFrom: textOrNull(formData.get('activeFrom')),
     activeUntil: textOrNull(formData.get('activeUntil')),
   });
   if (!parsed.success) {
     return { status: 'error', message: firstIssue(parsed.error, 'Check the schedule fields.') };
   }
   try {
-    const schedule = editSchedule(getDbHandle().db, {
+    const { schedule, backfilledInstances } = editSchedule(getDbHandle().db, {
       id: parsed.data.scheduleId,
       expectedVersion: parsed.data.expectedVersion,
       actor: user.email,
@@ -2046,13 +2047,26 @@ export async function editScheduleAction(
         targetKind: parsed.data.targetKind,
         targetId: parsed.data.targetId,
         contractEndsOn: parsed.data.contractEndsOn,
+        // An absent/blank start date means "leave it alone" — the field is
+        // always posted by the edit form, so this only guards a stripped post.
+        activeFrom: parsed.data.activeFrom ?? undefined,
         activeUntil: parsed.data.activeUntil,
       },
     });
     revalidatePages();
+    // The count is the domain's own (decision 162), so the household hears what
+    // the backfill did rather than a promise about "the next instance" that a
+    // backdated start deliberately does not keep.
     return {
       status: 'ok',
-      message: `“${schedule.name}” saved — the change applies from the next instance; converted history is untouched.`,
+      message:
+        backfilledInstances === 0
+          ? `“${schedule.name}” saved — the change applies from the next instance; converted history is untouched.`
+          : `“${schedule.name}” saved — the start now reaches ${schedule.activeFrom}, so ${
+              backfilledInstances === 1
+                ? 'one payment the app had not been told about is now expected, and it will be recorded as its own “from schedule” entry'
+                : `${backfilledInstances} payments the app had not been told about are now expected, and they will be recorded as their own “from schedule” entries`
+            }. Converted history is untouched.`,
     };
   } catch (err) {
     if (

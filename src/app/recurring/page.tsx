@@ -293,7 +293,8 @@ export default async function RecurringPage({
                 Schedules
               </h2>
               <span className="text-xs text-ink-muted">
-                edits apply from the next instance — history is never rewritten
+                edits apply from the next instance — history is never rewritten; a start date moved
+                earlier backfills the dates the app was never told about
               </span>
             </div>
             {schedules.length === 0 ? (
@@ -342,6 +343,7 @@ export default async function RecurringPage({
                       ) : (
                         <>Next due: {nextDueDate ?? '—'}</>
                       )}
+                      {` · active from ${schedule.activeFrom}`}
                       {schedule.contractEndsOn !== null
                         ? ` · contract ends ${schedule.contractEndsOn} (informational)`
                         : ''}
@@ -373,6 +375,7 @@ export default async function RecurringPage({
                             dueMonth={schedule.dueMonth}
                             amountPence={schedule.amountPence}
                             contractEndsOn={schedule.contractEndsOn}
+                            activeFrom={schedule.activeFrom}
                             activeUntil={schedule.activeUntil}
                             potId={schedule.potId}
                             potOptions={pots.map((pot) => ({ id: pot.id, label: pot.label }))}

@@ -363,7 +363,7 @@ describe('schedules: E3 lifecycle — counted exactly once', () => {
     );
 
     // Raise the price from the 1st October onward.
-    const edited = editSchedule(db, {
+    const { schedule: edited } = editSchedule(db, {
       id: schedule.schedule.id,
       expectedVersion: schedule.schedule.version,
       actor: 'alex@example.com',

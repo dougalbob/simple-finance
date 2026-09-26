@@ -131,7 +131,7 @@ test.describe('desktop review', () => {
     const originalDueText = await originalDueLine.innerText();
     await scheduleItem.getByText('Edit schedule').click();
     await scheduleItem.getByLabel('Day of month').fill('21');
-    await scheduleItem.getByRole('button', { name: 'Save from next instance' }).click();
+    await scheduleItem.getByRole('button', { name: 'Save changes' }).click();
 
     // The edit itself sticks...
     await expect(scheduleItem.getByLabel('Day of month')).toHaveValue('21');
@@ -157,6 +157,95 @@ test.describe('desktop review', () => {
     const heading = await calendar.getByRole('heading', { level: 2 }).innerText();
     await page.getByRole('link', { name: /Next/ }).first().click();
     await expect(calendar.getByRole('heading', { level: 2 })).not.toHaveText(heading);
+  });
+
+  test('a backdated schedule start turns a missed direct debit into a DD record', async ({
+    page,
+  }) => {
+    test.slow();
+    // The case decision 162 was made for: a household starts recording a few
+    // days late, and the direct debits inside that gap belong to no instance.
+    // The fix is the schedule's own start date — move it earlier and the app
+    // materialises the missed due date, which converts into a real DD record
+    // instead of being typed in as a Purchase.
+    const scheduleName = 'Playwright backfilled DD';
+    const supplierName = 'Playwright Backfill Co';
+    const today = londonToday();
+    const missedDate = addDaysIso(today, -10); // already gone by, inside the default window
+    const dueDayOfMonth = Number(missedDate.slice(8));
+
+    await page.goto('/recurring');
+    const schedules = page.locator('section[aria-labelledby="schedules-heading"]');
+    await schedules.getByText('Add a schedule').click();
+    const addForm = schedules
+      .locator('form')
+      .filter({ has: page.getByRole('button', { name: 'Add schedule' }) });
+    await addForm.locator('input[name="name"]').fill(scheduleName);
+    await addForm.locator('input[name="amount"]').fill('44.40');
+    await addForm.locator('input[name="dueDayOfMonth"]').fill(String(dueDayOfMonth));
+    // Named pot, not the select's default: the row is looked up on Main account.
+    await addForm.locator('select[name="potId"]').selectOption({ label: 'Main account' });
+    await addForm
+      .locator('select[name="categoryId"]')
+      .selectOption({ label: 'Utilities / Energy' });
+    await addForm
+      .locator('select[name="supplierId"]')
+      .selectOption({ label: 'Add a new supplier…' });
+    await addForm.locator('input[name="supplierName"]').fill(supplierName);
+    // 'Active from' is left at today — which is exactly the mistake this edit
+    // exists to correct: the schedule starts after the money already left.
+    await addForm.getByRole('button', { name: 'Add schedule' }).click();
+    await expect(addForm.getByRole('status')).toContainText(/added/i, { timeout: 30_000 });
+
+    const scheduleItem = schedules.locator('li', { hasText: scheduleName }).first();
+    await expect(scheduleItem).toContainText(supplierName, { timeout: 30_000 });
+    // The card shows the start date it holds, and the next expectation is still
+    // a month away: nothing in the app covers the date that has passed.
+    await expect(scheduleItem).toContainText(`active from ${today}`);
+    const nextDue = /Next due: (\d{4}-\d{2}-\d{2})/.exec(await scheduleItem.innerText())?.[1] ?? '';
+    expect(nextDue).not.toBe('');
+    expect(nextDue > today).toBe(true);
+
+    // Edit it: the start date is now a field on the card, and moving it earlier
+    // is a normal edit — not a support ticket or a re-created schedule.
+    await scheduleItem.locator('summary', { hasText: 'Edit schedule' }).click();
+    await expect(scheduleItem.getByLabel(/Active from/)).toHaveValue(today);
+    await scheduleItem.getByLabel(/Active from/).fill(addDaysIso(today, -12));
+    await scheduleItem.getByRole('button', { name: 'Save changes' }).click();
+    await expect(scheduleItem.getByRole('status')).toContainText(
+      /one payment the app had not been told about is now expected/,
+      { timeout: 30_000 },
+    );
+    await expect(scheduleItem.getByLabel(/Active from/)).toHaveValue(addDaysIso(today, -12), {
+      timeout: 30_000,
+    });
+
+    // The month that held the missed collection now carries the instance, and
+    // the card's own line reflects the start it was given.
+    await page.goto(`/recurring?month=${missedDate.slice(0, 7)}`);
+    const calendar = page.locator('section[aria-labelledby="calendar-heading"]');
+    const cell = calendar.locator(`[data-date="${missedDate}"]`);
+    await expect(cell).toHaveCount(1);
+    await expect(cell.locator('a[href^="#schedule-edit-"]', { hasText: scheduleName })).toHaveCount(
+      1,
+    );
+
+    // The money pass runs on All Transactions (§11.2), and the row it makes is
+    // a direct debit — code DD, linked back to its schedule — not a PUR.
+    await page.goto(`/transactions?from=${addDaysIso(today, -12)}&to=${today}`);
+    const table = page.locator('section[aria-labelledby="activity-heading"] table');
+    const row = table.locator('tr', { hasText: '−£44.40' }).filter({ hasText: missedDate }).first();
+    await expect(row.getByRole('cell', { name: /^DD/ })).toBeVisible({ timeout: 30_000 });
+    await expect(row.getByRole('link', { name: 'Open the schedule' })).toHaveAttribute(
+      'href',
+      /^\/recurring#schedule-\d+$/,
+    );
+
+    // And the start date on the card stayed where the household put it.
+    await page.goto('/recurring');
+    await expect(
+      page.locator('section[aria-labelledby="schedules-heading"] li', { hasText: scheduleName }),
+    ).toContainText(`active from ${addDaysIso(today, -12)}`, { timeout: 30_000 });
   });
 
   test('suppliers carry contact cards, references and the interaction log', async ({ page }) => {

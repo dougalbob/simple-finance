@@ -1,7 +1,82 @@
+# Handoff: A schedule can start in the past — v0.19.0
+
+Date: 2026-09-26. Branch: `arena/01a0dcf7-simple-finance` (from `main` @ `1363139`, the v0.18.0
+post-release merge).
+
+**Released as v0.19.0 on 2026-09-26.** The household filled up the car five days before the app was
+stable enough to record in, and the direct debits that left inside that window belonged to schedules
+created *after* it — so the app had no instance for those dates. Their only options were a hole in the
+history or a hand-typed Purchase, and a Purchase is mislabelled money: All Transactions reads `PUR`
+not `DD`, and the commitment chart and the projected figures then read the wrong past. The fix is the
+schedule's own start date: **the Edit form can now move `activeFrom`, earlier or later, and moving it
+earlier backfills the missed due dates as ordinary instances** — which convert into real,
+schedule-tagged records. Recorded as decision **162** and SPEC **§11.1**; release facts (merge commit,
+tag, digest) are stamped in [`docs/RELEASE_NOTES_v0.19.0.md`](RELEASE_NOTES_v0.19.0.md). The household
+does two things in Unraid: back up, then Force Update.
+
+## Gates at close
+
+`npm test` **494** green · `npx tsc --noEmit` clean · `npm run format:check` clean · `next build`
+clean · Playwright **75** green locally (SANDBOX entry 8; `playwright.local.config.ts` is a throwaway
+overlay — recreate it from that entry, never commit it) and in CI on the merge commit.
+
+## What a future session should know
+
+1. **`activeFrom` is the one schedule field an edit may date in the past, and it is the only exception to
+   "edits apply from the next instance".** `editSchedule` backfills *only* when the start genuinely
+   moved earlier (`startMovedEarlier`), so decision 75's no-invented-past-cadence rule is intact for
+   every other edit. If you are tempted to make `regenerateFromToday` backfill unconditionally, don't:
+   a due-day change must not retroactively rewrite which dates the household believes in.
+2. **Generation floor and retention floor are now two different things in `syncScheduleInstances`.**
+   `lower` (max(`activeFrom`, lastConverted+1)) says where *new* dates start being generated; it is **not**
+   a reason to delete an upcoming row. Past-dated upcoming rows are due dates awaiting conversion — the
+   daily pass used to prune them as stale, which would have silently eaten a backfill before it ever
+   became a record. That trap is the reason this release is a domain change and not just a form field.
+3. **`editSchedule` returns `{ schedule, materializedInstances, backfilledInstances }`** (mirroring
+   `createSchedule`), and the household's message is built from `backfilledInstances`. If a future edit
+   path needs to report what it did, use that number rather than counting queries afterwards.
+4. **`nextDueDateAfter` honours `activeFrom` now** — a period whose *configured* date precedes the start
+   is not an expectation, mirroring `candidateForPeriod`. Keep that symmetry: the card's "Next due" and
+   the materialised instance set must never disagree.
+5. **The backfill window is bounded before anything is written** (`MAX_BACKFILL_SPAN_DAYS`, ~3 years,
+   checked on create *and* edit). Instance materialisation is a single bounded window; say so in a
+   sentence the household can act on rather than letting `dueDatesBetween` throw.
+6. **The lazy due pass remains the only writer of records.** The edit action does not convert anything
+   itself — `/transactions` (and every money page) runs the pass, so the backfilled record is there when
+   it is looked for. Do not "helpfully" convert inside an action; SPEC §11.2's single writer is why a
+   record can never be counted twice.
+
+## Watch out for (carried forward, still true)
+
+- **No migration was needed** — `active_from` has been a column since migration 0002. A feature that
+  only needs a form field should not reach for the `drizzle` folder.
+- **The e2e seed's pot order is not "Main account first" in the Add-schedule select.** A new browser test
+  that asserts a row on `/transactions` must pick the pot by name, not trust the default (that cost this
+  session one red run).
+- **Never bump `APP_VERSION` while Playwright is running** — the backup spec reads it.
+- **Generated files are generated.** Editing `src/app/themes.generated.css` or
+  `src/lib/theme/catalogue.ts` by hand is reverted by the next build and caught by
+  `tests/themes.test.ts` / `npm run themes:check`.
+- **Tokens only.** `tests/colour-tokens.test.ts` is a grep-gate that reads prose too: a phrase like
+  "sky-blue" in a `.ts` file trips `PALETTE_CLASS`. Colour is never the only signal (§16.7).
+- **`purchaseLineSummary()` / `targetLabel()`** in `src/lib/records/targets.ts` are the one way to turn
+  `{targetKind, targetId}` into words — do not write a sixth copy (v0.18.0).
+- **Project order matters in Playwright** (`workers: 1`, `fullyParallel: false`, one shared
+  `.e2e-data`): run the **whole** suite before believing a list assertion.
+- SANDBOX entries 8 (local browser — how to run Playwright here), 9 (stale `next dev` SSR), 10/its
+  sibling (a `node_modules` that is absent or *partially* restored — `npm ci --ignore-scripts` fixes
+  both; this session started with `node_modules` missing entirely), 13 (GitHub connector drops), 14
+  (Turbopack rejects a symlinked `node_modules`).
+- `next build` flips `next-env.d.ts` — restore before committing.
+
+---
+
 # Handoff: The supplier card says who each purchase was for — v0.18.0
 
 Date: 2026-09-26. Branch: `arena/01a0dcb6-simple-finance` (from `main` @ `9dc74e4`, the v0.17.0
 post-release merge).
+
+*Provenance for the block below — the v0.18.0 session, kept unchanged for context.*
 
 **Released as v0.18.0 on 2026-09-26.** A household case the v0.17.0 release conversation turned up:
 three mobile contracts with one carrier, one per person, modelled as **one supplier, three
