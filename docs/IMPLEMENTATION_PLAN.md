@@ -1562,6 +1562,13 @@ the keyboard.
 
 ## Release history
 
+- **v0.21.1 — a same-day credit recorded after its checkpoint counts (session
+  `arena/01a0df10-simple-finance`, from `main` @ `063ff5d`)**: decision **165**. The v0.2.1 blanket absorb
+  left an inbound transfer on the checkpoint's own day out of the estimate while the outbound leg still
+  counted (Natwest −£443.65 instead of £1,056.35; Horizon read the same figure). A date-only credit now
+  counts when `createdAt` is strictly after the checkpoint's. Recorded before the checkpoint, it stays
+  absorbed, so E13 does not return. No schema change. Publication facts are filled into
+  [`docs/RELEASE_NOTES_v0.21.1.md`](RELEASE_NOTES_v0.21.1.md) once the image is in GHCR.
 - **v0.21.0 — one codebase, two homes: the phone till and the laptop dashboard (panel move session
   `arena/01a0de74-simple-finance`, from `main` @ `2578acc`, the v0.20.0 stamp merge; release session
   `arena/01a0de9d-simple-finance`)**: decision **164**. The phone's first screen and the laptop's first

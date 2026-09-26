@@ -26,7 +26,8 @@ Wired through `recordIsAfterCheckpoint` (`src/lib/records/estimates.ts`) and `ge
 - If the household counted money and *then* recorded the explaining credit, the estimate adds it.
   The correction is another checkpoint, or recording the credit before the count. Say so; don't
   special-case one pot.
-- Not released. The running Unraid image is still v0.21.0 until a release sitting publishes this.
+- Releasing as **v0.21.1** in this sitting. v0.21.0 is already published and must not be retagged;
+  Unraid Force Update pulls `latest`, which moves to v0.21.1.
 
 ---
 
