@@ -1,3 +1,4 @@
+import { excludedMonthsSchema } from '../schedule-months';
 import { and, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { recordAudit, type DbTx } from '../audit';
 import type { Db } from '../db/client';
@@ -117,6 +118,8 @@ export interface CreateScheduleInput {
   dueDayOfMonth: number;
   /** Required for annual schedules (which month it renews in). */
   dueMonth?: number | null;
+  /** Calendar months (1–12) with no payment; monthly only. */
+  excludedMonths?: number[];
   amountPence: number;
   potId: number;
   /** Leaf category for dd/so; null (required) for receipts. */
@@ -173,6 +176,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
       frequency: input.frequency,
       dueDayOfMonth: input.dueDayOfMonth,
       dueMonth: input.dueMonth ?? null,
+      excludedMonths: input.excludedMonths ?? [],
       amountPence: input.amountPence,
       potId: input.potId,
       categoryId: input.categoryId ?? null,
@@ -191,6 +195,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
         frequency: effective.frequency,
         dueDayOfMonth: effective.dueDayOfMonth,
         dueMonth: effective.dueMonth,
+        excludedMonths: effective.excludedMonths,
         amountPence: effective.amountPence,
         potId: effective.potId,
         categoryId: effective.categoryId,
@@ -212,7 +217,7 @@ export function createSchedule(db: Db, input: CreateScheduleInput): CreateSchedu
       action: 'schedule.create',
       entity: 'schedule',
       entityId: row.id,
-      summary: `Created ${effective.kind} schedule “${effective.name}” ${formatPence(effective.amountPence)} due day ${effective.dueDayOfMonth}${effective.frequency === 'annual' ? ` in month ${effective.dueMonth}` : ' every month'}`,
+      summary: `Created ${effective.kind} schedule “${effective.name}” ${formatPence(effective.amountPence)} due day ${effective.dueDayOfMonth}${effective.frequency === 'annual' ? ` in month ${effective.dueMonth}` : ' monthly'}`,
       after: row,
       now,
     });
@@ -228,6 +233,8 @@ export interface EditSchedulePatch {
   amountPence?: number;
   dueDayOfMonth?: number;
   dueMonth?: number | null;
+  /** Calendar months (1–12) with no payment; monthly only. */
+  excludedMonths?: number[];
   frequency?: ScheduleFrequency;
   potId?: number;
   categoryId?: number | null;
@@ -306,6 +313,9 @@ export function editSchedule(db: Db, input: EditScheduleInput): EditScheduleResu
       frequency: patch.frequency ?? current.frequency,
       dueDayOfMonth: patch.dueDayOfMonth ?? current.dueDayOfMonth,
       dueMonth: patch.dueMonth === undefined ? current.dueMonth : patch.dueMonth,
+      excludedMonths:
+        patch.excludedMonths ??
+        ((patch.frequency ?? current.frequency) === 'annual' ? [] : current.excludedMonths),
       amountPence: patch.amountPence ?? current.amountPence,
       potId: patch.potId ?? current.potId,
       categoryId: patch.categoryId === undefined ? current.categoryId : patch.categoryId,
@@ -324,6 +334,7 @@ export function editSchedule(db: Db, input: EditScheduleInput): EditScheduleResu
         frequency: effective.frequency,
         dueDayOfMonth: effective.dueDayOfMonth,
         dueMonth: effective.dueMonth,
+        excludedMonths: effective.excludedMonths,
         amountPence: effective.amountPence,
         potId: effective.potId,
         categoryId: effective.categoryId,
@@ -549,7 +560,8 @@ export function listInstances(db: Db, filters: InstanceFilters = {}): InstanceWi
  * cannot leave the card advertising a "next due" that will never convert.
  */
 export function nextDueDateAfter(schedule: Schedule, afterDate: string): string | null {
-  const start = checkedLocalDate(afterDate);
+  // Search from the first relevant configured month, even for a distant start.
+  const start = checkedLocalDate(afterDate > schedule.activeFrom ? afterDate : schedule.activeFrom);
   const upper = scheduleUpperBound(schedule, null);
   if (upper !== null && upper <= afterDate) return null;
   const started = (configured: string): boolean => configured >= schedule.activeFrom;
@@ -558,6 +570,7 @@ export function nextDueDateAfter(schedule: Schedule, afterDate: string): string 
     for (let step = 0; step <= 14; step += 1) {
       const year = start.year + Math.floor((start.month - 1 + step) / 12);
       const month = ((start.month - 1 + step) % 12) + 1;
+      if (schedule.excludedMonths.includes(month)) continue;
       if (!started(clampedDueDate(schedule.dueDayOfMonth, year, month))) continue;
       const candidate = dueDateForPeriod(schedule, year, month);
       if (candidate > afterDate && (upper === null || candidate <= upper)) return candidate;
@@ -943,6 +956,7 @@ function candidateForPeriod(
   fromDate: string,
   throughDate: string,
 ): string[] {
+  if (schedule.frequency === 'monthly' && schedule.excludedMonths.includes(month)) return [];
   const configured = clampedDueDate(schedule.dueDayOfMonth, year, month);
   if (configured < fromDate || configured > throughDate) return [];
   return [dueDateForPeriod(schedule, year, month)];
@@ -1006,6 +1020,7 @@ interface CheckedFields {
   frequency: ScheduleFrequency;
   dueDayOfMonth: number;
   dueMonth: number | null;
+  excludedMonths: number[];
   amountPence: number;
   potId: number;
   categoryId: number | null;
@@ -1025,6 +1040,7 @@ function checkedScheduleFields(
     frequency: ScheduleFrequency;
     dueDayOfMonth: number;
     dueMonth: number | null;
+    excludedMonths: number[];
     amountPence: number;
     potId: number;
     categoryId: number | null;
@@ -1048,6 +1064,14 @@ function checkedScheduleFields(
       'Choose a schedule type: direct debit, standing order or expected receipt.',
     );
   }
+  const months = excludedMonthsSchema.safeParse(input.excludedMonths);
+  if (!months.success)
+    throw new InvalidScheduleInputError(
+      months.error.issues[0]?.message ?? 'Choose valid months with no payment.',
+    );
+  if (input.frequency === 'annual' && months.data.length > 0) {
+    throw new InvalidScheduleInputError('Only monthly schedules can skip calendar months.');
+  }
   if (input.frequency !== 'monthly' && input.frequency !== 'annual') {
     throw new InvalidScheduleInputError('Choose monthly or annual.');
   }
@@ -1065,9 +1089,7 @@ function checkedScheduleFields(
     throw new InvalidScheduleInputError('Annual schedules need a due month.');
   }
   if (input.frequency === 'monthly' && input.dueMonth !== null) {
-    throw new InvalidScheduleInputError(
-      'Monthly schedules are due every month — no due month needed.',
-    );
+    throw new InvalidScheduleInputError('Monthly schedules do not need an annual due month.');
   }
   if (
     !isValidPenceAmount(input.amountPence) ||
@@ -1117,6 +1139,7 @@ function checkedScheduleFields(
     kind: input.kind,
     frequency: input.frequency,
     dueDayOfMonth: input.dueDayOfMonth,
+    excludedMonths: months.data,
     dueMonth: input.frequency === 'annual' ? (input.dueMonth as number) : null,
     amountPence: input.amountPence,
     potId: input.potId,

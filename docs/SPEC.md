@@ -535,6 +535,20 @@ pot, category (child) + target (e.g. Vehicle Running/Insurance → Vehicle A; Ut
 an optional **contract end date** (§22.1 — informational + alert only; instances never auto-stop because of
 it), active from/until.
 
+**Monthly schedules may exclude selected calendar months each year** (decision 163). For example,
+February and March can have no payment while April through January remain ordinary monthly payments.
+This is not a new frequency. No selection means all twelve months; at least one payment month must
+remain. Exclusions refer to the configured calendar month, before any income weekend shift. They apply
+to instance generation, backfills, next-due dates and every instance-backed forecast/calendar. Editing
+exclusions regenerates the forward window only, preserving converted history and past due instances
+awaiting conversion. Moving the start earlier retains the backfill exception described below.
+
+**Small UI footprint:** Add and Edit use the same nested native `<details>` / `<summary>`, collapsed
+by default, only for monthly schedules. The single compact summary reads “Select any months with no
+payment: none” or lists selected month names in calendar order. The marker and summary styling match
+Horizon; no custom icon or button. Opening it exposes twelve labelled checkboxes in a responsive grid.
+The dedicated Income forms use the same control. Switching to annual clears exclusions on save.
+
 The users' direct debits are fixed amounts; when one changes, they update the schedule and it applies **from
 the next instance onward** — historical instances are never rewritten.
 

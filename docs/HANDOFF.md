@@ -1,3 +1,41 @@
+# Handoff: Monthly schedules can skip selected months — v0.20.0 release preparation
+
+Date: 2026-09-26. Branch: `arena/01a0ddd0-simple-finance`, starting at `db9e020`
+(current `main` after v0.19.0 and its documentation merge; verified against origin).
+
+**Prepared for v0.20.0; publication pending.** Monthly schedules can exclude selected calendar months every year.
+For the ten-payment-year case, select February and March. The shared Add/Edit control is a nested
+native details disclosure, **collapsed by default**, with Horizon's compact summary styling and native
+marker. Only opening it reveals the twelve labelled checkboxes. Recurring and dedicated Income forms
+share it; annual schedules do not show it. SPEC §11.1 and decision **163** describe the rules.
+
+## Gates
+
+`npm test`: **506 passed** · TypeScript clean · formatting clean · production build clean ·
+Playwright: **76 passed**, including keyboard disclosure and checkbox operation, save/reload,
+monthly-only visibility and a 390px viewport. Browser ran using SANDBOX entry 8; the temporary
+local-browser config was removed afterwards. No new sandbox workaround was needed.
+
+## What a future session should know
+
+- Migration **0011_schedule_excluded_months** adds a JSON list of calendar month numbers, default `[]`.
+  Existing schedules keep twelve payments; existing instances are untouched. Migration and older-backup
+  restore tests pass. Take the usual backup before deploying a schema change.
+- Action and domain validation both reject invalid/duplicate months and all-twelve exclusions. At least
+  one payment month must remain. Annual schedules reject a non-empty list; switching to annual clears
+  it on save. Valid lists are sorted, persisted and included in the existing full-row audit snapshots.
+- Skip membership uses the **configured month**, before moving receipt dates off weekends. An August
+  receipt may still land on July's final Friday when July is excluded. Instance-backed forecasts, due
+  lists, conversion and calendars share this rule rather than implementing separate filters.
+- Edits use the existing forward-regeneration path. Converted history and past due instances awaiting
+  conversion remain intact. Only moving `activeFrom` earlier backfills (decisions 75/162 unchanged).
+- `nextDueDateAfter` starts its bounded search at the later of the queried date and `activeFrom`, so a
+  distant start followed by eleven skipped months still has an honest next-due date.
+- Version metadata is now v0.20.0. Release publication facts will be recorded in
+  `docs/RELEASE_NOTES_v0.20.0.md` after the image is verified.
+
+---
+
 # Handoff: A schedule can start in the past — v0.19.0
 
 Date: 2026-09-26. Branch: `arena/01a0dcf7-simple-finance` (from `main` @ `1363139`, the v0.18.0

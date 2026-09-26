@@ -1,5 +1,7 @@
 'use client';
 
+import { ScheduleMonths } from './schedule-months';
+
 import { useState } from 'react';
 import { useActionState } from 'react';
 import {
@@ -377,6 +379,7 @@ export function IncomeScheduleForm({
           </div>
         ) : null}
       </div>
+      {frequency === 'monthly' ? <ScheduleMonths /> : null}
       <p className="text-xs text-ink-muted">
         A day that lands on a Saturday or Sunday is expected on the Friday before — the app never
         waits for Monday. Short months clamp to their last day (31st → 30th, 28th in February).
@@ -523,6 +526,7 @@ export function IncomeScheduleEditForm({
           </div>
         )}
       </div>
+      {frequency === 'monthly' ? <ScheduleMonths initialMonths={schedule.excludedMonths} /> : null}
       <button type="submit" disabled={pending} className={`${submitClass} self-start`}>
         {pending ? 'Saving…' : 'Save from next instance'}
       </button>

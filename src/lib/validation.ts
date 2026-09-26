@@ -1,3 +1,4 @@
+import { excludedMonthsSchema } from './schedule-months';
 import { z } from 'zod';
 import { MAX_ABS_PENCE } from './money';
 import { MIN_BACKUP_PASSWORD_LENGTH } from './backup/policy';
@@ -168,6 +169,7 @@ export const scheduleEntrySchema = z
       .max(60, 'Keep the name to 60 characters or fewer'),
     kind: z.enum(['dd', 'so', 'receipt']),
     frequency: z.enum(['monthly', 'annual']),
+    excludedMonths: excludedMonthsSchema.default([]),
     dueDayOfMonth: z.number().int('Whole day').min(1, 'Day 1–31').max(31, 'Day 1–31'),
     dueMonth: positiveIdSchema
       .refine((v) => v >= 1 && v <= 12, 'Month 1–12')
@@ -187,6 +189,13 @@ export const scheduleEntrySchema = z
     activeUntil: localDateSchema.nullable().default(null),
   })
   .superRefine((value, context) => {
+    if (value.frequency === 'annual' && value.excludedMonths.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['excludedMonths'],
+        message: 'Only monthly schedules can skip calendar months.',
+      });
+    }
     if (value.frequency === 'annual' && value.dueMonth === null) {
       context.addIssue({
         code: 'custom',
@@ -343,6 +352,7 @@ export const editScheduleEntrySchema = z
       .min(1, 'Give the schedule a name')
       .max(60, 'Keep the name to 60 characters or fewer'),
     frequency: z.enum(['monthly', 'annual']),
+    excludedMonths: excludedMonthsSchema.default([]),
     dueDayOfMonth: z.number().int('Whole day').min(1, 'Day 1–31').max(31, 'Day 1–31'),
     dueMonth: positiveIdSchema
       .refine((v) => v >= 1 && v <= 12, 'Month 1–12')
@@ -367,6 +377,13 @@ export const editScheduleEntrySchema = z
     activeUntil: localDateSchema.nullable().default(null),
   })
   .superRefine((value, context) => {
+    if (value.frequency === 'annual' && value.excludedMonths.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['excludedMonths'],
+        message: 'Only monthly schedules can skip calendar months.',
+      });
+    }
     if (value.frequency === 'annual' && value.dueMonth === null) {
       context.addIssue({
         code: 'custom',

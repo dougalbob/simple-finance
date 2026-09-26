@@ -1,5 +1,7 @@
 'use client';
 
+import { ScheduleMonths } from './schedule-months';
+
 import { useState } from 'react';
 import { useActionState } from 'react';
 import {
@@ -180,6 +182,11 @@ export function AddScheduleForm({ data }: { data: RecurringData }) {
               ))}
             </select>
           </label>
+        ) : null}
+        {frequency === 'monthly' ? (
+          <div className="sm:col-span-2">
+            <ScheduleMonths />
+          </div>
         ) : null}
         <label className={labelClass}>
           Pot

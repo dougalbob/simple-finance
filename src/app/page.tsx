@@ -594,7 +594,7 @@ function RecurringSection({
                           {schedule.kind === 'receipt' ? 'income' : schedule.kind} ·{' '}
                           {schedule.frequency === 'annual'
                             ? `every year, month ${schedule.dueMonth ?? '?'} day ${schedule.dueDayOfMonth}`
-                            : `day ${schedule.dueDayOfMonth} each month`}{' '}
+                            : `monthly, day ${schedule.dueDayOfMonth}`}{' '}
                           · {schedule.potLabel}
                           {schedule.supplierName !== null ? ` · ${schedule.supplierName}` : ''}
                         </span>

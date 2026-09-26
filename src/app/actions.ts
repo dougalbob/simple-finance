@@ -1021,7 +1021,11 @@ function parseScheduleForm(
     kind: textOrNull(formData.get('kind')) ?? 'dd',
     frequency: textOrNull(formData.get('frequency')) ?? 'monthly',
     dueDayOfMonth: numberOrNull(formData.get('dueDayOfMonth')) ?? 0,
-    dueMonth: numberOrNull(formData.get('dueMonth')),
+    dueMonth:
+      formData.get('frequency') === 'monthly' ? null : numberOrNull(formData.get('dueMonth')),
+    excludedMonths: formData
+      .getAll('excludedMonths')
+      .map((value) => (typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN)),
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
@@ -2015,7 +2019,11 @@ export async function editScheduleAction(
     name: typeof formData.get('name') === 'string' ? formData.get('name') : '',
     frequency: textOrNull(formData.get('frequency')) ?? 'monthly',
     dueDayOfMonth: numberOrNull(formData.get('dueDayOfMonth')) ?? 0,
-    dueMonth: numberOrNull(formData.get('dueMonth')),
+    dueMonth:
+      formData.get('frequency') === 'monthly' ? null : numberOrNull(formData.get('dueMonth')),
+    excludedMonths: formData
+      .getAll('excludedMonths')
+      .map((value) => (typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN)),
     amountPence: amount,
     potId: numberOrNull(formData.get('potId')),
     categoryId: numberOrNull(formData.get('categoryId')),
@@ -2039,6 +2047,7 @@ export async function editScheduleAction(
         frequency: parsed.data.frequency,
         dueDayOfMonth: parsed.data.dueDayOfMonth,
         dueMonth: parsed.data.dueMonth,
+        excludedMonths: parsed.data.excludedMonths,
         amountPence: parsed.data.amountPence,
         potId: parsed.data.potId,
         categoryId: parsed.data.categoryId,

@@ -308,9 +308,14 @@ export const schedules = sqliteTable(
     dueDayOfMonth: integer('due_day_of_month').notNull(),
     /**
      * 1–12; required for annual schedules (an annual premium renews on a
-     * specific month and day), null for monthly (every month).
+     * specific month and day), null for monthly.
      */
     dueMonth: integer('due_month'),
+    /** Calendar months without a payment, before any income weekend shift. */
+    excludedMonths: text('excluded_months', { mode: 'json' })
+      .$type<number[]>()
+      .notNull()
+      .default(sql`'[]'`),
     amountPence: integer('amount_pence').notNull(),
     potId: integer('pot_id')
       .notNull()
