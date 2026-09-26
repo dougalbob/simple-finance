@@ -1,9 +1,11 @@
 # Release notes — v0.17.0 (themes: fourteen palettes, light and dark)
 
-**Published:** _pending_ (tag, Publish run and registry verification are stamped here at release).
-**Merge commit:** _pending_
-**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.17.0` · `latest` · `sha-<merge short SHA>`
-**Digest:** _pending_
+**Published:** 2026-09-26 (tag pushed, Publish run `36204626937` passed, image verified in the registry).
+**Merge commit:** `cf70dbab6e8c6385438b127e01b0e5092b82f090` (PR #64; short SHA `cf70dba`)
+**Image tags:** `ghcr.io/dougalbob/simple-finance:v0.17.0` · `latest` · `sha-cf70dba`
+**Digest:** `sha256:bd5aef911d64f754b21b80f34a78bc435a95ea10c7e65870961e6e25abdb8e25`, one digest for
+all three tags, different from v0.16.0's `sha256:e0b7994f…` (verified through
+`/users/dougalbob/packages/container/simple-finance/versions`).
 **Version badge:** `v0.17.0 · pre-release`
 
 ## What changed

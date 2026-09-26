@@ -1,32 +1,36 @@
-# Handoff: Themes — Phase 2 done (v0.17.0), ready to release
+# Handoff: Themes — shipped as v0.17.0
 
-Date: 2026-09-26. Branch: `arena/01a0dad7-simple-finance` (from `main` @ `978a9a6`, the v0.16.0 merge).
+Date: 2026-09-26. Branch: `arena/01a0dad7-simple-finance` (from `main` @ `978a9a6`, the v0.16.0 stamp
+merge).
 
-**Phase 2 is implemented and green; the release has not been published yet.** The household's
-requirement from decision **159** — *adding a new theme must be a small, single-place change* — now
-has its proof: **28 themes** (fourteen palettes × light/dark) picked in **Settings → Appearance**,
-remembered **per device in a cookie**. Recorded as decision **160** and SPEC **§15.4**. Nothing in
-any page, component or chart changed to make it work; the only edit outside new files is the
-`text-white` → `text-fill-ink` split (4 call sites) plus the new tokenised 404 page.
+**Released as v0.17.0 on 2026-09-26.** The household's requirement from decision **159** — *adding a
+new theme must be a small, single-place change* — now has its proof: **28 themes** (fourteen palettes
+× light/dark) picked in **Settings → Appearance**, remembered **per device in a cookie**. Recorded as
+decision **160** and SPEC **§15.4**. Nothing in any page, component or chart changed to make it work;
+the only edit outside new files is the `text-white` → `text-fill-ink` split (4 call sites) plus a new
+tokenised 404 page. Release facts (merge commit `cf70dba`, tag, digest) are stamped in
+[`docs/RELEASE_NOTES_v0.17.0.md`](RELEASE_NOTES_v0.17.0.md); the version badge reads
+`v0.17.0 · pre-release`. The household does two things in Unraid: back up, then Force Update.
 
-## Gates on this tree
+## Gates at close
 
-`npm test` **478** green · `npx tsc --noEmit` clean · `npm run format:check` clean ·
-Playwright **74** green locally (SANDBOX entry 8; `playwright.local.config.ts` is gitignored/untracked
-— recreate it from that entry). `npm run themes:check` clean.
+`npm test` **478** green · `npx tsc --noEmit` clean · `npm run format:check` clean · `next build`
+clean · `npm run themes:check` clean · Playwright **74** green both locally (SANDBOX entry 8;
+`playwright.local.config.ts` is a throwaway overlay — recreate it from that entry, never commit it)
+and in CI on the merge commit.
 
-## What to do next (in order)
+## What a future session should know
 
-1. **Release v0.17.0** — the five version files are already bumped (`package.json`,
-   `package-lock.json` ×2, `src/lib/version.ts`, `simple-finance.xml`) and
-   [`RELEASE_NOTES_v0.17.0.md`](RELEASE_NOTES_v0.17.0.md) is written with the publish facts left as
-   `_pending_`. Follow [`RELEASE_PROCESS.md`](RELEASE_PROCESS.md) end to end: PR → merge commit (never
-   squash) → annotated lower-case tag on the merge commit → Publish workflow → verify three tags at
-   one digest → stamp the notes → GitHub release → tell the household to back up and Force Update.
-   Then add the v0.17.0 entry to the plan's **Release history**.
-2. **Nothing else is owed on themes.** If the household wants another palette later it is *one row*
-   in `scripts/themes/palettes.ts` and `npm run themes:build` — that is the whole change, and
-   `npm run themes:check` in CI will notice if someone edits the generated files by hand.
+1. **Another palette is one row.** Add it to `scripts/themes/palettes.ts` (id, label, one-sentence
+   blurb, five hex stops dark → light), run `npm run themes:build`, run `npm test`. Both modes, all
+   73 tokens, the contrast enforcement and the Settings card come out of that. `npm run themes:check`
+   is in the gates, so hand-editing the generated files is caught.
+2. **Nothing else is owed on themes.** The three Phase-2 questions the old brief listed are answered
+   in decision 160: cookie (not an inline script), a per-device gallery in the existing Settings
+   page, and per-theme browser chrome from `generateViewport()` with the manifest pinned to the
+   default.
+3. **If a theme ever looks wrong, look at the card first.** The gallery previews are real components
+   under `data-theme`, so a fault shows up there before anyone finds it on a page.
 
 ## How the theme machinery fits together
 
