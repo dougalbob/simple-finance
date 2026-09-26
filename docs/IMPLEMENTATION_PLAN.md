@@ -1931,6 +1931,10 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
 
 - **Assume-cleared overstatement** (decision 6): bounded, self-correcting, documented; mitigate by visible
   checkpoint staleness and honest labelling — never by silent pessimism.
+- **Credit recorded after a count that already included it** (decision 165): a same-day credit written
+  down after the checkpoint is treated as new money. If the reported figure already included it, record
+  the credit first or checkpoint again — the next checkpoint resets an overstatement. The opposite
+  mistake (dropping a transfer recorded after the count) was the 2026-09-26 field report.
 - **Projection drift**: configured figures going stale would weaken the warning; mitigated by the Insights
   honesty loop (SPEC §16.4).
 - **Public repo exposure**: constant discipline — fictional data only, staged-diff review before publishing,
@@ -2017,3 +2021,21 @@ tests/household.ts            — isolated household fixture (pots, people, vehi
     renewals under that (beside projection). Phone stacks unclipped. `#schedule-{id}` still lands on
     the row inside the scroller. Decision 74's review-list clause is superseded; the rest of 74
     (money row, projection, due, key dates, month bars, shared `buildEntryData`) stands.
+
+165. **A same-day credit recorded after the checkpoint counts (2026-09-26 field report).** Decision 98
+    absorbed every date-only credit that shared a checkpoint's local date, so the estimate could never
+    read high on that day. That fixed the £180 bug (record the swap, then checkpoint the cash that
+    already includes it). It also dropped the opposite order: checkpoint Natwest at −£443.65, then
+    record £1,500 in from Nationwide the same day. Nationwide fell (a debit still counts); Natwest
+    stayed on the checkpoint, and Horizon started from the same figure. The household expected
+    £1,056.35. Transfers are date-only (the form's date field defaults to today), so instant comparison
+    cannot see that the transfer was entered after the count.
+
+    Rule now, refining 98 rather than reversing it: a same-day date-only credit counts when its
+    `createdAt` is strictly after the checkpoint's `createdAt`. Recorded before the checkpoint, or with
+    no entry time to compare, it is still absorbed — E13 stays fixed, and a second same-day checkpoint
+    still cannot double-count a credit already written down. Same-day debits still always count.
+    A transfer recorded after both checkpoints is household-net-zero again. Residual, stated in SPEC
+    §7.1: if a count already includes money not yet recorded, record that credit before the checkpoint
+    or checkpoint again afterwards — a credit written down later is treated as new money. No schema
+    change; live rows already carry `createdAt`.

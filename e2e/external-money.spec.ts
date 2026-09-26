@@ -6,12 +6,11 @@ import { waitForTill } from './support';
  * repayments, and swaps with someone outside the household. Borrowing is
  * shown as owed beside "available now" — never as income.
  *
- * Swap semantics (SPEC §7.1, amended for v0.2.1): swap legs are date-only
- * records, and a same-day checkpoint is timed. The sign-aware rule keeps
- * the estimate safe per pot: the leg OUT of a pot counts the same day
- * (understating is self-correcting), the leg IN is absorbed until a later
- * checkpoint. So a same-day swap reads one leg LOW against the household
- * total — by design, not a bug.
+ * Swap semantics (SPEC §7.1): swap legs are date-only records. A swap
+ * recorded after both pots' checkpoints moves both estimates, so the
+ * household total does not change. A credit recorded before a same-day
+ * checkpoint is already inside that count; the debit leg still counts, so
+ * that order can read one leg low until the next checkpoint.
  */
 
 function parsePounds(text: string): number {
@@ -52,7 +51,9 @@ test.describe('external money', () => {
     await expect(owedLine).toContainText('borrowed, not income');
   });
 
-  test('repayments reduce the balance; a same-day swap reads one leg low', async ({ page }) => {
+  test('repayments reduce the balance; a swap recorded after the checkpoint is net zero', async ({
+    page,
+  }) => {
     await page.goto('/pots');
     const borrow = page.locator('section[aria-labelledby="borrow-heading"]');
     await borrow.getByLabel('Debt').selectOption({ label: 'E2E Lender (we owe)' });
@@ -86,14 +87,15 @@ test.describe('external money', () => {
     await swapForm.getByRole('button', { name: 'Record swap' }).click();
     await expect(swapForm.getByRole('status')).toContainText(/swapped £10\.00/i);
 
-    // SPEC §7.1: the out-leg (a debit against Main's same-day checkpoint)
-    // counts immediately; the in-leg into Alex's cash is absorbed until a
-    // later checkpoint. The household total reads exactly one leg low.
+    // SPEC §7.1: both pots were checkpointed before this swap was recorded,
+    // so the out-leg and the in-leg both count. The household total does not
+    // move. (The one-leg-low case is a swap recorded *before* the same-day
+    // checkpoint, covered by the domain tests.)
     await page.goto('/');
     await waitForTill(page);
     const after = await page.getByRole('heading', { name: /household:/i }).textContent();
     if (after === null) throw new Error('household heading missing');
-    expect(Math.round(parsePounds(after) * 100)).toBe(beforePence - 1000);
+    expect(Math.round(parsePounds(after) * 100)).toBe(beforePence);
   });
 
   test('recent swaps are findable, editable and voidable as a pair', async ({ page }) => {

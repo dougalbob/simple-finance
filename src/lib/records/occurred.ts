@@ -7,8 +7,8 @@ import { endOfLocalDate, isValidLocalDate, toLocalDateString } from '../time';
  * the future). Mobile entry stamps now; a bare date takes effect at the end
  * of that local date — the same rule as date-only checkpoints (SPEC §5).
  * Against a same-day timed checkpoint the tie-break is sign-aware (SPEC
- * §7.1): date-only debits count as after, date-only credits as absorbed, so
- * the estimate can only understate.
+ * §7.1): date-only debits count as after; a date-only credit counts only
+ * when it was recorded after the checkpoint, otherwise it is absorbed.
  */
 
 export class InvalidOccurredError extends Error {

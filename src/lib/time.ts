@@ -125,9 +125,9 @@ function timeZoneOffsetMs(instant: Date, timeZone: string): number {
  * The instant a date-only fact takes effect: the last millisecond of that
  * local date (SPEC §5 — a date-only checkpoint \"takes effect at the end of
  * that local date\"; backdated purchases/transfers follow the same rule. The
- * same-day tie-break against a timed checkpoint is sign-aware per SPEC §7.1:
- * date-only debits count as after, date-only credits as absorbed — the
- * estimate can only understate). DST-safe: Europe/London transitions happen at
+ * same-day tie-break against a timed checkpoint is per SPEC §7.1: date-only
+ * debits count as after; a date-only credit counts only when it was recorded
+ * after the checkpoint). DST-safe: Europe/London transitions happen at
  * 01:00 UTC, far from 23:59, and the offset lookup is iterated to converge.
  */
 export function endOfLocalDate(dateString: string, timeZone: string = BUSINESS_TIMEZONE): Date {

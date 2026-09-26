@@ -806,7 +806,9 @@ test.describe('mobile quick entry', () => {
     await expect(filters.getByLabel('Supplier')).toBeVisible();
   });
 
-  test('the Move tab records a transfer; a same-day pair reads one leg low', async ({ page }) => {
+  test('the Move tab records a transfer; a transfer after the checkpoint is household-net-zero', async ({
+    page,
+  }) => {
     await page.goto('/');
     await waitForTill(page);
     const before = await page.getByRole('heading', { name: /household:/i }).textContent();
@@ -821,12 +823,11 @@ test.describe('mobile quick entry', () => {
     await entry.getByRole('button', { name: 'Record transfer' }).click();
     await expect(entry.getByRole('status')).toContainText(/recorded/i, { timeout: 30_000 });
 
-    // SPEC §7.1 (v0.2.1): a same-day date-only pair (a transfer, like a swap)
-    // is not net zero against the household total for the day — the out-leg
-    // (a debit) counts and the in-leg (a credit) is absorbed until the next
-    // checkpoint. The total reads exactly one leg low: the safe direction.
+    // SPEC §7.1: the seed checkpoints were written down before this transfer,
+    // so both legs count. The household total does not move. (A credit
+    // recorded *before* a same-day checkpoint is the one that stays absorbed.)
     const after = await page.getByRole('heading', { name: /household:/i }).textContent();
     if (after === null) throw new Error('household heading missing');
-    expect(Math.round(parsePounds(after) * 100)).toBe(beforePence - 500);
+    expect(Math.round(parsePounds(after) * 100)).toBe(beforePence);
   });
 });

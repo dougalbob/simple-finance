@@ -106,6 +106,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       totalPence: purchases.totalPence,
       occurredAt: purchases.occurredAt,
       occurredDate: purchases.occurredDate,
+      createdAt: purchases.createdAt,
     })
     .from(purchases)
     .where(isNull(purchases.voidedAt))
@@ -117,6 +118,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       amountPence: receipts.amountPence,
       occurredAt: receipts.occurredAt,
       occurredDate: receipts.occurredDate,
+      createdAt: receipts.createdAt,
     })
     .from(receipts)
     .where(isNull(receipts.voidedAt))
@@ -129,24 +131,32 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
     byPot.set(potId, list);
   };
   // Spending: purchases add, refunds subtract → signed = −totalPence.
+  // enteredAt is the record's createdAt: a same-day date-only credit counts
+  // only when it was written down after the checkpoint (SPEC §7.1).
   for (const row of purchaseRows) {
     push(row.potId, {
       signedPence: -row.totalPence,
       occurredAt: row.occurredAt,
       occurredDate: row.occurredDate,
+      enteredAt: row.createdAt,
     });
   }
-  // Transfers: two legs, household net zero by construction (SPEC §10).
+  // Transfers: two legs, household net zero by construction (SPEC §10) —
+  // once both pots' checkpoints predate the record. A same-day credit leg
+  // recorded after its pot's checkpoint counts; one recorded before it is
+  // already inside that reported figure.
   for (const row of transferRows) {
     push(row.fromPotId, {
       signedPence: -row.amountPence,
       occurredAt: row.occurredAt,
       occurredDate: row.occurredDate,
+      enteredAt: row.createdAt,
     });
     push(row.toPotId, {
       signedPence: row.amountPence,
       occurredAt: row.occurredAt,
       occurredDate: row.occurredDate,
+      enteredAt: row.createdAt,
     });
   }
   // Receipts: income adds (SPEC §11.3).
@@ -155,6 +165,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       signedPence: row.amountPence,
       occurredAt: row.occurredAt,
       occurredDate: row.occurredDate,
+      enteredAt: row.createdAt,
     });
   }
   // External movements: money in adds like a receipt, money out subtracts
@@ -166,6 +177,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       amountPence: externalMovements.amountPence,
       occurredAt: externalMovements.occurredAt,
       occurredDate: externalMovements.occurredDate,
+      createdAt: externalMovements.createdAt,
     })
     .from(externalMovements)
     .where(isNull(externalMovements.voidedAt))
@@ -175,6 +187,7 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       signedPence: row.direction === 'in' ? row.amountPence : -row.amountPence,
       occurredAt: row.occurredAt,
       occurredDate: row.occurredDate,
+      enteredAt: row.createdAt,
     });
   }
 
@@ -185,7 +198,11 @@ export function getMoneySnapshot(db: Db, nowArg?: Date): MoneySnapshot {
       checkpoint:
         checkpoint === null
           ? null
-          : { amountPence: checkpoint.amountPence, effectiveAt: checkpoint.effectiveAt },
+          : {
+              amountPence: checkpoint.amountPence,
+              effectiveAt: checkpoint.effectiveAt,
+              enteredAt: checkpoint.createdAt,
+            },
       movements: byPot.get(pot.id) ?? [],
     });
     return { pot, estimatePence: estimate.estimatePence, latestCheckpoint: checkpoint, estimate };
