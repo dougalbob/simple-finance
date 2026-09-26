@@ -1,8 +1,11 @@
-# Handoff: Overview panels moved onto the pages that own them (unreleased)
+# Handoff: Overview panels moved onto the pages that own them — v0.21.0
 
 Date: 2026-09-26. Implementation branch: `arena/01a0de74-simple-finance`, starting at `2578acc`
-(`main` after v0.20.0). **Not a versioned release** — do not bump `APP_VERSION` or mix release
-notes into this sitting.
+(`main` after v0.20.0; merged as PR #72). Release preparation on
+`arena/01a0de9d-simple-finance`, branched from that merge.
+
+**Prepared for v0.21.0; publication pending.** The panel move below is the whole release — no product
+code changed while preparing it.
 
 Decision **164**: one codebase, two homes. Phone `/` is the till home; laptop `/overview` is the
 dense dashboard. Duplicates left Overview and the phone dump; transfers now void on Accounts & Pots.
@@ -31,7 +34,8 @@ SPEC §15.1 / §15.2 / §15.3 / §23.4 updated where the UI was now wrong.
 `npm test`: **506 passed** · TypeScript clean · formatting clean · production build clean ·
 Playwright: **78 passed** (two new specs: phone home is the till, not a dump; desktop bar still
 lists every page). Browser ran using SANDBOX entry 8; the temporary local-browser config was
-removed afterwards. Version metadata is still v0.20.0.
+removed afterwards. Version metadata is now v0.21.0; the published merge commit, tags and digest will
+be recorded in [`RELEASE_NOTES_v0.21.0.md`](RELEASE_NOTES_v0.21.0.md) once the image is verified.
 
 ## What a future session should know
 
@@ -45,10 +49,12 @@ removed afterwards. Version metadata is still v0.20.0.
    add a five-tab app bar unless the household later wants it to feel like a bank app.
 5. **Recurring laptop height-match** uses `lg:h-0 lg:min-h-full` on the schedules card so the grid
    row is sized by the calendar, then the list `overflow-y-auto`. Phone must not get that clip.
-6. **Release is a separate sitting** if you want v0.x.0 notes, more SPEC polish, and Unraid — not a
-   bolt-on to this branch.
+6. **The release is its own sitting** — done for v0.21.0 on `arena/01a0de9d-simple-finance`: five version
+   places, notes, tag, registry check, Unraid. Never bolt it onto a product branch.
 
-## Still to walk (one panel at a time)
+## Still to walk (one panel at a time) — deferred past v0.21.0
+
+The v0.21.0 release sitting deliberately did **not** walk these; they wait on a later decision.
 
 - Recurring: other panels (renewals copy, add forms) if needed after the layout pass
 - Due this week / Key dates (Overview tiles; phone home keeps Due this week)
